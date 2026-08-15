@@ -21,6 +21,7 @@ Current deployment direction:
 - Authentication: Supabase Auth.
 - Server-side API/orchestration: Supabase Edge Functions.
 - File storage: Supabase Storage.
+- AI provider: **Google Gemini API** through the current Google GenAI SDK/API, called server-side only.
 - Current domain registrar: Zone (`krunditark.ee`).
 - Later edge/DNS/hosting target: Cloudflare, without assuming that `.ee` registration itself can be transferred to Cloudflare Registrar.
 - Estonia only for MVP and initial production scope.
@@ -45,13 +46,15 @@ GIS checks + versioned rules engine
 Structured analysis result
           |
           v
-AI explanation layer
+Google Gemini explanation layer
           |
           v
 Human-readable Ehituspass
 ```
 
-The LLM is **not** the legal or geospatial decision engine. It may explain structured findings, summarize source material and help users understand next steps, but it may not invent rules, restrictions, permit requirements, distances, costs or authority decisions.
+Gemini is **not** the legal or geospatial decision engine. It may explain structured findings, summarize approved source material and help users understand next steps, but it may not invent rules, restrictions, permit requirements, distances, costs or authority decisions.
+
+The Gemini API key is a server-side secret stored for Supabase Edge Functions. It must never be placed in frontend code or a `VITE_*` variable.
 
 ## Primary user journey
 
@@ -65,7 +68,7 @@ The LLM is **not** the legal or geospatial decision engine. It may explain struc
 8. The rules engine evaluates versioned rules against the structured facts.
 9. Krunditark returns findings classified as clear, conditional, conflicting or unknown.
 10. Every material finding includes provenance: source, retrieval time, legal/data version where available, and official link.
-11. AI converts the structured findings into understandable Estonian explanations without changing their meaning.
+11. Google Gemini converts the already-structured findings into understandable Estonian explanations without changing their meaning.
 12. User receives an Ehituspass with required actions and official next-step links.
 
 ## Documentation map
@@ -83,7 +86,7 @@ Implementation agents must read [`AGENTS.md`](./AGENTS.md) first.
 | [`docs/API_SPECIFICATION.md`](./docs/API_SPECIFICATION.md) | Public/client API contract |
 | [`docs/DATA_SOURCES.md`](./docs/DATA_SOURCES.md) | Official source registry and adapter rules |
 | [`docs/GIS_AND_RULES_ENGINE.md`](./docs/GIS_AND_RULES_ENGINE.md) | Spatial analysis and deterministic rule design |
-| [`docs/AI_SAFETY_AND_EXPLANATIONS.md`](./docs/AI_SAFETY_AND_EXPLANATIONS.md) | Allowed and forbidden LLM behavior |
+| [`docs/AI_SAFETY_AND_EXPLANATIONS.md`](./docs/AI_SAFETY_AND_EXPLANATIONS.md) | Gemini integration plus allowed/forbidden AI behavior |
 | [`docs/SECURITY_PRIVACY.md`](./docs/SECURITY_PRIVACY.md) | RLS, secrets, privacy and threat model |
 | [`docs/LEGAL_AND_COMPLIANCE.md`](./docs/LEGAL_AND_COMPLIANCE.md) | Legal-source and disclaimer requirements |
 | [`docs/UX_UI_SPEC.md`](./docs/UX_UI_SPEC.md) | Main screens and interaction rules |
@@ -132,6 +135,15 @@ See `docs/DATA_SOURCES.md` for source status, limitations and ingestion rules.
 - Supabase Edge Functions (TypeScript/Deno)
 - SQL migrations committed under `supabase/migrations/`
 
+### AI
+
+- Google Gemini API
+- Google GenAI SDK/API through a small Krunditark-owned adapter
+- API key available only to Supabase Edge Functions
+- selected Gemini model configured server-side rather than hard-coded across domain code
+- structured/schema-validated explanation outputs
+- deterministic non-AI fallback for every material finding
+
 ### Quality
 
 - ESLint
@@ -142,7 +154,7 @@ See `docs/DATA_SOURCES.md` for source status, limitations and ingestion rules.
 - deterministic rule-engine and GIS boundary tests
 - GitHub Actions for format, lint, typecheck, tests and production build
 
-Exact package versions belong in the lockfile and must be upgraded intentionally; documentation should not be treated as a version pin.
+Exact package/model versions belong in the lockfile/server configuration and must be upgraded intentionally; documentation should not be treated as a permanent model-version pin.
 
 ## Data and coordinate-system rule
 
@@ -152,7 +164,7 @@ Official Estonian spatial datasets commonly use **L-EST97 / EPSG:3301**. Krundit
 
 No privileged credential may be shipped in the GitHub Pages bundle.
 
-Browser code may use only the Supabase publishable key and APIs protected by RLS. Any operation needing elevated database access, third-party secrets, provider API keys, ingestion credentials or protected source access must execute inside Supabase Edge Functions or another server-side environment.
+Browser code may use only the Supabase publishable key and APIs protected by RLS. Any operation needing elevated database access, Google Gemini API keys, third-party secrets, ingestion credentials or protected source access must execute inside Supabase Edge Functions or another server-side environment.
 
 ## Source provenance rule
 
@@ -178,7 +190,7 @@ Given a supported Estonian cadastral identifier and a user-placed building footp
 - display it accurately on a map;
 - detect supported spatial restrictions and planning overlays;
 - classify basic building/permit implications through deterministic versioned rules;
-- explain findings in Estonian;
+- explain findings in Estonian, optionally enhanced by Gemini;
 - show official evidence and links;
 - explicitly label missing or inconclusive data as unknown;
 - save and reproduce an analysis;

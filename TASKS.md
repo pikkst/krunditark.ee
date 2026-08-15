@@ -137,13 +137,13 @@ Acceptance:
 
 Implement from `DATABASE_SCHEMA.md` / canonical refresh doc:
 
-- [ ] source definitions.
-- [ ] source sync/check runs.
-- [ ] source dataset versions.
-- [ ] composite data releases.
-- [ ] release-source membership.
-- [ ] source hashes/version/freshness fields.
-- [ ] internal schema not directly exposed.
+- [x] source definitions.
+- [x] source sync/check runs.
+- [x] source dataset versions.
+- [x] composite data releases.
+- [x] release-source membership.
+- [x] source hashes/version/freshness fields.
+- [x] internal schema not directly exposed.
 
 ## KT-015 — Create rule/legal schemas
 

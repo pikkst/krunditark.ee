@@ -126,12 +126,12 @@ Acceptance:
 
 ## KT-013 — Create project/proposal model
 
-- [ ] `projects`.
-- [ ] versioned `project_proposals`.
-- [ ] selected parcel ID is not ownership proof.
-- [ ] canonical geometry in EPSG:3301.
-- [ ] RLS ownership.
-- [ ] indexes/constraints.
+- [x] `projects`.
+- [x] versioned `project_proposals`.
+- [x] selected parcel ID is not ownership proof.
+- [x] canonical geometry in EPSG:3301.
+- [x] RLS ownership.
+- [x] indexes/constraints.
 
 ## KT-014 — Create source/data-release schemas
 

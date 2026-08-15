@@ -16,7 +16,46 @@ Prefer, in order:
 
 Never use a secondary blog/forum/company site as the authoritative basis for a legal/spatial finding when an official source exists.
 
-## 2. Maa- ja Ruumiamet — cadastral data
+## 2. Refresh architecture
+
+Krunditark does **not** normally retrieve all official source data during each user analysis.
+
+The default source lifecycle is:
+
+```text
+Official source
+   -> scheduled server-side sync
+   -> staging + validation
+   -> normalized versioned dataset
+   -> change detection
+   -> candidate source version
+   -> verified/promoted data release
+   -> user analysis from Postgres/PostGIS
+```
+
+Baseline policy for replicated datasets:
+
+- full reconciliation **monthly**;
+- source-specific manual/emergency refresh available;
+- no Gemini usage required for synchronization;
+- previous known-good version remains active when a refresh fails;
+- a completed analysis records the exact data release/source versions used.
+
+See `docs/DATA_REFRESH_AND_VERSIONING.md` and ADR 0005.
+
+### Allowed refresh-policy values
+
+Use one explicitly registered policy per source/layer:
+
+- `monthly_snapshot` — full replicated snapshot/reconciliation, normally monthly;
+- `weekly_metadata_check` — lightweight source-version/schema metadata check, not a full reimport;
+- `manual_verified` — source changes are detected but production interpretation/promotion requires review;
+- `live_lookup` — request-time lookup only when genuinely required;
+- `no_replication` — source cannot/should not be persisted locally beyond permitted metadata/evidence.
+
+`live_lookup` is an exception, not the default.
+
+## 3. Maa- ja Ruumiamet — cadastral data
 
 Authority: **Maa- ja Ruumiamet (MaRu)**
 
@@ -37,6 +76,14 @@ Relevant capabilities include cadastral parcel WMS/WFS and other national spatia
 - parcel address/basic supported metadata;
 - authoritative geometry source for project parcel snapshot.
 
+### Planned refresh policy
+
+`monthly_snapshot` for the normalized parcel dataset when bulk/efficient replication is technically and contractually suitable.
+
+During initial adapter development, an explicitly bounded server-side lookup may be used before the national snapshot pipeline is operational, but production architecture should converge on versioned replicated data rather than per-analysis WFS fan-out.
+
+Parcel data freshness must be shown in analyses. A selected project does not prove parcel ownership.
+
 ### Adapter status
 
 **MVP required — implement and verify exact WFS service/layer names during KT-031.**
@@ -47,7 +94,7 @@ Do not hardcode a layer name based only on documentation text. Retrieve capabili
 
 MaRu public service guidance requires source attribution in products/printouts. Preserve source attribution in map/report UI.
 
-## 3. Maa- ja Ruumiamet — cadastral restrictions
+## 4. Maa- ja Ruumiamet — cadastral restrictions
 
 Official page:
 
@@ -62,6 +109,14 @@ The official page exposes restriction-zone WMS/WFS access and explains that the 
 - spatially compare proposal footprint with impact areas;
 - show official source/provenance.
 
+### Planned refresh policy
+
+`monthly_snapshot`.
+
+Restriction geometries are a core candidate for local PostGIS replication because repeated request-time national WFS calls would directly affect latency and availability.
+
+A failed monthly refresh must retain the previous verified restriction dataset and mark freshness accordingly. An incomplete fetch must never be interpreted as deletion of missing restrictions.
+
 ### Important limitation
 
 Public map views may omit some protected nature information. The MaRu data FAQ notes that Category I and II protected objects are not shown in the public view and may be visible to the landowner after authentication.
@@ -75,7 +130,7 @@ Therefore:
 - absence from public data must not be interpreted as proof that no non-public restriction/protected object exists;
 - the relevant analysis category may require an `unknown`/manual-verification notice.
 
-## 4. PLANIS — planning data
+## 5. PLANIS — planning data
 
 Official planning system information:
 
@@ -103,6 +158,14 @@ The exact WFS URL/layers must be read from current official capabilities/guidanc
 - link to official plan material where available;
 - inform completeness state.
 
+### Planned refresh policy
+
+`monthly_snapshot` for supported structured planning records/geometries.
+
+If PLANIS exposes inexpensive update/version metadata, a future `weekly_metadata_check` may flag an earlier manual refresh without doing a full weekly import.
+
+Textual plan documents require separate parsing/verification policy and must not be automatically interpreted as complete legal compliance merely because the plan geometry was synchronized.
+
 ### Semantic limitation
 
 A polygon showing that a parcel is inside a detailed/general planning area does **not** prove that the proposal complies with every textual/graphical condition of the plan.
@@ -113,7 +176,7 @@ Until plan documents/structured conditions are actually parsed and verified, Kru
 - textual/detailed compliance not fully automated;
 - manual plan review may still be required.
 
-## 5. E-ehitus / Ehitisregister (EHR)
+## 6. E-ehitus / Ehitisregister (EHR)
 
 Official OpenAPI portal:
 
@@ -127,6 +190,12 @@ The e-ehitus API portal currently lists multiple services including public/open-
 - relevant public permits/notices/proceedings where officially accessible;
 - existing-building context for site analysis.
 
+### Planned refresh policy
+
+To be decided during KT-120 after endpoint/access/terms analysis.
+
+Preferred outcome for stable public building facts is `monthly_snapshot` or another documented incremental synchronization strategy. Truly request-specific/current proceeding data may remain `live_lookup` if justified.
+
 ### Implementation rule
 
 Do not scrape the EHR user interface.
@@ -137,11 +206,13 @@ KT-120 must first document:
 - access/auth requirements;
 - rate limits/terms;
 - data fields relevant to Krunditark;
-- whether public vs authenticated access is allowed.
+- whether public vs authenticated access is allowed;
+- permitted local storage/replication behavior;
+- selected refresh policy.
 
 Only then implement KT-121.
 
-## 6. Keskkonnaportaal / EELIS
+## 7. Keskkonnaportaal / EELIS
 
 Official public GeoServer documentation:
 
@@ -164,6 +235,12 @@ Selected public layers relevant to construction feasibility, for example where l
 - water/environment features;
 - other explicitly approved public layers.
 
+### Planned refresh policy
+
+`monthly_snapshot` per explicitly approved public layer where source terms and dataset size permit replication.
+
+Each layer is versioned independently enough to identify which source version contributed to an analysis. Large unexplained record-count/geometry diffs must be quarantined instead of automatically promoted.
+
 ### Sensitive/non-public limitation
 
 Not all environmentally sensitive information is publicly available. Krunditark must not infer absence of a protected object from public-layer absence when official systems intentionally hide data.
@@ -175,11 +252,13 @@ Each EELIS layer must be individually registered in project code/config with:
 - geometry type;
 - freshness/metadata;
 - legal/product meaning;
-- test fixture.
+- test fixture;
+- refresh policy;
+- replication/retention decision.
 
 Do not ingest “all layers” blindly.
 
-## 7. Cultural heritage / Muinsuskaitse
+## 8. Cultural heritage / Muinsuskaitse
 
 Official authority:
 
@@ -203,13 +282,19 @@ Official Muinsuskaitse application guidance:
 - official registry/source links;
 - finding that indicates heritage review/conditions where a verified rule applies.
 
+### Planned refresh policy
+
+To be selected during KT-053.
+
+Prefer `monthly_snapshot` if an official machine-readable dataset may lawfully and reliably be replicated. Otherwise use a documented controlled `live_lookup`/manual verification strategy.
+
 ### Adapter status
 
 **Research required before production.**
 
 Do not substitute an unofficial heritage dataset.
 
-## 8. Transpordiamet — state roads/access
+## 9. Transpordiamet — state roads/access
 
 Official guidance:
 
@@ -223,6 +308,10 @@ Official guidance explains, among other things, that a new access from a state r
 - identify relevant road protection-zone/coordination context where supported by official data and verified rules;
 - direct user to Transpordiamet where appropriate.
 
+### Planned refresh policy
+
+Select exact machine-readable road sources during KT-054. Prefer `monthly_snapshot` for stable road/protection-zone geometry and source metadata when permitted.
+
 ### Important semantic rule
 
 A road protection zone is not automatically equivalent to an absolute building prohibition. The rule engine must encode the verified requirement/status, not simply transform every overlap into `conflict`.
@@ -231,7 +320,7 @@ A road protection zone is not automatically equivalent to an absolute building p
 
 Exact machine-readable road datasets/layers must be documented during KT-054.
 
-## 9. Riigi Teataja — legal source of truth
+## 10. Riigi Teataja — legal source of truth
 
 Official publication:
 
@@ -248,6 +337,29 @@ Key legal families expected to matter include, depending on supported rule scope
 - relevant implementing regulations;
 - relevant local-government legislation/plan decisions.
 
+### Refresh policy
+
+Legal-source inventory/change detection uses a **monthly baseline review/sync** with `manual_verified` production semantics.
+
+A legal source change may be synchronized and diffed automatically, but it does not automatically change a production rule.
+
+Pipeline:
+
+```text
+monthly legal source refresh
+   -> identify current/effective document version
+   -> hash/diff relevant official content/metadata
+   -> legal_change_candidate
+   -> identify potentially affected rules
+   -> admin/legal interpretation review
+   -> tests + new rule version
+   -> verified promotion
+```
+
+A major known legal change may trigger a manual/emergency refresh before the next monthly run.
+
+Gemini may later summarize a detected diff for an administrator, but Gemini output cannot verify or promote a legal rule.
+
 ### Critical rule
 
 Do not store only “current law text” and overwrite it.
@@ -262,7 +374,7 @@ A production rule must record:
 
 The system must support law/rule changes without corrupting historical analyses.
 
-## 10. Local governments (KOV)
+## 11. Local governments (KOV)
 
 Local authorities are unavoidable because detailed local planning and conditions may not always be completely represented as one national structured dataset.
 
@@ -273,11 +385,17 @@ Local authorities are unavoidable because detailed local planning and conditions
 - mark textual/local requirements not automatically interpreted as `unknown`/manual review;
 - do not build brittle municipality-specific scraping in the first vertical slice.
 
+### Refresh policy
+
+No generic national KOV scraper is approved.
+
+A future KOV source must declare its own `monthly_snapshot`, `manual_verified`, `live_lookup` or `no_replication` policy after official endpoint/terms analysis.
+
 ### Later strategy
 
 Introduce KOV adapters only through a documented source contract and tests. Prefer official APIs/downloads over HTML scraping.
 
-## 11. Utilities
+## 12. Utilities
 
 Potential providers/categories:
 
@@ -295,9 +413,12 @@ Before integration:
 - verify official/provider terms;
 - verify machine-readable access;
 - distinguish public map data from commercially sensitive capacity data;
-- define exact output semantics.
+- define exact output semantics;
+- choose refresh/storage policy.
 
-## 12. Source registration template
+Static network geometry may later be suitable for scheduled snapshotting, while connection capacity/price may require `live_lookup` or user-initiated provider quote.
+
+## 13. Source registration template
 
 Every implemented data source/layer must have a record like:
 
@@ -309,7 +430,12 @@ type: WFS
 base_url: <configured official URL>
 layer: <verified capability name>
 geometry_crs: EPSG:3301
-refresh_policy: on-demand-cache
+refresh_policy: monthly_snapshot
+refresh_interval: P1M
+freshness_warn_after: P45D
+freshness_critical_after: P75D
+release_blocking: true
+verification_policy: automatic_quality_gates
 attribution: <required text>
 terms_url: <official URL>
 normalizer_version: 1
@@ -318,9 +444,11 @@ semantic_scope:
 failure_impact: critical
 ```
 
-Do not leave semantic scope implicit.
+Exact thresholds are source-specific and must be intentionally chosen during implementation.
 
-## 13. Provider response handling
+Do not leave semantic scope or refresh behavior implicit.
+
+## 14. Provider response handling
 
 For every source call classify:
 
@@ -333,21 +461,27 @@ For every source call classify:
 - rate limited;
 - unsupported response version.
 
-Only “success with zero features” may support a “no matching feature found in this supported layer” fact.
+Only a complete, validated “success with zero features” may support a “no matching feature found in this supported layer” fact.
 
-## 14. Freshness
+During full snapshot synchronization, incomplete pagination/chunks must never be promoted as a successful complete dataset.
+
+## 15. Freshness
 
 Each source gets its own freshness policy.
 
 UI must be able to display:
 
+- data release date;
 - retrieved at;
 - source updated/effective date where available;
+- carried-forward status;
 - stale/unknown freshness status.
 
-Never label cached data “checked now” when no live refresh occurred.
+Never label cached/snapshotted data “checked now” when no live refresh occurred.
 
-## 15. Raw-source storage
+The user running a new analysis today does not make a 30-day-old official snapshot one day old.
+
+## 16. Raw-source storage
 
 Do not automatically store every raw provider payload indefinitely.
 
@@ -355,22 +489,50 @@ For provenance, prefer:
 
 - payload hash;
 - source object ID;
-- normalized snapshot;
-- source retrieval run;
+- normalized versioned snapshot;
+- source sync/retrieval run;
+- source dataset version;
 - selected legally permitted source excerpt/metadata.
 
 Retain raw data only when needed for reproducibility/debugging and allowed by terms/privacy/retention policy.
 
-## 16. Source health
+Never delete normalized/source versions that remain referenced by historical analyses unless a safe archival strategy preserves reproducibility.
 
-Later operational monitoring should track:
+## 17. Source health
+
+Operational monitoring must track:
 
 - availability;
 - response latency;
 - schema changes;
 - fixture/live-contract mismatch;
-- last successful retrieval;
+- last successful sync;
+- next scheduled sync;
 - freshness age;
-- parsing errors.
+- parsing errors;
+- records fetched/added/changed/removed;
+- abnormal diff percentage;
+- current promoted source version;
+- carried-forward source state;
+- pending legal change candidates.
 
-A provider schema change must fail safely to `unknown`, not silently produce incorrect “clear” results.
+A provider schema change must fail safely to stale/unknown or keep the prior verified dataset; it must not silently produce incorrect “clear” results.
+
+## 18. User-request behavior
+
+A normal cadastral analysis must not trigger:
+
+- national dataset refresh;
+- legal-source web search;
+- Gemini search for current law;
+- repeated WFS calls for all supported sources.
+
+It should:
+
+1. select the latest eligible promoted Krunditark data release;
+2. query normalized internal source versions;
+3. run PostGIS + deterministic rules;
+4. store exact release/rule provenance;
+5. optionally call Gemini with the compact structured result for explanation.
+
+This is the default production contract.

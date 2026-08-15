@@ -112,7 +112,12 @@ CREATE TABLE analysis.findings (
     CONSTRAINT findings_code_length CHECK (char_length(code) <= 100),
     CONSTRAINT findings_category_length CHECK (char_length(category) <= 100),
     CONSTRAINT findings_title_key_length CHECK (char_length(title_key) <= 200),
-    CONSTRAINT findings_next_action_code_length CHECK (next_action_code IS NULL OR char_length(next_action_code) <= 100)
+    CONSTRAINT findings_next_action_code_length CHECK (next_action_code IS NULL OR char_length(next_action_code) <= 100),
+    -- Non-null rule_version_id must reference a rule version explicitly selected
+    -- for this analysis. Nullable rule_version_id represents explicitly typed
+    -- non-rule technical findings.
+    CONSTRAINT findings_rule_version_fk FOREIGN KEY (analysis_id, rule_version_id)
+        REFERENCES analysis.analysis_rule_versions(analysis_id, rule_version_id)
 );
 
 -- 6. Finding evidence
@@ -137,6 +142,19 @@ CREATE TABLE analysis.finding_evidence (
         (evidence_type = 'source' AND (source_sync_run_id IS NOT NULL OR source_dataset_version_id IS NOT NULL)) OR
         (evidence_type = 'legal' AND legal_source_id IS NOT NULL) OR
         (evidence_type = 'geometry' AND evidence_geometry IS NOT NULL)
+    ),
+    -- When both source_sync_run_id and source_dataset_version_id are supplied,
+    -- ensure they reference the same source and that the run produced the version.
+    CONSTRAINT finding_evidence_source_consistency CHECK (
+        source_sync_run_id IS NULL OR source_dataset_version_id IS NULL
+        OR EXISTS (
+            SELECT 1
+            FROM private.source_sync_runs run
+            JOIN private.source_dataset_versions dv
+                ON dv.sync_run_id = run.id
+            WHERE run.id = finding_evidence.source_sync_run_id
+              AND dv.id = finding_evidence.source_dataset_version_id
+        )
     )
 );
 
@@ -171,7 +189,165 @@ CREATE INDEX idx_finding_evidence_legal_source_id ON analysis.finding_evidence (
 CREATE INDEX idx_finding_evidence_source_dataset_version_id ON analysis.finding_evidence (source_dataset_version_id) WHERE source_dataset_version_id IS NOT NULL;
 CREATE INDEX idx_finding_evidence_geometry ON analysis.finding_evidence USING GIST (evidence_geometry);
 
--- 8. Immutability trigger for completed analyses
+-- 7. Provenance validation triggers
+--
+-- These triggers enforce that explicit provenance rows belong to the exact
+-- data release recorded on the parent analysis, preventing silent provenance
+-- drift between claimed release and actual cited sources/rules.
+
+CREATE OR REPLACE FUNCTION analysis.validate_source_version_membership()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = analysis, private
+AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM private.data_release_sources drs
+        WHERE drs.data_release_id = (
+            SELECT data_release_id FROM analysis.analyses WHERE id = NEW.analysis_id
+        )
+        AND drs.source_id = NEW.source_id
+        AND drs.source_dataset_version_id = NEW.source_dataset_version_id
+    ) THEN
+        RAISE EXCEPTION 'source version % for source % is not a member of the analysis data release', NEW.source_dataset_version_id, NEW.source_id;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER validate_source_version_membership
+    BEFORE INSERT OR UPDATE ON analysis.analysis_source_versions
+    FOR EACH ROW
+    EXECUTE FUNCTION analysis.validate_source_version_membership();
+
+CREATE OR REPLACE FUNCTION analysis.validate_evidence_source_provenance()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = analysis, private
+AS $$
+DECLARE
+    v_data_release_id uuid;
+    v_source_id text;
+BEGIN
+    SELECT data_release_id INTO v_data_release_id
+    FROM analysis.analyses
+    WHERE id = (SELECT analysis_id FROM analysis.findings WHERE id = NEW.finding_id);
+
+    -- source_dataset_version_id must belong to the analysis data release
+    IF NEW.source_dataset_version_id IS NOT NULL THEN
+        SELECT source_id INTO v_source_id
+        FROM private.source_dataset_versions
+        WHERE id = NEW.source_dataset_version_id;
+
+        IF NOT EXISTS (
+            SELECT 1
+            FROM private.data_release_sources drs
+            WHERE drs.data_release_id = v_data_release_id
+            AND drs.source_id = v_source_id
+            AND drs.source_dataset_version_id = NEW.source_dataset_version_id
+        ) THEN
+            RAISE EXCEPTION 'evidence source version % is not a member of the analysis data release', NEW.source_dataset_version_id;
+        END IF;
+    END IF;
+
+    -- source_sync_run_id must produce a dataset version that belongs to the release
+    IF NEW.source_sync_run_id IS NOT NULL THEN
+        SELECT source_id INTO v_source_id
+        FROM private.source_sync_runs
+        WHERE id = NEW.source_sync_run_id;
+
+        IF NOT EXISTS (
+            SELECT 1
+            FROM private.data_release_sources drs
+            JOIN private.source_dataset_versions dv
+                ON dv.id = drs.source_dataset_version_id
+                AND dv.source_id = drs.source_id
+            WHERE drs.data_release_id = v_data_release_id
+            AND dv.sync_run_id = NEW.source_sync_run_id
+        ) THEN
+            RAISE EXCEPTION 'evidence sync run % does not produce a dataset version in the analysis data release', NEW.source_sync_run_id;
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER validate_evidence_source_provenance
+    BEFORE INSERT OR UPDATE ON analysis.finding_evidence
+    FOR EACH ROW
+    EXECUTE FUNCTION analysis.validate_evidence_source_provenance();
+
+-- 8. Terminal-state immutability triggers for snapshot children
+--
+-- Once an analysis reaches completed/partial/failed, the entire snapshot
+-- (source versions, rule versions, findings, evidence) must be frozen.
+
+CREATE OR REPLACE FUNCTION analysis.prevent_terminal_child_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = analysis
+AS $$
+DECLARE
+    v_parent_status text;
+BEGIN
+    -- Determine the parent analysis status based on the table being modified
+    IF TG_TABLE_NAME = 'analysis_source_versions' OR TG_TABLE_NAME = 'analysis_rule_versions' THEN
+        SELECT status INTO v_parent_status
+        FROM analysis.analyses
+        WHERE id = COALESCE(NEW.analysis_id, OLD.analysis_id);
+    ELSIF TG_TABLE_NAME = 'findings' THEN
+        SELECT status INTO v_parent_status
+        FROM analysis.analyses
+        WHERE id = COALESCE(NEW.analysis_id, OLD.analysis_id);
+    ELSIF TG_TABLE_NAME = 'finding_evidence' THEN
+        SELECT a.status INTO v_parent_status
+        FROM analysis.finding_evidence fe
+        JOIN analysis.findings f ON f.id = COALESCE(NEW.finding_id, OLD.finding_id)
+        JOIN analysis.analyses a ON a.id = f.analysis_id;
+    END IF;
+
+    IF v_parent_status IN ('completed', 'partial', 'failed') THEN
+        IF TG_OP = 'DELETE' THEN
+            RAISE EXCEPTION 'cannot delete child rows of terminal analysis %', COALESCE(NEW.analysis_id, OLD.analysis_id);
+        END IF;
+        IF TG_OP = 'UPDATE' THEN
+            RAISE EXCEPTION 'cannot modify child rows of terminal analysis %', COALESCE(NEW.analysis_id, OLD.analysis_id);
+        END IF;
+        IF TG_OP = 'INSERT' THEN
+            RAISE EXCEPTION 'cannot insert child rows for terminal analysis %', COALESCE(NEW.analysis_id, OLD.analysis_id);
+        END IF;
+    END IF;
+
+    RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+CREATE TRIGGER prevent_terminal_child_mutation_source_versions
+    BEFORE INSERT OR UPDATE OR DELETE ON analysis.analysis_source_versions
+    FOR EACH ROW
+    EXECUTE FUNCTION analysis.prevent_terminal_child_mutation();
+
+CREATE TRIGGER prevent_terminal_child_mutation_rule_versions
+    BEFORE INSERT OR UPDATE OR DELETE ON analysis.analysis_rule_versions
+    FOR EACH ROW
+    EXECUTE FUNCTION analysis.prevent_terminal_child_mutation();
+
+CREATE TRIGGER prevent_terminal_child_mutation_findings
+    BEFORE INSERT OR UPDATE OR DELETE ON analysis.findings
+    FOR EACH ROW
+    EXECUTE FUNCTION analysis.prevent_terminal_child_mutation();
+
+CREATE TRIGGER prevent_terminal_child_mutation_finding_evidence
+    BEFORE INSERT OR UPDATE OR DELETE ON analysis.finding_evidence
+    FOR EACH ROW
+    EXECUTE FUNCTION analysis.prevent_terminal_child_mutation();
+
+-- 9. Immutability trigger for completed analyses
 --
 -- Once an analysis reaches a terminal state (completed, partial, failed),
 -- no further updates or deletes are allowed. This preserves the immutable
@@ -206,7 +382,7 @@ CREATE TRIGGER prevent_completed_analysis_mutation
     FOR EACH ROW
     EXECUTE FUNCTION analysis.prevent_completed_analysis_mutation();
 
--- 9. Enable RLS
+-- 10. Enable RLS
 
 ALTER TABLE analysis.analyses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE analysis.analysis_source_versions ENABLE ROW LEVEL SECURITY;
@@ -417,7 +593,7 @@ CREATE POLICY finding_evidence_delete_own ON analysis.finding_evidence
         )
     );
 
--- 10. Grants
+-- 11. Grants
 -- The analysis schema is not directly exposed through the Data API, but
 -- grants are explicit for defense in depth and future configuration changes.
 -- service_role is used by server-side Edge Functions.

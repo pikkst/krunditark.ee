@@ -406,4 +406,79 @@ describe("analysis snapshot migration (KT-016)", () => {
     );
     expect(sql).toMatch(/Geo snapshot FK constraints[\s\S]*will be added in a later migration/i);
   });
+
+  test("enforces source version membership against parent analysis data release", () => {
+    expect(sql).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+analysis\.validate_source_version_membership/i
+    );
+    expect(sql).toMatch(/private\.data_release_sources/i);
+    expect(sql).toMatch(
+      /source version % for source % is not a member of the analysis data release/i
+    );
+    expect(sql).toMatch(
+      /CREATE\s+TRIGGER\s+validate_source_version_membership\s+BEFORE\s+INSERT\s+OR\s+UPDATE\s+ON\s+analysis\.analysis_source_versions/i
+    );
+  });
+
+  test("enforces findings rule_version_id against selected analysis rules", () => {
+    expect(sql).toMatch(
+      /CONSTRAINT\s+findings_rule_version_fk\s+FOREIGN\s+KEY\s*\(\s*analysis_id\s*,\s*rule_version_id\s*\)\s+REFERENCES\s+analysis\.analysis_rule_versions\s*\(\s*analysis_id\s*,\s*rule_version_id\s*\)/i
+    );
+  });
+
+  test("enforces finding evidence source provenance against analysis data release", () => {
+    expect(sql).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+analysis\.validate_evidence_source_provenance/i
+    );
+    expect(sql).toMatch(/evidence source version % is not a member of the analysis data release/i);
+    expect(sql).toMatch(
+      /evidence sync run % does not produce a dataset version in the analysis data release/i
+    );
+    expect(sql).toMatch(
+      /CREATE\s+TRIGGER\s+validate_evidence_source_provenance\s+BEFORE\s+INSERT\s+OR\s+UPDATE\s+ON\s+analysis\.finding_evidence/i
+    );
+  });
+
+  test("enforces finding evidence source consistency between run and dataset version", () => {
+    expect(sql).toMatch(/CONSTRAINT\s+finding_evidence_source_consistency\s+CHECK/i);
+    expect(sql).toMatch(
+      /source_sync_run_id\s+IS\s+NULL\s+OR\s+source_dataset_version_id\s+IS\s+NULL/i
+    );
+    expect(sql).toMatch(/private\.source_sync_runs/i);
+    expect(sql).toMatch(/private\.source_dataset_versions/i);
+  });
+
+  test("enforces terminal-state immutability on analysis source versions", () => {
+    expect(sql).toMatch(
+      /CREATE\s+TRIGGER\s+prevent_terminal_child_mutation_source_versions\s+BEFORE\s+INSERT\s+OR\s+UPDATE\s+OR\s+DELETE\s+ON\s+analysis\.analysis_source_versions/i
+    );
+    expect(sql).toMatch(/cannot delete child rows of terminal analysis/i);
+    expect(sql).toMatch(/cannot modify child rows of terminal analysis/i);
+    expect(sql).toMatch(/cannot insert child rows for terminal analysis/i);
+  });
+
+  test("enforces terminal-state immutability on analysis rule versions", () => {
+    expect(sql).toMatch(
+      /CREATE\s+TRIGGER\s+prevent_terminal_child_mutation_rule_versions\s+BEFORE\s+INSERT\s+OR\s+UPDATE\s+OR\s+DELETE\s+ON\s+analysis\.analysis_rule_versions/i
+    );
+  });
+
+  test("enforces terminal-state immutability on findings", () => {
+    expect(sql).toMatch(
+      /CREATE\s+TRIGGER\s+prevent_terminal_child_mutation_findings\s+BEFORE\s+INSERT\s+OR\s+UPDATE\s+OR\s+DELETE\s+ON\s+analysis\.findings/i
+    );
+  });
+
+  test("enforces terminal-state immutability on finding evidence", () => {
+    expect(sql).toMatch(
+      /CREATE\s+TRIGGER\s+prevent_terminal_child_mutation_finding_evidence\s+BEFORE\s+INSERT\s+OR\s+UPDATE\s+OR\s+DELETE\s+ON\s+analysis\.finding_evidence/i
+    );
+  });
+
+  test("terminal child mutation trigger checks parent analysis status", () => {
+    expect(sql).toMatch(/SELECT\s+status\s+INTO\s+v_parent_status\s+FROM\s+analysis\.analyses/i);
+    expect(sql).toMatch(
+      /v_parent_status\s+IN\s*\(\s*'completed'\s*,\s*'partial'\s*,\s*'failed'\s*\)/i
+    );
+  });
 });

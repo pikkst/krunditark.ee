@@ -345,9 +345,15 @@ Implementation agents must read [`AGENTS.md`](./AGENTS.md) first.
 
 ## Current project status
 
-The repository is in the **foundation / pre-implementation** phase.
+The repository has initialized the **React/TypeScript/Vite frontend foundation** (KT-001).
 
-The foundation is intentionally extensive because the core risk is not drawing a nice map — it is making sure later coding agents do not invent legal semantics, break provenance, force the wrong onboarding model, duplicate expensive source calls or couple commercial logic to one provider.
+Implemented:
+- React 18 + TypeScript strict + Vite 6 at repository root.
+- `src/` directory structure aligned with `ARCHITECTURE.md`.
+- Minimal Estonian application shell with `HashRouter` for GitHub Pages compatibility.
+- `npm ci`, `typecheck`, and production `build` scripts verified.
+
+Next steps follow `TASKS.md` (formatting/lint/test foundation, CI, i18n, Supabase, etc.).
 
 ## Development rule
 

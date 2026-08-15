@@ -13,6 +13,7 @@ This document defines the client-facing contract. The physical implementation ma
 - Expensive analysis creation supports idempotency.
 - Geometry sent to browser uses GeoJSON in EPSG:4326 unless explicitly documented otherwise.
 - Authoritative persisted geometry uses the server/database CRS policy.
+- Normal user requests read promoted internal source/data releases; they do not trigger bulk national-source refresh.
 
 Example response envelope:
 
@@ -30,8 +31,8 @@ Example error:
 ```json
 {
   "error": {
-    "code": "SOURCE_UNAVAILABLE",
-    "message": "Ametlik andmeallikas ei ole hetkel kättesaadav.",
+    "code": "DATA_RELEASE_UNAVAILABLE",
+    "message": "Kontrollitud andmeversioon ei ole hetkel analüüsiks saadaval.",
     "retryable": true
   },
   "meta": {
@@ -50,6 +51,10 @@ Required base codes:
 - `SOURCE_TIMEOUT`
 - `SOURCE_UNAVAILABLE`
 - `SOURCE_RESPONSE_INVALID`
+- `SOURCE_STALE`
+- `SOURCE_SYNC_FAILED`
+- `DATA_RELEASE_UNAVAILABLE`
+- `DATA_RELEASE_INCOMPLETE`
 - `PROPOSAL_GEOMETRY_INVALID`
 - `PROPOSAL_OUTSIDE_SUPPORTED_AREA`
 - `ANALYSIS_SCOPE_UNSUPPORTED`
@@ -64,13 +69,13 @@ Required base codes:
 - `CONFLICT`
 - `INTERNAL_ERROR`
 
-Do not use `PARCEL_NOT_FOUND` when the provider timed out.
+Do not use `PARCEL_NOT_FOUND` when the active data release/source state cannot establish a reliable not-found result.
 
 ## 3. Parcel lookup
 
 ### `GET /parcel/:cadastralId`
 
-Purpose: resolve one cadastral parcel into a stable Krunditark representation.
+Purpose: resolve one cadastral parcel into a stable Krunditark representation from the latest eligible promoted data release, unless the cadastral source is explicitly configured as a justified live lookup during a transitional implementation phase.
 
 Example response:
 
@@ -85,11 +90,19 @@ Example response:
     },
     "areaM2": 12000,
     "facts": {},
+    "dataRelease": {
+      "id": "uuid",
+      "key": "2026-09-01.1",
+      "promotedAt": "2026-09-01T05:00:00Z"
+    },
     "source": {
-      "id": "maru.cadastre.wfs",
+      "id": "maru.cadastre.parcels",
+      "datasetVersionId": "uuid",
       "authority": "Maa- ja Ruumiamet",
-      "retrievedAt": "2026-08-15T10:00:00Z",
+      "retrievedAt": "2026-09-01T03:20:00Z",
       "sourceUpdatedAt": null,
+      "freshnessState": "fresh",
+      "carriedForward": false,
       "officialUrl": "https://..."
     }
   },
@@ -104,7 +117,8 @@ Requirements:
 - cadastral ID normalized server-side;
 - source payload not exposed directly;
 - geometry valid GeoJSON;
-- source metadata required.
+- source dataset version and freshness metadata required;
+- a lookup today must not claim the source was “checked today” if the promoted dataset was retrieved earlier.
 
 ## 4. Projects
 
@@ -127,7 +141,7 @@ Request:
 }
 ```
 
-Server resolves/attaches a current parcel snapshot through the approved source path.
+Server resolves/attaches a parcel snapshot through the latest eligible promoted data release.
 
 ### `GET /projects/:projectId`
 
@@ -199,18 +213,29 @@ Request:
 {
   "projectId": "uuid",
   "proposalId": "uuid",
-  "analysisProfile": "mvp-v1",
-  "refreshPolicy": "normal"
+  "analysisProfile": "mvp-v1"
 }
 ```
 
-Response may be synchronous for fast MVP or return accepted state for multi-step orchestration:
+The ordinary client does **not** choose `refreshPolicy`, source URLs or source versions.
+
+Server selects:
+
+- latest eligible promoted `data_release_id`;
+- exact source dataset versions belonging to that release;
+- exact verified rule versions effective for the analysis.
+
+Response may be synchronous for a fast MVP or return accepted state for multi-step orchestration:
 
 ```json
 {
   "data": {
     "analysisId": "uuid",
-    "status": "collecting_sources"
+    "status": "preparing",
+    "dataRelease": {
+      "id": "uuid",
+      "key": "2026-09-01.1"
+    }
   },
   "meta": {
     "requestId": "uuid"
@@ -222,7 +247,8 @@ Idempotency requirements:
 
 - key scoped to authenticated user/endpoint;
 - same key + same request returns same analysis/result;
-- same key + different request returns `CONFLICT`.
+- same key + different request returns `CONFLICT`;
+- analysis remains pinned to the originally selected data release even if a newer release is promoted while it runs.
 
 ## 7. Analysis status/result
 
@@ -238,7 +264,12 @@ Example conceptual response:
     "id": "uuid",
     "status": "completed",
     "analysisProfileVersion": "mvp-v1",
-    "engineVersion": "2026.08.1",
+    "engineVersion": "2026.09.1",
+    "dataRelease": {
+      "id": "uuid",
+      "key": "2026-09-01.1",
+      "promotedAt": "2026-09-01T05:00:00Z"
+    },
     "createdAt": "...",
     "completedAt": "...",
     "parcel": {
@@ -259,7 +290,10 @@ Example conceptual response:
       {
         "category": "cadastre",
         "status": "complete_for_supported_scope",
-        "retrievedAt": "..."
+        "sourceDatasetVersionId": "uuid",
+        "retrievedAt": "...",
+        "freshnessState": "fresh",
+        "carriedForward": false
       },
       {
         "category": "planning_text",
@@ -296,8 +330,10 @@ Each material finding:
     {
       "type": "geometry",
       "sourceId": "...",
+      "sourceDatasetVersionId": "uuid",
       "sourceObjectId": "...",
       "retrievedAt": "...",
+      "freshnessState": "fresh",
       "officialUrl": "https://...",
       "measurement": {
         "intersectionAreaM2": 3.2
@@ -334,16 +370,16 @@ Completeness states:
 - `unavailable`
 - `not_supported`
 
-Provider result status is separately one of:
+Freshness states:
 
-- `success`
-- `empty`
-- `timeout`
-- `unavailable`
-- `invalid`
-- `rate_limited`
+- `fresh`
+- `warning`
+- `stale`
+- `unknown`
 
-Do not collapse these dimensions.
+A source dataset version may also expose `carriedForward: true` when a newer monthly candidate was unavailable/rejected and the previous verified version remains active.
+
+Do not collapse completeness, freshness and source-sync status into one flag.
 
 ## 10. AI explanation
 
@@ -379,10 +415,13 @@ Response:
     "text": "...",
     "findingIds": ["uuid"],
     "sourceIds": ["uuid"],
-    "generatedAt": "..."
+    "generatedAt": "...",
+    "reused": false
   }
 }
 ```
+
+If a validated explanation already exists for the same immutable analysis/language/prompt-template policy, the server may return it with `reused: true` instead of calling Gemini again.
 
 If provider fails:
 
@@ -406,6 +445,8 @@ Request:
 
 Response must be grounded only in approved analysis evidence/source context and identify the finding/source references used.
 
+A follow-up question does not trigger a source-data refresh.
+
 ## 12. Source details
 
 ### `GET /analyses/:analysisId/sources`
@@ -414,13 +455,17 @@ Owner only.
 
 Returns user-safe provenance:
 
+- data release ID/key;
 - authority;
 - source title;
+- source dataset version ID;
 - official URL;
 - retrieval timestamp;
 - source update/effective metadata;
+- freshness state;
+- carried-forward flag;
 - categories informed;
-- status.
+- completeness status.
 
 Must not expose internal credentials, raw headers or unsafe payloads.
 
@@ -434,18 +479,30 @@ Return simplified browser geometry and measurements authorized through analysis 
 
 Do not expose arbitrary server-side spatial query parameters in MVP.
 
-## 14. Admin API
+## 14. Admin/source synchronization API
 
-Admin behavior is server-side and not part of ordinary public client contract.
+Admin/source-sync behavior is server-side and not part of the ordinary public client contract.
 
-Potential future admin endpoints:
+Potential internal/admin endpoints:
 
-- source health;
+- `GET /admin/sources/health`;
+- `GET /admin/data-releases`;
+- `POST /admin/sources/:sourceId/sync` for explicit manual/emergency refresh;
+- `POST /admin/data-releases/:releaseId/promote` where manual promotion is required;
+- legal change candidate review endpoints;
 - rule draft/verification lifecycle;
 - analysis invalidation annotation;
 - adapter configuration status.
 
-All require explicit verified admin role and audit logging.
+All require:
+
+- explicit verified admin/server authorization;
+- audit logging;
+- idempotency where applicable;
+- no arbitrary caller-supplied upstream URL;
+- same validation/promotion gates as scheduled synchronization.
+
+The production monthly cron path may call dedicated internal Edge Functions rather than these human-facing admin routes.
 
 No client-supplied role flag may authorize admin behavior.
 
@@ -470,10 +527,13 @@ Do not expose raw database offset assumptions as permanent API contract unless i
 
 Apply especially to:
 
-- parcel live-source refresh;
 - analysis creation;
 - AI explanations/questions;
+- explicitly approved live-source lookups;
+- admin manual refresh operations;
 - future document uploads/parsing.
+
+Normal parcel/analysis reads from promoted internal data should not depend on public-provider request quotas.
 
 Return `429` + `RATE_LIMITED` and safe retry information where appropriate.
 
@@ -484,6 +544,8 @@ For MVP, version contracts through:
 - stable endpoint semantics;
 - `analysisProfileVersion`;
 - `engineVersion`;
+- `dataRelease`;
+- exact source dataset versions;
 - rule versions;
 - typed schema changes.
 

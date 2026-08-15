@@ -2,8 +2,33 @@
 -- This migration must run against a clean database.
 -- Fixes for production issues are forward migrations only.
 
--- 1. Enable PostGIS extension
-CREATE EXTENSION IF NOT EXISTS postgis;
+-- 1. Enable PostGIS extension in the documented extensions schema.
+-- Creating the schema explicitly keeps extension placement deterministic.
+CREATE SCHEMA IF NOT EXISTS extensions;
+
+-- PostGIS is installed into the extensions schema so internal spatial objects
+-- are separated from user-facing tables. IF NOT EXISTS does not relocate an
+-- already-installed extension; the assertion below verifies the namespace.
+CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA extensions;
+
+-- Verify the installed extension lives in the extensions schema.
+-- This assertion fails if PostGIS was previously installed elsewhere and
+-- could not be relocated by the statement above.
+DO $$
+DECLARE
+    v_extname text;
+    v_extnamespace text;
+BEGIN
+    SELECT extname, n.nspname
+    INTO v_extname, v_extnamespace
+    FROM pg_extension e
+    JOIN pg_namespace n ON n.oid = e.extnamespace
+    WHERE e.extname = 'postgis';
+
+    ASSERT v_extname = 'postgis', 'PostGIS extension is not installed';
+    ASSERT v_extnamespace = 'extensions', 'PostGIS extension is not in the extensions schema (found: ' || COALESCE(v_extnamespace, 'null') || ')';
+END;
+$$;
 
 -- 2. Create documented logical schemas
 -- public    -> user-facing account/project resources (RLS-protected)
@@ -52,17 +77,20 @@ AS $$
   );
 $$;
 
+-- Validates topology and rejects geometries whose declared SRID does not match
+-- the expected CRS. This avoids silently relabeling unknown/mismatched source
+-- coordinates, which conflicts with the project GIS policy.
 CREATE OR REPLACE FUNCTION geo.st_is_valid_geom(p_geom geometry, p_srid int DEFAULT 3301)
 RETURNS boolean
 LANGUAGE sql
 IMMUTABLE
 PARALLEL SAFE
 AS $$
-  SELECT ST_IsValid(ST_SetSRID(p_geom, p_srid));
+  SELECT ST_IsValid(p_geom) AND ST_SRID(p_geom) = p_srid;
 $$;
 
 -- 4. GiST smoke test
--- Create a temporary smoke-test table with a GiST index, insert sample geometries,
+-- Create a smoke-test table with a GiST index, insert sample geometries,
 -- and verify spatial predicates work. The table is intentionally left in place as a
 -- lightweight regression artifact; drop it manually if desired.
 CREATE TABLE IF NOT EXISTS geo._postgis_smoke_test (
@@ -82,7 +110,11 @@ VALUES
     ('smoke_point_c', ST_SetSRID('POINT(20 20)'::geometry, 3301))
 ON CONFLICT DO NOTHING;
 
--- Verify core PostGIS operations return expected results
+-- Verify core PostGIS operations return expected results.
+-- Disable sequential scans locally so the planner must use the GiST index for
+-- the intersection predicate, providing a real GiST smoke test.
+SET LOCAL enable_seqscan = off;
+
 DO $$
 DECLARE
     v_version text;
@@ -90,24 +122,38 @@ DECLARE
     v_area numeric;
     v_intersects int;
     v_dwithin int;
+    v_plan jsonb;
 BEGIN
     -- PostGIS extension is available
     SELECT PostGIS_Full_Version() INTO v_version;
     ASSERT v_version IS NOT NULL AND v_version != '', 'PostGIS extension not available';
 
-    -- Geometry validation works
-    SELECT ST_IsValid(ST_SetSRID('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))'::geometry, 3301)) INTO v_valid;
-    ASSERT v_valid = true, 'ST_IsValid returned unexpected result';
+    -- Geometry validation and SRID check work
+    SELECT geo.st_is_valid_geom(ST_SetSRID('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))'::geometry, 3301), 3301) INTO v_valid;
+    ASSERT v_valid = true, 'st_is_valid_geom returned unexpected result';
 
     -- Area calculation works for EPSG:3301 geometries
     SELECT geo.st_area_m2(ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::geometry, 3301)) INTO v_area;
     ASSERT v_area = 100, 'Unexpected area: ' || COALESCE(v_area::text, 'null');
 
-    -- Intersection predicate works through GiST index
+    -- Intersection predicate uses GiST index (seqscan disabled above)
     SELECT COUNT(*) INTO v_intersects
     FROM geo._postgis_smoke_test
     WHERE ST_Intersects(geom, ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::geometry, 3301));
     ASSERT v_intersects = 1, 'Unexpected intersect count: ' || v_intersects;
+
+    -- Verify the planner chose an index path for the spatial predicate
+    SELECT "QUERY PLAN" INTO v_plan
+    FROM EXPLAIN (FORMAT JSON, ANALYZE false, BUFFERS false)
+        SELECT 1 FROM geo._postgis_smoke_test
+        WHERE ST_Intersects(geom, ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::geometry, 3301));
+
+    ASSERT v_plan IS NOT NULL, 'No plan found for GiST smoke test';
+    ASSERT (
+        v_plan @> '{"Plan": {"Node Type": "Bitmap Heap Scan"}}' OR
+        v_plan @> '{"Plan": {"Node Type": "Index Scan"}}' OR
+        v_plan @> '{"Plan": {"Node Type": "Bitmap Index Scan"}}'
+    ), 'GiST index was not used for spatial predicate; plan: ' || v_plan::text;
 
     -- Distance predicate works
     SELECT COUNT(*) INTO v_dwithin

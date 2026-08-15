@@ -66,10 +66,10 @@ Acceptance:
 
 ## KT-005 — Add environment contract
 
-- [ ] `.env.example` placeholders only.
-- [ ] ignore real env/local Supabase state/secrets.
-- [ ] only publishable variables use `VITE_*`.
-- [ ] no `VITE_GEMINI_API_KEY`, service-role or payment secret.
+- [x] `.env.example` placeholders only.
+- [x] ignore real env/local Supabase state/secrets.
+- [x] only publishable variables use `VITE_*`.
+- [x] no `VITE_GEMINI_API_KEY`, service-role or payment secret.
 
 ## KT-006 — Add i18n architecture from day one
 

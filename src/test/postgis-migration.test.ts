@@ -38,6 +38,19 @@ describe("PostGIS migration (KT-011)", () => {
     expect(sql).toMatch(/CREATE\s+OR\s+REPLACE\s+FUNCTION\s+geo\.st_is_valid_geom/i);
   });
 
+  test("schema-qualifies PostGIS types and functions", () => {
+    expect(sql).toMatch(/extensions\.geometry\s*\(/i);
+    expect(sql).toMatch(/extensions\.ST_Area/i);
+    expect(sql).toMatch(/extensions\.ST_Transform/i);
+    expect(sql).toMatch(/extensions\.ST_Distance/i);
+    expect(sql).toMatch(/extensions\.ST_Intersects/i);
+    expect(sql).toMatch(/extensions\.ST_IsValid/i);
+    expect(sql).toMatch(/extensions\.ST_SRID/i);
+    expect(sql).toMatch(/extensions\.ST_SetSRID/i);
+    expect(sql).toMatch(/extensions\.ST_DWithin/i);
+    expect(sql).toMatch(/extensions\.PostGIS_Full_Version/i);
+  });
+
   test("st_is_valid_geom validates SRID without silently relabeling", () => {
     expect(sql).toMatch(/ST_IsValid\s*\(\s*p_geom\s*\)/i);
     expect(sql).toMatch(/ST_SRID\s*\(\s*p_geom\s*\)\s*=\s*p_srid/i);
@@ -61,8 +74,11 @@ describe("PostGIS migration (KT-011)", () => {
     expect(sql).toMatch(/SET\s+LOCAL\s+enable_seqscan\s*=\s*off/i);
   });
 
+  test("smoke test captures EXPLAIN plan with EXECUTE", () => {
+    expect(sql).toMatch(/EXECUTE\s+'EXPLAIN\s*\(FORMAT\s+JSON/i);
+  });
+
   test("smoke test asserts GiST index plan path", () => {
-    expect(sql).toMatch(/EXPLAIN\s*\(FORMAT\s+JSON/i);
     expect(sql).toMatch(/Node\s+Type.*Bitmap\s+Heap\s+Scan/i);
     expect(sql).toMatch(/Node\s+Type.*Index\s+Scan/i);
     expect(sql).toMatch(/Node\s+Type.*Bitmap\s+Index\s+Scan/i);

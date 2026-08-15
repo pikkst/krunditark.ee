@@ -42,51 +42,53 @@ CREATE SCHEMA IF NOT EXISTS analysis;
 CREATE SCHEMA IF NOT EXISTS private;
 
 -- 3. Required spatial helper functions
--- These wrap PostGIS operations with domain conventions (EPSG:3301 Estonia metric).
+-- All PostGIS types/functions are schema-qualified to extensions so these
+-- definitions are deterministic regardless of the migration session search_path.
+-- They wrap PostGIS operations with domain conventions (EPSG:3301 Estonia metric).
 
-CREATE OR REPLACE FUNCTION geo.st_area_m2(p_geom geometry)
+CREATE OR REPLACE FUNCTION geo.st_area_m2(p_geom extensions.geometry)
 RETURNS numeric
 LANGUAGE sql
 IMMUTABLE
 PARALLEL SAFE
 AS $$
-  SELECT ST_Area(ST_Transform(p_geom, 3301));
+  SELECT extensions.ST_Area(extensions.ST_Transform(p_geom, 3301));
 $$;
 
-CREATE OR REPLACE FUNCTION geo.st_distance_m(p_a geometry, p_b geometry)
+CREATE OR REPLACE FUNCTION geo.st_distance_m(p_a extensions.geometry, p_b extensions.geometry)
 RETURNS numeric
 LANGUAGE sql
 IMMUTABLE
 PARALLEL SAFE
 AS $$
-  SELECT ST_Distance(
-    ST_Transform(p_a, 3301),
-    ST_Transform(p_b, 3301)
+  SELECT extensions.ST_Distance(
+    extensions.ST_Transform(p_a, 3301),
+    extensions.ST_Transform(p_b, 3301)
   );
 $$;
 
-CREATE OR REPLACE FUNCTION geo.st_intersects_3301(p_a geometry, p_b geometry)
+CREATE OR REPLACE FUNCTION geo.st_intersects_3301(p_a extensions.geometry, p_b extensions.geometry)
 RETURNS boolean
 LANGUAGE sql
 IMMUTABLE
 PARALLEL SAFE
 AS $$
-  SELECT ST_Intersects(
-    ST_Transform(p_a, 3301),
-    ST_Transform(p_b, 3301)
+  SELECT extensions.ST_Intersects(
+    extensions.ST_Transform(p_a, 3301),
+    extensions.ST_Transform(p_b, 3301)
   );
 $$;
 
 -- Validates topology and rejects geometries whose declared SRID does not match
 -- the expected CRS. This avoids silently relabeling unknown/mismatched source
 -- coordinates, which conflicts with the project GIS policy.
-CREATE OR REPLACE FUNCTION geo.st_is_valid_geom(p_geom geometry, p_srid int DEFAULT 3301)
+CREATE OR REPLACE FUNCTION geo.st_is_valid_geom(p_geom extensions.geometry, p_srid int DEFAULT 3301)
 RETURNS boolean
 LANGUAGE sql
 IMMUTABLE
 PARALLEL SAFE
 AS $$
-  SELECT ST_IsValid(p_geom) AND ST_SRID(p_geom) = p_srid;
+  SELECT extensions.ST_IsValid(p_geom) AND extensions.ST_SRID(p_geom) = p_srid;
 $$;
 
 -- 4. GiST smoke test
@@ -96,7 +98,7 @@ $$;
 CREATE TABLE IF NOT EXISTS geo._postgis_smoke_test (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     name text NOT NULL,
-    geom geometry(Geometry, 3301) NOT NULL,
+    geom extensions.geometry(Geometry, 3301) NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -105,9 +107,9 @@ CREATE INDEX IF NOT EXISTS idx_postgis_smoke_test_geom
 
 INSERT INTO geo._postgis_smoke_test (name, geom)
 VALUES
-    ('smoke_polygon_a', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::geometry, 3301)),
-    ('smoke_polygon_b', ST_SetSRID('POLYGON((5 5, 15 5, 15 15, 5 15, 5 5))'::geometry, 3301)),
-    ('smoke_point_c', ST_SetSRID('POINT(20 20)'::geometry, 3301))
+    ('smoke_polygon_a', extensions.ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301)),
+    ('smoke_polygon_b', extensions.ST_SetSRID('POLYGON((5 5, 15 5, 15 15, 5 15, 5 5))'::extensions.geometry, 3301)),
+    ('smoke_point_c', extensions.ST_SetSRID('POINT(20 20)'::extensions.geometry, 3301))
 ON CONFLICT DO NOTHING;
 
 -- Verify core PostGIS operations return expected results.
@@ -125,40 +127,38 @@ DECLARE
     v_plan jsonb;
 BEGIN
     -- PostGIS extension is available
-    SELECT PostGIS_Full_Version() INTO v_version;
+    SELECT extensions.PostGIS_Full_Version() INTO v_version;
     ASSERT v_version IS NOT NULL AND v_version != '', 'PostGIS extension not available';
 
     -- Geometry validation and SRID check work
-    SELECT geo.st_is_valid_geom(ST_SetSRID('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))'::geometry, 3301), 3301) INTO v_valid;
+    SELECT geo.st_is_valid_geom(extensions.ST_SetSRID('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))'::extensions.geometry, 3301), 3301) INTO v_valid;
     ASSERT v_valid = true, 'st_is_valid_geom returned unexpected result';
 
     -- Area calculation works for EPSG:3301 geometries
-    SELECT geo.st_area_m2(ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::geometry, 3301)) INTO v_area;
+    SELECT geo.st_area_m2(extensions.ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301)) INTO v_area;
     ASSERT v_area = 100, 'Unexpected area: ' || COALESCE(v_area::text, 'null');
 
     -- Intersection predicate uses GiST index (seqscan disabled above)
     SELECT COUNT(*) INTO v_intersects
     FROM geo._postgis_smoke_test
-    WHERE ST_Intersects(geom, ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::geometry, 3301));
+    WHERE extensions.ST_Intersects(geom, extensions.ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301));
     ASSERT v_intersects = 1, 'Unexpected intersect count: ' || v_intersects;
 
-    -- Verify the planner chose an index path for the spatial predicate
-    SELECT "QUERY PLAN" INTO v_plan
-    FROM EXPLAIN (FORMAT JSON, ANALYZE false, BUFFERS false)
-        SELECT 1 FROM geo._postgis_smoke_test
-        WHERE ST_Intersects(geom, ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::geometry, 3301));
+    -- Verify the planner chose an index path for the spatial predicate.
+    -- EXPLAIN (FORMAT JSON) returns a JSON array; capture it with EXECUTE.
+    EXECUTE 'EXPLAIN (FORMAT JSON, ANALYZE false, BUFFERS false) SELECT 1 FROM geo._postgis_smoke_test WHERE extensions.ST_Intersects(geom, extensions.ST_SetSRID(''POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))''::extensions.geometry, 3301))' INTO v_plan;
 
     ASSERT v_plan IS NOT NULL, 'No plan found for GiST smoke test';
     ASSERT (
-        v_plan @> '{"Plan": {"Node Type": "Bitmap Heap Scan"}}' OR
-        v_plan @> '{"Plan": {"Node Type": "Index Scan"}}' OR
-        v_plan @> '{"Plan": {"Node Type": "Bitmap Index Scan"}}'
+        v_plan @> '[{"Plan": {"Node Type": "Bitmap Heap Scan"}}]' OR
+        v_plan @> '[{"Plan": {"Node Type": "Index Scan"}}]' OR
+        v_plan @> '[{"Plan": {"Node Type": "Bitmap Index Scan"}}]'
     ), 'GiST index was not used for spatial predicate; plan: ' || v_plan::text;
 
     -- Distance predicate works
     SELECT COUNT(*) INTO v_dwithin
     FROM geo._postgis_smoke_test
-    WHERE ST_DWithin(geom, ST_SetSRID('POINT(20 20)'::geometry, 3301), 1);
+    WHERE extensions.ST_DWithin(geom, extensions.ST_SetSRID('POINT(20 20)'::extensions.geometry, 3301), 1);
     ASSERT v_dwithin = 1, 'Unexpected dwithin count: ' || v_dwithin;
 
     RAISE NOTICE 'PostGIS smoke test passed: %', v_version;

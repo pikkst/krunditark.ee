@@ -106,10 +106,10 @@ Acceptance:
 
 ## KT-010 — Initialize Supabase project layout
 
-- [ ] `supabase/config.toml` via CLI.
-- [ ] `supabase/migrations/`.
-- [ ] `supabase/functions/`.
-- [ ] generated/local state ignored appropriately.
+- [x] `supabase/config.toml` via CLI.
+- [x] `supabase/migrations/`.
+- [x] `supabase/functions/`.
+- [x] generated/local state ignored appropriately.
 
 ## KT-011 — Enable PostGIS by migration
 

@@ -1,169 +1,251 @@
 # Definition of Done — Krunditark
 
-A task is complete only when all applicable items below are satisfied.
+Last review: **2026-08-15**
 
-## 1. Scope
+A task is complete only when its acceptance criteria and every applicable gate below are satisfied.
 
-- [ ] Implementation matches the task acceptance criteria.
-- [ ] No unrelated refactor or feature expansion was added without documentation.
-- [ ] Unsupported behavior remains explicit rather than silently guessed.
+## 1. Scope and product behavior
+
+- [ ] Implementation matches `TASKS.md` and linked specs.
+- [ ] No unrelated feature/refactor added silently.
+- [ ] Unsupported behavior remains explicit (`unknown`/`not_supported`) rather than guessed.
+- [ ] User journey preserves work across navigation/auth/payment/error where applicable.
+- [ ] User-facing result ends with a useful next action when the feature creates a decision result.
 
 ## 2. Code quality
 
-- [ ] TypeScript strict checks pass.
+- [ ] TypeScript strict passes.
 - [ ] No unjustified `any`.
-- [ ] Code comments are in English and explain non-obvious reasoning.
-- [ ] External/provider types do not leak into core domain models.
-- [ ] No duplicated legal/rule logic across UI and backend without a deliberate shared abstraction.
+- [ ] English code comments explain non-obvious reasoning.
+- [ ] Provider SDK types do not leak into domain models.
+- [ ] No hidden network call in deterministic domain/rule logic.
+- [ ] No duplicated legal/business logic between UI/server without deliberate abstraction.
 
 ## 3. Security
 
-- [ ] No secret/elevated key in frontend/source/logs/fixtures.
-- [ ] Input validation exists at trust boundaries.
-- [ ] Authorization is server-side for privileged behavior.
-- [ ] RLS is added/updated and tested for new client-accessible tables.
-- [ ] New external fetch behavior is SSRF-safe/allow-listed.
-- [ ] Resource limits exist for expensive geometry/file/provider operations.
-- [ ] Source sync/promotion endpoints cannot be called by ordinary users.
+- [ ] No secret/elevated key in frontend/repo/logs/fixtures.
+- [ ] Input validated at trust boundary.
+- [ ] Privileged authorization server-side.
+- [ ] RLS added/updated/tested for client-accessible resources.
+- [ ] Anonymous/permanent distinction enforced where applicable.
+- [ ] External fetch is allow-listed/SSRF-safe.
+- [ ] geometry/file/source/AI/payment operations have resource limits.
+- [ ] logs exclude tokens/credentials/sensitive payloads.
 
-## 4. Database
+## 4. Authentication/onboarding
+
+If Auth/account behavior changes:
+
+- [ ] guest-first rule preserved unless ADR changes it;
+- [ ] no unnecessary signup wall before meaningful value;
+- [ ] anonymous A cannot access B;
+- [ ] `is_anonymous` semantics tested;
+- [ ] guest -> permanent conversion preserves project;
+- [ ] permanent-only actions reject anonymous users;
+- [ ] redirect/retry/cancel states preserve user work;
+- [ ] production email behavior matches custom-SMTP policy where applicable.
+
+## 5. Database/migrations
 
 If schema changes:
 
-- [ ] ordered migration committed;
+- [ ] ordered forward migration committed;
 - [ ] clean database applies all migrations;
-- [ ] prior production migrations were not edited;
-- [ ] foreign keys/constraints added;
+- [ ] previously applied migration not edited;
+- [ ] FK/check/unique constraints reviewed;
 - [ ] indexes reviewed;
 - [ ] RLS/grants reviewed;
-- [ ] timestamps/SRID conventions followed.
+- [ ] timestamps/SRID conventions followed;
+- [ ] critical relationships are structured, not hidden only in arbitrary JSON.
 
-## 5. GIS
+## 6. GIS
 
 If spatial behavior changes:
 
-- [ ] authoritative calculation is server/PostGIS-side;
-- [ ] CRS explicitly correct;
+- [ ] authoritative calculation server/PostGIS-side;
+- [ ] correct explicit CRS;
 - [ ] geometry validity handled;
-- [ ] spatial predicate semantics documented;
-- [ ] GiST/index impact reviewed;
-- [ ] boundary/touching/near-threshold tests added;
-- [ ] browser evidence matches server result.
+- [ ] predicate matches domain semantics;
+- [ ] GiST/query-plan impact reviewed;
+- [ ] touching/near-threshold/boundary tests added;
+- [ ] map evidence agrees with server result;
+- [ ] spatial intersection is not mislabeled as legal violation without rule semantics.
 
-## 6. Official source adapter
+## 7. Official-source adapter
 
-If a source integration changes:
+If a source changes:
 
-- [ ] official source documented;
-- [ ] endpoint/layer verified;
+- [ ] official source/endpoint/layer verified at implementation time;
 - [ ] terms/attribution considered;
-- [ ] timeout/retry/size controls exist;
+- [ ] semantic scope documented;
+- [ ] source class/refresh/freshness policy defined;
+- [ ] timeout/retry/max-size controls;
 - [ ] response schema validated;
-- [ ] fixture tests added;
-- [ ] source retrieval timestamp/provenance persisted;
-- [ ] zero results differ from source failure;
-- [ ] source failure produces stale/`unknown`/partial semantics where appropriate;
-- [ ] refresh policy and freshness thresholds are defined;
-- [ ] replication/retention policy is defined;
-- [ ] `DATA_SOURCES.md` updated.
+- [ ] deterministic fixtures;
+- [ ] source version/provenance persisted;
+- [ ] success-empty distinct from failure;
+- [ ] source failure becomes partial/unknown where appropriate;
+- [ ] `DATA_SOURCES.md` and canonical refresh doc updated.
 
-## 7. Scheduled source synchronization
+## 8. Scheduled refresh/change watch
 
-If replicated source data, synchronization, freshness or data releases change:
+If ingestion/freshness changes:
 
-- [ ] behavior matches `docs/DATA_REFRESH_AND_VERSIONING.md`;
-- [ ] normal user analysis does not bulk-refresh the source;
-- [ ] scheduled/manual sync is server-side and privileged;
-- [ ] duplicate invocation is idempotent;
-- [ ] overlapping sync runs are prevented;
-- [ ] ingestion writes to staging/candidate state before promotion;
-- [ ] incomplete fetch cannot imply object deletion;
-- [ ] schema/CRS/required-field sanity checks run before promotion;
-- [ ] added/changed/removed change detection is tested;
-- [ ] abnormal large diffs fail or quarantine safely;
-- [ ] failed candidate leaves the previous verified source version active;
-- [ ] source version promotion is atomic;
-- [ ] composite data release references exact source dataset versions;
-- [ ] carried-forward/stale source state is visible in release metadata;
-- [ ] historical source versions referenced by analyses remain reproducible;
-- [ ] monitoring records last success, run failure and freshness state;
-- [ ] normal scheduled source synchronization uses zero Gemini tokens.
+- [ ] job independent from user traffic;
+- [ ] idempotent/lock-safe;
+- [ ] staging + validation before promotion;
+- [ ] suspicious/incomplete sync cannot erase last good release;
+- [ ] source freshness/health observable;
+- [ ] legal/EHR change watch does not call Gemini;
+- [ ] manual emergency refresh uses same safety gates;
+- [ ] historical analysis can still resolve its dataset versions.
 
-## 8. Rules
+## 9. Rules
 
 If a rule changes:
 
-- [ ] stable rule code exists;
-- [ ] new rule version created when semantics/legal basis changed;
-- [ ] official source/section recorded;
+- [ ] stable code/version;
+- [ ] new version when semantics/legal basis changed;
+- [ ] current official source/section recorded;
 - [ ] effective dates reviewed;
-- [ ] draft/verified lifecycle respected;
-- [ ] tests cover trigger/non-trigger/boundaries/missing facts;
-- [ ] historical rule version remains available;
-- [ ] no LLM output is used as rule authority.
+- [ ] draft/verified/retired lifecycle respected;
+- [ ] trigger/non-trigger/boundary/missing-fact tests;
+- [ ] old rule version retained;
+- [ ] no LLM output used as authority;
+- [ ] pending law change cannot silently leave known-invalid rule active without explicit safety state.
 
-If a legal-source sync detects changed official text:
+## 10. Analysis provenance
 
-- [ ] legal change candidate is recorded;
-- [ ] affected rules are reviewed explicitly;
-- [ ] no verified rule was silently overwritten;
-- [ ] no rule was promoted solely from Gemini/AI output.
+For material finding/report:
 
-## 9. Analysis provenance
+- [ ] exact parcel/proposal snapshot;
+- [ ] exact data release/dataset versions;
+- [ ] exact rule versions;
+- [ ] source evidence;
+- [ ] measurements/geometry reproducible;
+- [ ] engine/profile/input version stored;
+- [ ] completed factual report immutable;
+- [ ] AI prose is not required to reconstruct factual result.
 
-If a material finding is created:
+## 11. Analysis/cache
 
-- [ ] exact promoted `data_release_id` is traceable;
-- [ ] exact source dataset version(s) are traceable;
-- [ ] exact rule version is traceable;
-- [ ] source evidence is traceable;
-- [ ] parcel/proposal snapshot is traceable;
-- [ ] measurements/geometry evidence are reproducible;
-- [ ] engine/profile version stored;
-- [ ] completed factual result does not depend on retaining AI prose.
+If caching changes:
 
-## 10. AI
+- [ ] key includes all factual compatibility dimensions;
+- [ ] data/rule/engine/proposal change invalidates as required;
+- [ ] cache cannot leak private metadata cross-user;
+- [ ] stale result never masquerades as current;
+- [ ] idempotent concurrent requests covered.
 
-If AI behavior changes:
+## 12. AI/Gemini
 
-- [ ] deterministic analysis still works with AI disabled;
-- [ ] API key is server-side;
-- [ ] input contains only necessary approved evidence;
+If AI changes:
+
+- [ ] deterministic analysis works with AI disabled;
+- [ ] key server-side;
+- [ ] current Google SDK/model documentation checked;
+- [ ] input contains only needed approved evidence;
 - [ ] output schema validated;
-- [ ] model cannot modify finding state;
-- [ ] prompt injection case tested;
+- [ ] finding state cannot change;
+- [ ] prompt-injection/adversarial cases covered;
 - [ ] provider failure has deterministic fallback;
-- [ ] provider/model metadata handling matches privacy policy;
-- [ ] repeated page loads do not create unnecessary Gemini calls for the same immutable analysis unless explicitly required.
+- [ ] cache key includes result/locale/model/prompt/schema;
+- [ ] logging/retention matches privacy policy.
 
-## 11. UI/UX
+## 13. Localization
 
 If user-facing behavior changes:
 
-- [ ] Estonian copy is understandable;
-- [ ] loading/empty/error/unknown states implemented;
-- [ ] not-found is distinct from provider unavailable;
+- [ ] strings use i18n keys rather than scattered hard-coded copy;
+- [ ] Estonian canonical copy complete;
+- [ ] enabled RU/EN critical keys complete;
+- [ ] critical legal/status/payment terms preserve meaning;
+- [ ] official Estonian legal/source identity remains traceable;
+- [ ] locale switch preserves project and does not rerun deterministic analysis;
+- [ ] long/cyrillic/mobile layout reviewed;
+- [ ] dates/numbers/units formatted correctly.
+
+## 14. UX/accessibility
+
+If user-facing behavior changes:
+
+- [ ] beginner flow does not require GIS expertise unnecessarily;
+- [ ] loading/empty/error/unknown/stale states exist;
+- [ ] not-found differs from provider unavailable;
 - [ ] status is not color-only;
-- [ ] keyboard/mobile behavior reviewed;
-- [ ] official source/data-release freshness visible for material findings;
-- [ ] carried-forward/stale source state is not presented as freshly checked data;
-- [ ] no wording implies official approval unless actually sourced.
+- [ ] keyboard/focus/touch behavior reviewed;
+- [ ] mobile layout works;
+- [ ] map has textual equivalent for material findings;
+- [ ] source/freshness visible for regulatory claims;
+- [ ] no wording implies official approval without evidence;
+- [ ] target WCAG 2.2 AA for core flow.
 
-## 12. Tests
+## 15. Variant/project history
 
-- [ ] unit tests pass;
-- [ ] relevant adapter fixture tests pass;
-- [ ] relevant source-sync/versioning tests pass;
-- [ ] relevant database/RLS tests pass;
-- [ ] relevant GIS tests pass;
-- [ ] Edge Function tests pass;
-- [ ] E2E updated for critical user-flow changes where applicable;
-- [ ] no normal unit test requires public internet;
-- [ ] no normal test suite requires the live Gemini API.
+If proposal/history behavior changes:
 
-## 13. CI/build
+- [ ] completed analysis proposal is not mutated;
+- [ ] duplicate creates new scenario/version;
+- [ ] comparisons use exact analysis IDs;
+- [ ] factual diff excludes AI wording-only changes;
+- [ ] newer-data rerun creates new analysis, not rewrite old one.
 
-Required when scripts exist:
+## 16. Commerce/payment
+
+If commerce changes:
+
+- [ ] price resolved server-side from versioned catalog;
+- [ ] client cannot grant paid state/entitlement;
+- [ ] provider webhook signature verified;
+- [ ] provider event deduped;
+- [ ] order/payment/entitlement transaction boundaries correct;
+- [ ] retry does not double-charge/double-consume;
+- [ ] paid-but-unfulfilled report recoverable;
+- [ ] unauthorized order/report access denied;
+- [ ] refund/admin changes audited;
+- [ ] provider SDK isolated;
+- [ ] fake provider tests in normal CI;
+- [ ] payment/legal/privacy/accounting docs updated.
+
+## 17. Sharing/files
+
+If sharing/uploads change:
+
+- [ ] sharing explicit opt-in/revocable;
+- [ ] token high entropy and scoped;
+- [ ] private notes/files excluded unless selected;
+- [ ] shared view noindex/referrer behavior reviewed;
+- [ ] uploads private/RLS-protected;
+- [ ] MIME/size/parser resource controls;
+- [ ] private plan not sent to Gemini without approved privacy decision.
+
+## 18. Analytics/growth
+
+If analytics changes:
+
+- [ ] privacy/legal basis/consent decision documented;
+- [ ] no full address/cadastral geometry/email/notes/AI prompt/payment ID sent third-party by default;
+- [ ] typed event schema;
+- [ ] staging vs production separated;
+- [ ] analytics failure cannot block product;
+- [ ] experiment cannot alter factual finding/source/critical warning visibility.
+
+## 19. Tests
+
+- [ ] relevant unit tests;
+- [ ] adapter fixtures;
+- [ ] migration/RLS;
+- [ ] GIS regression;
+- [ ] Edge Function/API;
+- [ ] UI/component where useful;
+- [ ] i18n tests where applicable;
+- [ ] Auth/commerce/security tests where applicable;
+- [ ] critical E2E updated;
+- [ ] no normal test depends on public internet/live Gemini/live payment.
+
+## 20. CI/build
+
+When scripts/features exist:
 
 - [ ] `npm ci`
 - [ ] format check
@@ -171,55 +253,56 @@ Required when scripts exist:
 - [ ] typecheck
 - [ ] tests
 - [ ] production build
-- [ ] clean migration/RLS checks when Supabase is initialized
+- [ ] clean migrations/RLS
+- [ ] relevant Edge/GIS/i18n/Playwright gates
 
-## 14. Documentation
+## 21. Documentation
 
-- [ ] API spec updated for contract changes.
-- [ ] database spec updated for material model changes.
-- [ ] source registry updated for provider changes.
-- [ ] data refresh/versioning spec updated for sync/freshness changes.
-- [ ] ADR added/superseded for architectural decisions.
-- [ ] environment/deployment docs updated for variables/workflow changes.
-- [ ] `TASKS.md` status updated only after verification.
+- [ ] API spec updated for contract changes;
+- [ ] DB/schema docs updated;
+- [ ] source/refresh docs updated;
+- [ ] user journey/UX updated where behavior changed;
+- [ ] Auth/localization/commerce docs updated where applicable;
+- [ ] ADR added/superseded for architectural decision;
+- [ ] environment/deployment docs updated;
+- [ ] `TASKS.md` status changed only after verification;
+- [ ] `OPEN_QUESTIONS.md` contains only unresolved decisions.
 
-## 15. Observability
+## 22. Observability/supportability
 
 For server/provider features:
 
-- [ ] typed error code exists;
-- [ ] request/source timing can be observed;
-- [ ] logs do not contain secrets;
-- [ ] provider failures can be diagnosed without dumping sensitive raw data.
+- [ ] typed error code;
+- [ ] request/source/analysis timing observable;
+- [ ] source/data-release/rule ID available for diagnosis;
+- [ ] paid fulfillment observable where applicable;
+- [ ] support can identify failing analysis/order without asking user to copy internal raw payload;
+- [ ] logs contain no secrets.
 
-For scheduled source synchronization additionally:
+## 23. Legal/trust check
 
-- [ ] sync run status is observable;
-- [ ] record counts/diff summary are observable;
-- [ ] last successful sync is observable;
-- [ ] stale critical source can trigger an admin-visible alert;
-- [ ] release promotion/rejection is auditable.
+For regulatory/commercial output:
 
-## 16. Legal/trust check
+- [ ] current official source reverified when required;
+- [ ] source/effective date recorded;
+- [ ] uncertainty preserved;
+- [ ] product does not overstate legal certainty;
+- [ ] official link/disclaimer remains available;
+- [ ] partner/advertising relationship cannot alter finding;
+- [ ] current price/provider/legal facts are not taken blindly from old documentation.
 
-For any regulatory user-facing output:
+## 24. Completion evidence
 
-- [ ] current verified official source/rule basis was reviewed at implementation/review time;
-- [ ] source/effective date is recorded;
-- [ ] data release/freshness is recorded;
-- [ ] uncertainty is preserved;
-- [ ] result does not overstate legal certainty;
-- [ ] applicable disclaimer/source link remains available.
-
-## 17. Completion evidence
-
-A coding agent/PR should summarize:
+PR/change summary states:
 
 - what was implemented;
+- user problem/journey affected;
 - tests/checks run;
-- migrations added;
-- source/data-release/rule versions affected;
+- migrations;
+- source/rule/data versions affected;
+- locales tested;
+- screenshots for meaningful UI;
 - known limitations/unknowns;
-- screenshots for meaningful UI changes when workflow supports them.
+- external current-doc verification when relevant.
 
-“Works on my machine” without these gates is not complete.
+“Works on my machine” is not Done.

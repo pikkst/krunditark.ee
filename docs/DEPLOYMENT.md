@@ -216,19 +216,40 @@ Official Cloudflare full DNS setup guidance:
 
 Do not change nameservers until existing email/service DNS records are accounted for.
 
-## 12. Cloudflare Pages migration option
+## 12. Cloudflare Pages configuration
 
-If selected later:
+Production frontend is deployed to Cloudflare Pages.
 
-```text
-GitHub repo
-   -> Cloudflare Pages build/deploy
-   -> krunditark.ee
-   -> browser
-   -> Supabase backend
+Build settings:
+
+- Build command: `npm run build`
+- Build output directory: `dist`
+- Deploy command: `npx wrangler deploy`
+- Version command: `npx wrangler versions upload`
+
+Root directory: leave empty.
+
+The repository includes `wrangler.jsonc`:
+
+```jsonc
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "krunditark-ee",
+  "compatibility_date": "2026-08-15",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}
 ```
 
-Benefits to evaluate at that time:
+This tells Wrangler where the built static assets are and enables SPA fallback so clean paths like `/et/landing` return `index.html` instead of 404.
+
+### Preview deployments
+
+Cloudflare uses the version command for non-production branches. Because `wrangler.jsonc` defines `assets.directory`, both `wrangler deploy` and `wrangler versions upload` can upload the same static asset bundle.
+
+Benefits:
 
 - custom-domain integration;
 - response-header controls;
@@ -236,10 +257,6 @@ Benefits to evaluate at that time:
 - CDN/edge performance;
 - WAF/security features;
 - preview deployments.
-
-The move should not require backend/domain rewrite.
-
-Add an ADR before replacing GitHub Pages production hosting.
 
 ## 13. Custom domain launch checklist
 

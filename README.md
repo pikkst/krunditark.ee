@@ -20,6 +20,7 @@ Current deployment direction:
 - Database: PostgreSQL + PostGIS.
 - Authentication: Supabase Auth.
 - Server-side API/orchestration: Supabase Edge Functions.
+- Scheduled official-data refresh: Supabase Cron / `pg_cron` + Edge Functions.
 - File storage: Supabase Storage.
 - AI provider: **Google Gemini API** through the current Google GenAI SDK/API, called server-side only.
 - Current domain registrar: Zone (`krunditark.ee`).
@@ -28,15 +29,14 @@ Current deployment direction:
 
 ## Core principle
 
-Krunditark must separate deterministic facts from AI explanation:
+Krunditark must separate official-data acquisition, deterministic facts and AI explanation:
 
 ```text
 Official data + legal sources
           |
+          | scheduled ingestion / monthly baseline
           v
-Data adapters / normalization
-          |
-          v
+Versioned normalized data releases
 PostgreSQL + PostGIS
           |
           v
@@ -56,20 +56,24 @@ Gemini is **not** the legal or geospatial decision engine. It may explain struct
 
 The Gemini API key is a server-side secret stored for Supabase Edge Functions. It must never be placed in frontend code or a `VITE_*` variable.
 
+Official data is not rediscovered through Gemini or re-downloaded from every government source for every user request. Replicated sources are synchronized server-side into versioned Krunditark datasets, with a monthly full reconciliation as the baseline policy. Normal analyses read the latest eligible promoted data release.
+
 ## Primary user journey
 
 1. User enters a cadastral identifier or searches for a parcel.
-2. Krunditark resolves the official parcel geometry and basic facts.
+2. Krunditark resolves the parcel from the latest eligible promoted official-data release or an explicitly approved live source where required.
 3. User opens the parcel on a map.
 4. User selects a building type and provides dimensions/height/storeys.
 5. User places, rotates or draws the proposed building footprint.
-6. Backend retrieves and/or refreshes relevant official source data.
-7. PostGIS computes spatial intersections, distances and containment checks.
+6. Backend selects the exact promoted data release and verified rule versions for the analysis.
+7. PostGIS computes spatial intersections, distances and containment checks from normalized versioned data.
 8. The rules engine evaluates versioned rules against the structured facts.
 9. Krunditark returns findings classified as clear, conditional, conflicting or unknown.
-10. Every material finding includes provenance: source, retrieval time, legal/data version where available, and official link.
-11. Google Gemini converts the already-structured findings into understandable Estonian explanations without changing their meaning.
+10. Every material finding includes provenance: data release, source, retrieval time, legal/data version where available, and official link.
+11. Google Gemini may convert the already-structured findings into understandable Estonian explanations without changing their meaning.
 12. User receives an Ehituspass with required actions and official next-step links.
+
+A user request does **not** normally trigger a national data refresh. Scheduled synchronization is an independent server-side process.
 
 ## Documentation map
 
@@ -85,6 +89,7 @@ Implementation agents must read [`AGENTS.md`](./AGENTS.md) first.
 | [`docs/DATABASE_SCHEMA.md`](./docs/DATABASE_SCHEMA.md) | PostgreSQL/PostGIS data model |
 | [`docs/API_SPECIFICATION.md`](./docs/API_SPECIFICATION.md) | Public/client API contract |
 | [`docs/DATA_SOURCES.md`](./docs/DATA_SOURCES.md) | Official source registry and adapter rules |
+| [`docs/DATA_REFRESH_AND_VERSIONING.md`](./docs/DATA_REFRESH_AND_VERSIONING.md) | Monthly synchronization, data releases, freshness, change detection and promotion |
 | [`docs/GIS_AND_RULES_ENGINE.md`](./docs/GIS_AND_RULES_ENGINE.md) | Spatial analysis and deterministic rule design |
 | [`docs/AI_SAFETY_AND_EXPLANATIONS.md`](./docs/AI_SAFETY_AND_EXPLANATIONS.md) | Gemini integration plus allowed/forbidden AI behavior |
 | [`docs/SECURITY_PRIVACY.md`](./docs/SECURITY_PRIVACY.md) | RLS, secrets, privacy and threat model |
@@ -112,6 +117,23 @@ The first implementation must be designed around official or authoritative sourc
 
 See `docs/DATA_SOURCES.md` for source status, limitations and ingestion rules.
 
+## Data refresh model
+
+Replicated official data is maintained independently from user traffic.
+
+Baseline:
+
+- monthly full reconciliation for approved replicated datasets;
+- manual/emergency refresh when an important change is known before the next scheduled run;
+- source-specific freshness thresholds;
+- candidate dataset validation before promotion;
+- previous verified version remains active when a refresh fails;
+- historical source versions remain available for reproducible analyses;
+- legal text changes create review candidates and do not automatically rewrite production rules;
+- normal scheduled synchronization uses zero Gemini tokens.
+
+Each Ehituspass stores the exact `data_release_id` and rule/source version provenance used to produce it.
+
 ## Technology direction
 
 ### Frontend
@@ -133,6 +155,7 @@ See `docs/DATA_SOURCES.md` for source status, limitations and ingestion rules.
 - Supabase Auth
 - Supabase Storage
 - Supabase Edge Functions (TypeScript/Deno)
+- Supabase Cron / `pg_cron` for scheduled source synchronization
 - SQL migrations committed under `supabase/migrations/`
 
 ### AI
@@ -143,6 +166,7 @@ See `docs/DATA_SOURCES.md` for source status, limitations and ingestion rules.
 - selected Gemini model configured server-side rather than hard-coded across domain code
 - structured/schema-validated explanation outputs
 - deterministic non-AI fallback for every material finding
+- no Gemini dependency in normal official-data synchronization
 
 ### Quality
 
@@ -152,6 +176,7 @@ See `docs/DATA_SOURCES.md` for source status, limitations and ingestion rules.
 - Playwright
 - database/RLS tests
 - deterministic rule-engine and GIS boundary tests
+- source sync/change-detection/idempotency tests
 - GitHub Actions for format, lint, typecheck, tests and production build
 
 Exact package/model versions belong in the lockfile/server configuration and must be upgraded intentionally; documentation should not be treated as a permanent model-version pin.
@@ -166,10 +191,14 @@ No privileged credential may be shipped in the GitHub Pages bundle.
 
 Browser code may use only the Supabase publishable key and APIs protected by RLS. Any operation needing elevated database access, Google Gemini API keys, third-party secrets, ingestion credentials or protected source access must execute inside Supabase Edge Functions or another server-side environment.
 
+Scheduled sync/promotion operations are privileged and may not be exposed to ordinary user sessions.
+
 ## Source provenance rule
 
 Every material analysis finding must be reproducible. At minimum persist:
 
+- data release identifier;
+- exact source dataset version;
 - source identifier;
 - source URL or service endpoint;
 - source record/object identifiers where available;
@@ -188,12 +217,12 @@ Given a supported Estonian cadastral identifier and a user-placed building footp
 
 - resolve the parcel;
 - display it accurately on a map;
-- detect supported spatial restrictions and planning overlays;
+- detect supported spatial restrictions and planning overlays from a versioned promoted data release;
 - classify basic building/permit implications through deterministic versioned rules;
 - explain findings in Estonian, optionally enhanced by Gemini;
 - show official evidence and links;
-- explicitly label missing or inconclusive data as unknown;
-- save and reproduce an analysis;
+- explicitly label missing, stale or inconclusive data as unknown/condition as appropriate;
+- save and reproduce an analysis with its data/rule versions;
 - run securely from a static GitHub Pages frontend backed by Supabase.
 
 See `docs/MVP_SCOPE.md` for exclusions.
@@ -201,6 +230,8 @@ See `docs/MVP_SCOPE.md` for exclusions.
 ## Development rule
 
 Do not begin a feature from a vague prompt. Pick the next unblocked item in `TASKS.md`, read the linked specifications, implement only the defined scope, add/update tests and documentation, then satisfy `docs/DEFINITION_OF_DONE.md`.
+
+For any source/cache task, `docs/DATA_REFRESH_AND_VERSIONING.md` is part of the implementation contract even if an older task description uses the word “cache”.
 
 ## License
 

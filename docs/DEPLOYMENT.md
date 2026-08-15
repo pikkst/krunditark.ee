@@ -41,7 +41,7 @@ Official GitHub Pages custom-domain documentation:
 
 ## 3. Preview URL and Vite base path
 
-During repository Pages preview the site is served under a repository path such as:
+During repository Pages preview the site is served under a repository path:
 
 ```text
 https://pikkst.github.io/krunditark.ee/
@@ -55,13 +55,15 @@ The Vite build reads `VITE_BASE_PATH` to configure the asset base path. Default 
 VITE_BASE_PATH=/krunditark.ee/ npm run build
 ```
 
-### Production build (custom domain)
+### Future production build (custom domain)
 
 ```text
 VITE_BASE_PATH=/ npm run build
 ```
 
 Do not hardcode production `krunditark.ee` paths into application source. The base path is deployment configuration only.
+
+The custom domain `krunditark.ee` is reserved for production and is not attached to the preview deployment.
 
 ## 4. Routing on GitHub Pages
 

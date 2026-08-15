@@ -171,13 +171,13 @@ Preview example:
 https://pikkst.github.io/krunditark.ee/
 ```
 
-Production:
+Production (custom domain, future):
 
 ```text
 https://krunditark.ee
 ```
 
-Because the GitHub Pages phase may use hash routing, test the actual Supabase Auth callback flow before marking auth complete.
+Because the GitHub Pages phase uses hash routing, test the actual Supabase Auth callback flow before marking auth complete.
 
 ## 11. CORS origins
 
@@ -189,7 +189,7 @@ Expected environment-specific allow-list:
 
 ```text
 local: http://localhost:5173
-preview: https://pikkst.github.io
+preview: https://pikkst.github.io/krunditark.ee
 production: https://krunditark.ee
 ```
 

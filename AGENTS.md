@@ -125,9 +125,26 @@ All schema changes must be committed as ordered migrations in `supabase/migratio
 
 Never edit an already-applied migration to fix production state. Add a new forward migration.
 
+### AI provider
+
+The initial production AI provider is **Google Gemini API**.
+
+Implementation rules:
+
+- use the current Google GenAI SDK/API supported by Google at implementation time;
+- keep a small Krunditark-owned `ExplanationProvider` abstraction around Gemini so core domain code does not import Google SDK types;
+- configure the selected Gemini model server-side rather than scattering a model name through the codebase;
+- store `GEMINI_API_KEY` only as a Supabase Edge Function/server secret;
+- never expose Gemini credentials in `VITE_*`, frontend source, GitHub Pages, logs or fixtures;
+- use structured/schema-constrained output where supported, followed by Krunditark-side validation;
+- use deterministic fake AI providers in normal unit/integration tests;
+- Gemini downtime or failure must not invalidate an otherwise completed deterministic Ehituspass.
+
+Changing the initial provider away from Gemini requires an explicit project-owner decision and documentation/ADR update. The provider abstraction exists for maintainability, not for agents to choose a different provider arbitrarily.
+
 ### Privileged operations
 
-Never expose any secret/elevated Supabase key, LLM/provider secret or third-party credential in browser code.
+Never expose any secret/elevated Supabase key, Gemini API key or third-party credential in browser code.
 
 Browser code may use only a Supabase **publishable** key and RLS-protected resources.
 
@@ -289,7 +306,7 @@ Minimum test categories:
 
 Critical GIS/rule tests must include boundary and negative cases.
 
-No unit test should depend on a live government endpoint.
+No unit test should depend on a live government endpoint or live Gemini API.
 
 ## 14. Git and task workflow
 
@@ -338,12 +355,12 @@ For analysis-related tasks specifically, completion requires reproducibility, pr
 
 Do not:
 
-- ask an LLM “can this building be built here?” and use that response as the decision;
-- expose a service/secret role key to GitHub Pages;
+- ask Gemini “can this building be built here?” and use that response as the decision;
+- expose a Supabase service/secret role key or Gemini API key to GitHub Pages;
 - disable RLS to make development easier;
 - trust client-calculated geometry as authoritative without server validation;
 - hardcode a legal interpretation without source/version metadata;
-- silently fall back from failed official data to model knowledge;
+- silently fall back from failed official data to Gemini/model knowledge;
 - label missing data as “no restrictions”;
 - use browser-only geometry calculations for authoritative distance/intersection findings;
 - store critical provenance only in free-form JSON when a structured relationship is required;

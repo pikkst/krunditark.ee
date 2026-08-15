@@ -171,8 +171,11 @@ Current direction:
 
 ### Hosting
 
-- development/public preview: GitHub Pages
-- domain currently registered at Zone
+- development/public preview: GitHub Pages (repository path)
+  - deploy workflow: `.github/workflows/deploy-pages.yml`
+  - `VITE_BASE_PATH` configures repository-path asset loading
+- domain registration: Zone
+- primary production domain reserved: `krunditark.ee` (not yet attached)
 - later Cloudflare DNS/edge/possibly static frontend hosting
 - backend remains Supabase unless an ADR changes it
 

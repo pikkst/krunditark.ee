@@ -59,10 +59,10 @@ Acceptance:
 
 ## KT-004 — Configure GitHub Pages preview
 
-- [ ] static production build deploy.
-- [ ] repository-path support.
-- [ ] route strategy works on refresh/deep links.
-- [ ] no private server logic in Pages bundle.
+- [x] static production build deploy.
+- [x] repository-path support.
+- [x] route strategy works on refresh/deep links.
+- [x] no private server logic in Pages bundle.
 
 ## KT-005 — Add environment contract
 

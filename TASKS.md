@@ -52,10 +52,10 @@ Acceptance:
 
 ## KT-003 — Configure GitHub Actions CI
 
-- [ ] `npm ci` with committed lockfile.
-- [ ] format/lint/typecheck/test/build.
-- [ ] safe cache.
-- [ ] runs PRs + `main`.
+- [x] `npm ci` with committed lockfile.
+- [x] format/lint/typecheck/test/build.
+- [x] safe cache.
+- [x] runs PRs + `main`.
 
 ## KT-004 — Configure GitHub Pages preview
 

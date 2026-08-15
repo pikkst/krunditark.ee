@@ -1,6 +1,8 @@
 # Legal and Compliance Requirements — Krunditark
 
-> Engineering/product compliance specification, not a substitute for professional legal review before public launch.
+Last product/legal architecture review: **2026-08-15**
+
+> Engineering/product compliance specification, not a substitute for professional Estonian/EU legal review before public paid launch.
 
 ## 1. Product legal posture
 
@@ -8,264 +10,423 @@ Krunditark is a decision-support/information product.
 
 It must not present itself as:
 
-- an authority issuing permits;
-- a substitute for a legally required application/coordination;
-- a guarantee that a permit will be granted;
+- an authority issuing permits/approvals;
+- a guarantee that construction is permitted;
+- a substitute for required application/coordination;
 - a legal opinion;
-- proof of land ownership;
-- a professional engineering/survey/design certification.
+- proof of parcel ownership/title;
+- professional engineering/survey/design certification;
+- certified property valuation unless a separate qualified product is created.
 
-## 2. User-facing disclaimer baseline
+This boundary must be visible in product copy, not buried only in Terms.
 
-Every Ehituspass must communicate, in plain Estonian, that:
+## 2. User-facing report disclosure
 
-- analysis is based on the listed data sources and rules available to Krunditark at the stated time;
-- some data may be incomplete, non-public or require authority/professional verification;
-- official decisions are made by the competent authority;
-- the user should verify critical findings through linked official sources/authority before acting.
+Every Ehituspass/Ostukontroll communicates in plain language:
 
-Do not hide the disclaimer only in Terms of Service.
+- which parcel/scenario was checked;
+- analysis date;
+- exact data-release/source freshness;
+- what categories were checked;
+- what was not checked/unknown;
+- deterministic finding state;
+- official source/verification link;
+- that competent authorities make official decisions.
+
+Do not use “approved”, “legal to build”, or equivalent unless a connected official record actually proves that status and the feature is designed for it.
 
 ## 3. Legal source of truth
 
-For Estonian legislation use **Riigi Teataja**:
+For Estonian legislation use **Riigi Teataja** and competent official authority sources.
 
-- https://www.riigiteataja.ee/
+Expected legal families, depending on implemented scope:
 
-Important legal families expected to affect the project include, depending on implemented scope:
-
-- Ehitusseadustik (EhS), especially relevant annexes/tables;
-- Planeerimisseadus (PlanS);
-- Ehitusseadustiku ja planeerimisseaduse rakendamise seadus;
+- Ehitusseadustik and annexes;
+- Planeerimisseadus;
+- EhS/PlanS implementation law;
 - Looduskaitseseadus;
 - Muinsuskaitseseadus;
-- Veeseadus and implementing requirements where relevant;
-- Tuleohutuse seadus / fire-safety regulations where relevant;
-- road/protection-zone provisions and implementing requirements;
-- utility/network protection-zone rules;
-- local-government regulations and established plans where applicable.
+- Veeseadus;
+- fire-safety requirements;
+- roads/protection zones;
+- utility/network protection rules;
+- KOV regulations/plans/decisions.
 
 The list is not itself a ruleset.
 
-## 4. Rule verification requirement
+## 4. Current-law volatility
 
-Before a legal rule version can be `verified`:
+Construction rules change. In 2026 significant Ehitusseadustik amendments entered into force on **1 August 2026**, including process simplifications described by Kliimaministeerium.
 
-1. open the current official source in Riigi Teataja/competent authority source;
-2. identify exact section/annex/paragraph/table row;
-3. record the version/effective date;
-4. encode only the supported interpretation;
-5. add boundary tests;
-6. record verifier + timestamp;
-7. preserve the old rule version when law changes.
+Official context:
 
-Do not use model memory or an old blog post to set a legal threshold.
-
-## 5. Effective-date behavior
-
-Law changes are expected.
-
-Rules must support:
-
-- `effective_from`;
-- `effective_to`;
-- publication/source identifier;
-- historical analysis references.
-
-When a law changes:
-
-- add a new rule version;
-- retire/end-date prior version as appropriate;
-- do not rewrite historical analyses;
-- optionally flag old reports as “newer rules are available”.
-
-## 6. Planning-law limitation
-
-National planning geometry may indicate that a plan applies, but detailed plan conditions can exist in drawings/text/files and municipal decisions.
-
-Krunditark must distinguish:
-
-- “plan detected”;
-- “structured plan conditions checked”;
-- “plan textual conditions not automatically verified”.
-
-Never treat plan-area detection alone as full plan compliance.
-
-## 7. Environmental-data limitation
-
-Some protected nature information is not available in public views/services.
+- https://kliimaministeerium.ee/uudised/ehitamine-muutub-lihtsamaks
+- https://www.riigiteataja.ee/
 
 Therefore:
 
-- public-source absence is not universal proof of no protected object;
-- the report must identify the limitation where material;
-- source access rules must be respected;
-- do not attempt to bypass protected-data access controls.
+- never hard-code law from old memory/blog;
+- legal watch checks current versions/effective dates;
+- detected change creates review candidate;
+- verified production rule changes only after human/admin review + tests;
+- historical report retains original rule version.
 
-## 8. Heritage limitation
+## 5. Rule verification
 
-Use official Muinsuskaitse/Kultuurimälestiste registry-linked data.
+Before `verified`:
 
-Where no stable public machine-readable service is verified:
+1. open current official source;
+2. identify exact section/annex/table row;
+3. record act/document identifier and effective dates;
+4. encode only supported interpretation;
+5. add boundary/missing-fact tests;
+6. record verifier/time;
+7. preserve old version.
 
-- do not scrape around access controls;
-- provide a manual verification path/official link;
-- mark automation incomplete.
+If a known law change may invalidate an active rule and review is incomplete, affected output must degrade safely rather than silently rely on known-obsolete semantics.
 
-## 9. Source attribution and data terms
+## 6. Planning-law limitation
 
-For each source, record:
+National PLANIS geometry/metadata can show that a plan applies, but textual/drawing/local decision conditions may require additional interpretation.
+
+Distinguish:
+
+- plan detected;
+- structured conditions checked;
+- plan textual conditions not automatically verified;
+- authority/manual review required.
+
+Plan polygon intersection alone is not full compliance.
+
+## 7. Environmental/sensitive data
+
+Some environmental/protected data may be intentionally non-public.
+
+- do not bypass access controls;
+- public absence is not universal proof of no protected object;
+- label limitation/unknown where material;
+- respect source access/redistribution rules.
+
+## 8. Heritage/roads/utilities
+
+Only automate from verified authoritative machine-readable sources.
+
+Where source/semantics incomplete:
+
+- show official manual verification path;
+- use `unknown`/condition;
+- do not substitute an unofficial dataset as authority.
+
+Utility proximity must never be presented as guaranteed capacity/connection/price.
+
+## 9. Source attribution/terms
+
+For every source:
 
 - authority;
 - official endpoint;
 - terms/license page where available;
-- attribution requirement;
-- redistribution/cache constraints;
-- update frequency.
+- attribution;
+- replication/cache/redistribution constraints;
+- semantic scope;
+- refresh/freshness policy.
 
-Map and report attribution must satisfy source requirements.
+Map/report attribution must meet source requirements.
 
-See `DATA_SOURCES.md`.
+See `DATA_SOURCES.md` and `DATA_REFRESH_AND_CACHE.md`.
 
-## 10. Personal data / GDPR design
+## 10. GDPR/privacy posture
 
-Krunditark will likely process personal data when accounts/projects exist even if underlying parcel geometry is public.
+Accounts/projects create personal data even when parcel geometry is public.
 
-Before production, document:
+Private project intent may include:
+
+- relationship between person and a parcel they are considering;
+- planned home/sauna/building location;
+- notes;
+- uploads;
+- reports/questions;
+- billing/order history.
+
+Before production document:
 
 - controller identity/contact;
-- purposes;
-- legal basis per purpose;
-- categories of data;
-- recipients/processors;
-- international transfers if any;
+- purposes/legal bases;
+- data categories;
+- processors/recipients;
+- international transfers;
 - retention;
 - data-subject rights;
-- deletion process;
-- security contact/incident process as appropriate.
+- deletion/export;
+- incident/security contact.
 
-Avoid collecting ownership/identity data not needed for product function.
+Do not collect landowner identity merely to analyze a parcel.
 
 ## 11. Privacy notice
 
-Public production requires an understandable privacy notice accessible from every page.
-
-It must reflect actual behavior, including:
+Accessible from every public/app page and accurately reflects actual providers/features:
 
 - Supabase;
-- hosting/CDN as applicable;
-- AI provider if enabled;
-- email/auth provider behavior;
+- hosting/CDN;
+- Gemini if enabled;
+- SMTP/Auth;
+- payment provider if enabled;
 - analytics if enabled;
-- logs/security processing;
-- file uploads if enabled.
+- logs/security;
+- file uploads/sharing;
+- professional partner handoff later.
 
-Do not copy a generic privacy policy that does not match implementation.
+No generic copied privacy policy.
 
-## 12. Analytics/cookies
+## 12. Anonymous Auth/privacy
 
-Do not add non-essential tracking merely because a library makes it easy.
+Guest-first Auth does not mean anonymous project data can be treated as non-personal by default.
 
-Before analytics:
+Document:
 
-- decide provider;
-- document data collected;
-- determine applicable consent/legal-basis behavior;
-- ensure implementation matches decision;
-- update privacy notice.
+- anonymous identifier/session handling;
+- draft retention/cleanup;
+- conversion to permanent account;
+- abuse/CAPTCHA/security processing;
+- loss/recovery limitations.
 
-MVP can launch without analytics.
+## 13. Analytics/cookies
 
-## 13. Terms of service
+Before non-essential analytics/tracking:
 
-Before paid/public production, Terms should address at least:
+- choose provider;
+- document data;
+- determine consent/legal-basis/cookie behavior;
+- minimize parcel/project detail;
+- update privacy notice;
+- implement preference/consent controls where required.
 
-- informational nature;
-- no official approval guarantee;
-- user responsibility to verify critical actions;
-- account acceptable use;
-- limitations around source availability;
-- report currency/freshness;
-- intellectual property/licensing;
-- liability allocation subject to Estonian/EU consumer law review;
-- payment/refund terms when paid features exist.
+Do not add analytics just because SDK is convenient.
 
-Professional legal review is recommended before monetization.
+## 14. ET/RU/EN legal localization
 
-## 14. AI disclosure
+Estonian is canonical for official Estonian legal-source identity.
 
-AI-generated explanatory text should be distinguishable from official source text.
+For RU/EN product:
 
-Never visually quote generated wording as though it came from an authority.
+- critical terms/privacy/terms/payment/refund/disclaimer copy require reviewed translation;
+- Gemini runtime translation is not sufficient for fixed legal/commercial text;
+- translated explanation is not official translated authority text;
+- official Estonian source remains linked/identifiable;
+- if service Terms have multiple language versions, legal review must specify governing-version behavior before paid launch.
 
-The factual status must remain available independently from the AI explanation.
+## 15. Terms of service
 
-## 15. Report provenance
+Before account/public paid launch address:
 
-Every report should show:
+- service identity/contact;
+- informational/decision-support nature;
+- no authority approval guarantee;
+- current-data/supported-scope limitations;
+- acceptable use/abuse;
+- account/security;
+- intellectual property/source licensing;
+- AI explanation boundary;
+- payment/product entitlement;
+- refunds/technical failure;
+- digital content/service delivery;
+- liability allocation subject to mandatory Estonian/EU consumer law;
+- dispute/support process;
+- professional/B2B differences later.
 
-- analysis generation timestamp;
-- parcel ID;
-- proposal version;
-- source retrieval/freshness summary;
-- rule/legal source references;
-- limitations/unknown categories;
-- engine/report version.
+Professional legal review is required/recommended before monetization.
 
-Future downloadable/signed reports must preserve this metadata.
+## 16. Paid consumer product / seller identity
 
-## 16. Cost information
+Before taking money publish and configure the actual legal seller:
 
-Classify cost entries:
+- legal entity/name;
+- registry/contact details as required;
+- VAT status/price presentation;
+- support channel;
+- payment methods;
+- order confirmation/receipt/invoice behavior;
+- refund/technical non-delivery process.
 
-- **official fee** — amount from official source;
-- **market estimate** — range from dated market dataset/methodology;
-- **provider quote required** — no reliable automatic amount;
-- **user quote** — user-supplied.
+Do not finalize commercial legal copy until the owner identifies the operating entity and accounting/VAT setup.
 
-Never label a market estimate as an official fee.
+## 17. Price presentation
 
-## 17. Utility information
+Consumer pricing must clearly show:
 
-Network proximity does not equal:
+- what product/analysis scope is purchased;
+- one-time vs recurring nature;
+- total price/tax presentation as applicable;
+- duration/usage limits for Project Pass;
+- renewal/cancellation for subscription products;
+- what happens if report generation technically fails.
 
-- free capacity;
-- guaranteed connection;
-- guaranteed price;
-- provider approval.
+Do not preselect recurring subscription for an episodic purchase through dark patterns.
 
-Use wording such as “nearest supported network feature detected” and link to provider verification where appropriate.
+## 18. Digital content / withdrawal / refunds
 
-## 18. Local authority decisions
+Before paid launch obtain legal review for applicable EU/Estonian consumer rules concerning digital services/content, performance starting immediately, withdrawal rights/consent where relevant and refund obligations.
 
-When the competent local authority must decide or coordinate:
+Engineering must support the resulting policy rather than invent it.
 
-- Krunditark may identify the likely competent authority from verified data/rules;
-- provide official contact/service link;
-- list documents/steps only when sourced;
-- never say authority approval has been obtained unless an official connected record explicitly proves it.
+Technical principles independent of final legal policy:
 
-## 19. Launch legal checklist
+- duplicate purchase can be identified;
+- paid-but-unfulfilled report recoverable;
+- no second charge required for technical retry;
+- refunds auditable;
+- order/report history retained as required.
 
-Before public production:
+## 19. Payment provider/compliance boundary
 
-- [ ] supported legal rule matrix reviewed against current Riigi Teataja versions;
-- [ ] source terms/attribution reviewed;
-- [ ] privacy notice published;
-- [ ] retention operationally implemented;
-- [ ] AI provider privacy/data behavior reviewed if enabled;
-- [ ] Terms published if accounts/paid service require them;
-- [ ] disclaimer visible in report;
-- [ ] critical unknown behavior verified;
-- [ ] no claim of official authority status;
-- [ ] municipal/source links verified;
-- [ ] product owner/legal reviewer approves public wording.
+Prefer provider-hosted/secure checkout so Krunditark does not process raw payment credentials.
 
-## 20. Re-verification cadence
+- provider terms/privacy reviewed;
+- signed webhook verified;
+- order price server-controlled;
+- payment IDs kept only as needed;
+- accounting records retained according to applicable law;
+- payment provider listed in privacy/terms as appropriate.
 
-Because law, services and source schemas change:
+See `COMMERCE_AND_ENTITLEMENTS.md`.
 
-- legal rule sources should have scheduled review metadata;
-- provider adapters should have schema/source-health monitoring;
-- a major source/legal change should trigger new rule/source versions and regression tests;
-- do not depend on a foundation document dated 2026-08-15 as proof that law is still current later.
+## 20. AI disclosure
+
+AI-generated explanation must be visually distinguishable from official source wording.
+
+Never quote generated text as authority quote.
+
+Factual findings/source links remain accessible if AI is disabled/unavailable.
+
+Private uploaded plans must not be sent to Gemini until the specific privacy/data-handling workflow is reviewed and disclosed as needed.
+
+## 21. Report provenance
+
+Every retained/downloadable report contains or can resolve:
+
+- report/analysis ID;
+- generated date;
+- parcel;
+- proposal version/scenario;
+- data release/source dates;
+- rule/effective references;
+- unknown/unsupported categories;
+- engine/report version;
+- disclaimer.
+
+Old reports are not silently rewritten.
+
+## 22. Cost information
+
+Every number classified:
+
+- official fee;
+- dated market estimate/range;
+- provider quote required;
+- user-supplied quote.
+
+No Gemini-memory current pricing as factual cost.
+
+## 23. Professional marketplace/referrals — future
+
+Commercial partner relationship cannot affect automated findings.
+
+Before launch define:
+
+- partner qualification;
+- clear sponsorship/referral disclosure;
+- ranking neutrality;
+- user consent before report/contact data shared;
+- commission/lead model;
+- complaints/conflicts of interest;
+- professional opinion separate from automated report;
+- liability/scope.
+
+No programmatic/banner ads inside trust-critical Ehituspass/analysis workspace.
+
+## 24. Share links — future
+
+User opt-in only.
+
+Legal/privacy design includes:
+
+- scope;
+- expiry/revocation;
+- noindex;
+- private notes/files excluded;
+- recipient access disclosure;
+- deletion behavior.
+
+## 25. Existing-building/EHR privacy
+
+Use only fields/data that current official access rules permit.
+
+Do not assume attachments/documents are public because basic building facts are public.
+
+Adapter implementation must re-check current EHR access/replication terms.
+
+## 26. Product content/SEO
+
+Law-dependent public content must show review/currentness and official sources.
+
+Do not generate thousands of thin AI pages for cadastral parcels or municipalities.
+
+Private project/report URLs are noindex by default.
+
+## 27. Accessibility/transparency
+
+Important legal/status information cannot rely on color/map alone.
+
+Translated and accessible textual result must preserve:
+
+- state;
+- uncertainty;
+- source;
+- next action.
+
+## 28. Launch legal/compliance checklist
+
+Before free public beta:
+
+- [ ] supported source terms/attribution reviewed;
+- [ ] current legal rule matrix reviewed;
+- [ ] privacy notice/controller identity;
+- [ ] retention/deletion behavior;
+- [ ] Auth/SMTP provider behavior disclosed as needed;
+- [ ] AI privacy/data behavior reviewed if enabled;
+- [ ] disclaimer/source freshness visible;
+- [ ] enabled locale critical legal copy reviewed.
+
+Before paid public launch additionally:
+
+- [ ] seller legal entity/contact;
+- [ ] VAT/accounting/price presentation reviewed;
+- [ ] Terms published;
+- [ ] payment provider terms/privacy/webhooks;
+- [ ] refund/digital-content/withdrawal legal review;
+- [ ] order confirmation/receipt/invoice behavior;
+- [ ] paid technical-failure recovery;
+- [ ] support/dispute path;
+- [ ] translated commercial/legal pages for enabled locales.
+
+Before marketplace/B2B later:
+
+- [ ] partner/referral neutrality/disclosure;
+- [ ] professional data sharing/consent;
+- [ ] B2B terms/API licensing/attribution;
+- [ ] organization/user roles/privacy.
+
+## 29. Re-review triggers
+
+Re-run legal/compliance review when:
+
+- supported construction scenario changes;
+- law/effective rules change;
+- new official source is added;
+- new locale is enabled;
+- payment/provider/pricing model changes;
+- private uploads/AI document parsing starts;
+- analytics provider changes;
+- partner/marketplace starts;
+- official submission/delegation is considered;
+- expansion outside Estonia is proposed.

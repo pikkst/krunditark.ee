@@ -1,379 +1,1054 @@
 # UX/UI Specification — Krunditark
 
-## 1. UX objective
+Last comprehensive product review: **2026-08-15**
 
-Krunditark should feel like a guided property/construction check, not a government database browser.
+## 1. UX north star
+
+Krunditark should feel like a calm, guided **property decision workspace**, not a GIS portal, legal database or chatbot.
 
 Primary promise:
 
 > **Tea enne, kui ehitad.**
 
-The user should understand:
+The UX must always help the user answer:
 
-1. what parcel is being checked;
-2. what building is being proposed;
-3. what Krunditark checked;
-4. what it found;
-5. what it could not verify;
-6. what to do next;
-7. where the official source is.
+1. Did I select the correct parcel?
+2. What am I trying to do?
+3. What exactly is being tested?
+4. What did Krunditark check?
+5. What did it find?
+6. What remains unknown?
+7. What should I do next?
+8. Which official source supports this?
+9. How current is the data?
+10. Can I change the scenario and compare the result?
 
-## 2. MVP information architecture
+## 2. Design principles
 
-Suggested routes:
+### 2.1 Start with the user's decision, not government terminology
+
+Ask:
+
+> `Mida soovid selle krundiga teha?`
+
+before asking the user to understand terms such as detail plan, design conditions or building notice.
+
+### 2.2 Progressive disclosure
+
+Beginner users see:
+
+- one search;
+- one intent choice;
+- simple building templates;
+- essential warnings and actions.
+
+Advanced source IDs, raw measurements, layer controls and legal details are available progressively.
+
+### 2.3 Show evidence near claims
+
+Every material finding keeps its source/date/action within the same visual unit. Do not push all provenance into a footer.
+
+### 2.4 Unknown is visible, not embarrassing
+
+`Unknown` is a safety feature. It must look intentional and actionable rather than like a broken product.
+
+### 2.5 No fake certainty
+
+Never use:
+
+- `100% ehitatav`;
+- `92% buildable`;
+- `Lubatud` when only supported checks are clear;
+- a single green score that hides unknowns.
+
+### 2.6 Map explains, text decides comprehension
+
+The map is powerful but never the only representation. Every geometry conflict has a textual finding.
+
+### 2.7 Preserve user work through every gate
+
+Auth, payment, errors, language change and navigation must not discard the selected parcel or proposal.
+
+## 3. Visual identity direction
+
+Krunditark should feel:
+
+- modern Estonian digital product;
+- architectural/spatial;
+- calm and precise;
+- trustworthy without imitating a government website;
+- premium enough to justify a paid report;
+- friendly enough for a homeowner.
+
+### 3.1 Brand motifs
+
+Potential visual motifs:
+
+- cadastral boundary geometry;
+- subtle contour/grid/parcel lines;
+- building footprint rectangle;
+- layered map/evidence cards;
+- “checked source” timestamp.
+
+Avoid generic AI stars/robot imagery as the core brand. AI is not the product moat.
+
+### 3.2 Color semantics
+
+Brand palette should be neutral/natural/technical; exact tokens require visual design iteration.
+
+Status colors are semantic and accessible:
+
+- conflict: strong danger tone + icon/text;
+- condition: amber/warning + icon/text;
+- clear: restrained success + icon/text;
+- unknown: neutral/blue-grey/information + question/attention icon.
+
+Never rely on color alone.
+
+### 3.3 Typography
+
+Requirements:
+
+- excellent Estonian/Cyrillic/Latin support;
+- readable numbers/measurements;
+- clear distinction between heading, source metadata and body copy;
+- avoid decorative architecture fonts for body/legal information.
+
+Do not ship font files without verifying licensing/performance. System/web font choice is an implementation decision.
+
+## 4. Product information architecture
+
+### Public
 
 ```text
-/                       landing / start
-/#/kaart                parcel search + map in GitHub Pages phase
-/#/projekt/:id          project workspace
-/#/projekt/:id/analuus  analysis progress/result
-/#/ehituspass/:id       Ehituspass result
-/#/projektid             saved projects
-/#/login                 auth
-/#/privaatsus            privacy
-/#/tingimused            terms when available
+/
+/{locale}/
+/{locale}/hinnad
+/{locale}/kuidas-tootab
+/{locale}/ehituspass
+/{locale}/ostukontroll
+/{locale}/pro
+/{locale}/abi
+/{locale}/privaatsus
+/{locale}/tingimused
 ```
 
-During GitHub Pages preview, hash routing is acceptable to avoid static-host deep-link failures. Production hosting may later move to clean paths through an ADR/deployment change.
+### Application
 
-## 3. Landing page
-
-Hero:
-
-**Krunditark**
-
-**Tea enne, kui ehitad.**
-
-Suggested supporting message:
-
-> Sisesta katastritunnus, paiguta kavandatav hoone kaardile ja vaata ühest kohast planeeringuid, kitsendusi, kontrollitavaid nõudeid ning järgmisi samme.
-
-Primary action:
-
-`Alusta katastritunnusega`
-
-Secondary content should explain:
-
-- what an Ehituspass is;
-- official-source approach;
-- AI does not replace official decisions;
-- supported scope.
-
-Avoid long legal text above the fold.
-
-## 4. Parcel search
-
-Input label:
-
-`Katastritunnus`
-
-Example format may be shown without presenting a real private user's parcel as a featured example.
-
-States:
-
-- empty;
-- invalid format;
-- loading;
-- found;
-- not found;
-- official source unavailable.
-
-Not-found and unavailable must be visually/textually different.
-
-Result card:
-
-- cadastral ID;
-- address where sourced;
-- area;
-- source;
-- retrieval time;
-- `Ava kaardil`.
-
-## 5. Map workspace
-
-Desktop layout:
+Production target:
 
 ```text
-+-------------------------------------------------------------+
-| Header                                                      |
-+----------------------+--------------------------------------+
-| Project / form       | Map                                  |
-|                      |                                      |
-| Parcel               | parcel boundary                      |
-| Building settings    | proposed building                    |
-| Analysis action      | restriction/evidence overlays        |
-|                      |                                      |
-+----------------------+--------------------------------------+
+/{locale}/kaart
+/{locale}/projekt/uus
+/{locale}/projekt/:projectId
+/{locale}/projekt/:projectId/variant/:proposalId
+/{locale}/ehituspass/:analysisId
+/{locale}/projektid
+/{locale}/konto
+/{locale}/ostud
+/{locale}/pro/...        later
 ```
+
+GitHub Pages preview may temporarily use hash routing, but component/domain design must target clean production routing.
+
+## 5. Global navigation
+
+### Logged out / guest
+
+Desktop:
+
+```text
+Krunditark      Kuidas töötab   Hinnad   Pro   Abi      ET ▾   [Logi sisse]
+```
+
+Primary contextual CTA on landing is the search, not a generic `Register` button.
 
 Mobile:
 
-- map remains usable;
-- bottom sheet/drawer for project form;
-- analysis/result sections stack vertically;
-- do not require hover.
+- compact logo;
+- locale switch;
+- menu;
+- project action remains accessible.
 
-## 6. Proposal creation flow
+### Logged in
 
-Step 1: `Mida soovid kavandada?`
+```text
+Krunditark    [Projektid] [Uus kontroll] ...   ET ▾   [Konto]
+```
 
-Initial supported examples:
+If one active project exists, show a clear `Jätka projekti` route.
 
-- Elamu
-- Saun
-- Kuur / abihoone
-- Garaaž / abihoone
+## 6. Landing page
 
-Unsupported type option may route to:
+### 6.1 Above the fold
 
-> “Seda ehitiseliiki Krunditark veel automaatselt ei kontrolli.”
+Desktop concept:
 
-Step 2: basic parameters.
+```text
++------------------------------------------------------------------+
+| Krunditark                                      ET | RU | EN      |
+|                                                                  |
+|     Tea enne, kui ehitad.                                        |
+|                                                                  |
+|     Vaata ühest kohast, millised planeeringud, piirangud         |
+|     ja kontrollitavad nõuded võivad sinu ehitusideed mõjutada.   |
+|                                                                  |
+|     [ Sisesta aadress või katastritunnus..................... ]  |
+|     [ Otsi ]                                                      |
+|                                                                  |
+|     [ Vali krunt kaardilt ]                                      |
+|                                                                  |
+|     ✓ Ametlikud allikad   ✓ Konkreetne asukoht   ✓ Selged sammud |
+|                                                                  |
+|                                 [map/product preview visual]       |
++------------------------------------------------------------------+
+```
 
-Step 3: place/draw on map.
+Primary input must accept:
 
-Step 4: review and run.
+- official address search;
+- cadastral identifier.
 
-Primary action:
+The current official MaRu In-AKS service makes address autocomplete a realistic primary entry path. Do not force ordinary consumers to find a cadastral ID elsewhere first.
+
+### 6.2 Trust strip
+
+Immediately under hero:
+
+- `Ametlikel andmeallikatel põhinev`
+- `AI selgitab — kontrolltulemus tuleb reeglitest ja ruumiandmetest`
+- `Andmete seis on alati nähtav`
+
+Avoid partner/government logos without permission.
+
+### 6.3 “Kuidas see töötab?”
+
+Three/four visual steps:
+
+1. `Leia krunt`
+2. `Vali, mida soovid teha`
+3. `Paiguta ehitis või tee ostukontroll`
+4. `Saa Ehituspass ja järgmised sammud`
+
+### 6.4 Product examples
+
+Use real product screenshots/illustrations, not abstract marketing claims:
+
+- parcel with sauna footprint;
+- detected power/road/planning overlay;
+- finding card with source;
+- variant A/B comparison.
+
+### 6.5 Use cases
+
+Cards:
+
+- `Tahan ehitada maja`
+- `Tahan krundile sauna või abihoonet`
+- `Kaalun maatüki ostmist`
+- `Olen arhitekt / maakler / arendaja`
+
+Each opens a relevant explanatory flow, not just the generic home page.
+
+### 6.6 “Mida Krunditark kontrollib?”
+
+Group by user problem rather than source agency:
+
+- `Planeeringud ja ehitusõigus`
+- `Kitsendused ja kaitsevööndid`
+- `Keskkond ja muinsuskaitse`
+- `Tee ja ligipääs`
+- `Loa/teatise järgmine samm`
+- `Olemasolevad ehitised` when supported
+- `Kommunikatsioonid` later
+- `Maastik, üleujutus ja pinnas` later
+
+Each group explicitly states current coverage/limitations.
+
+### 6.7 Sample Ehituspass
+
+Allow public sample/demo report with synthetic/demo parcel data.
+
+Users should understand what they are buying before checkout.
+
+### 6.8 Pricing teaser
+
+Simple:
+
+- free parcel overview;
+- Ostukontroll;
+- Ehituspass;
+- Project Pass;
+- Pro link.
+
+Do not put a 4-column SaaS pricing matrix above the product explanation.
+
+### 6.9 FAQ
+
+High-value questions:
+
+- Kas Krunditark annab ehitusloa?
+- Kas tulemus on ametlik otsus?
+- Kas pean olema kinnistu omanik?
+- Kui värsked andmed on?
+- Miks mõni tulemus on “vajab kontrolli”?
+- Kas saan proovida maja teist asukohta?
+- Kas mu projekt on privaatne?
+- Miks pean mõnel juhul siiski KOV-i või spetsialistiga suhtlema?
+
+### 6.10 Footer
+
+- company/service identity;
+- support;
+- privacy;
+- terms;
+- data/source methodology;
+- language;
+- service status later;
+- no implication of official state service.
+
+## 7. Search and parcel selection UX
+
+### 7.1 Combined search
+
+Label:
+
+`Aadress või katastritunnus`
+
+Placeholder:
+
+`Nt Pärnu mnt 10, Tallinn või 12345:678:9012`
+
+Autocomplete result card may show:
+
+- official address;
+- object type;
+- locality;
+- cadastral ID when resolution is available;
+- map preview/highlight.
+
+### 7.2 Multiple parcel candidates
+
+Address can map to a building/address object rather than one unique cadastral unit.
+
+When ambiguous:
+
+> `Leidsime mitu võimalikku katastriüksust. Vali kaardilt õige.`
+
+Show candidates with area and outline.
+
+### 7.3 Map selection
+
+`Vali krunt kaardilt` opens map with:
+
+- location/address search;
+- cadastral boundaries at suitable zoom;
+- click parcel;
+- bottom/side result sheet;
+- `Kasuta seda krunti`.
+
+## 8. Free parcel overview
+
+This is the first “aha” moment.
+
+Layout:
+
+```text
+[Parcel header: address + cadastral ID]
+[large map]
+
+Pindala    Basic facts    Olemasolevad hooned (when supported)
+
+Andmete seis: ...
+
+Mida soovid selle krundiga teha?
+[ Ehitan ] [ Kaalun ostmist ] [ Muudan hoonet ] [ Vaata piiranguid ]
+```
+
+Do not make the user sign in here.
+
+## 9. Intent selection
+
+### Build
+
+`Soovin midagi ehitada`
+
+### Buy
+
+`Kaalun selle krundi ostmist`
+
+### Existing building
+
+`Soovin olemasolevat hoonet muuta`
+
+### Understand parcel
+
+`Tahan lihtsalt piiranguid ja planeeringuid vaadata`
+
+### Professional
+
+Professional users can switch to a denser workflow and skip education steps.
+
+## 10. Building proposal wizard — beginner mode
+
+### Step 1 — Type
+
+Use visual cards:
+
+- `Elamu`
+- `Saun`
+- `Kuur / abihoone`
+- `Garaaž`
+- later more verified categories.
+
+Unsupported `Muu`:
+
+> `Selle ehitise kohta ei pruugi Krunditark veel kõiki menetlusreegleid automaatselt kontrollida. Ruumi- ja piirangukontrolle saad siiski kasutada.`
+
+### Step 2 — Size template
+
+Offer starting footprints:
+
+- common predefined dimensions;
+- `Sisestan ise mõõdud`.
+
+A template is convenience, not design advice.
+
+### Step 3 — Other rule-relevant parameters
+
+Only ask what the rule profile needs, with `Miks seda küsime?` help.
+
+### Step 4 — Placement
+
+Building appears as an object that can be:
+
+- dragged;
+- rotated;
+- resized through numerical fields;
+- reset;
+- duplicated.
+
+Desktop uses map + side panel.
+
+Mobile uses full-screen map + bottom sheet.
+
+### Step 5 — Review
+
+Summary:
+
+- parcel;
+- building type;
+- footprint/area;
+- height/storeys;
+- map thumbnail;
+- data categories available.
+
+CTA:
 
 `Kontrolli ehitusvõimalust`
 
-Do not label the button `Kas tohib ehitada?`, because the result is not an authority decision.
+Better than `Kas tohib ehitada?` because Krunditark is not the authority.
 
-## 7. Interactive map styling semantics
+## 11. Advanced proposal mode
 
-Map must visually distinguish:
+Available through `Täpsem paigutus` / Pro mode:
 
-- parcel boundary;
-- proposed building;
-- selected finding evidence;
-- other relevant restriction layers.
+- polygon drawing;
+- vertex editing;
+- exact coordinates/dimensions;
+- snapping where technically justified;
+- distance measurement;
+- layers;
+- future PDF/DXF/IFC import.
 
-Status colors may be used, but every legend item has a text/icon label.
+Never expose raw provider-specific GIS controls to a beginner by default.
 
-Do not show dozens of raw GIS layers by default. Focus on relevant analysis output.
+## 12. Live map feedback vs authoritative analysis
 
-## 8. Analysis progress
+During placement, the UI may show fast convenience feedback such as:
 
-Use actual step state, for example:
+- outside parcel;
+- approximate boundary distance;
+- visible known layer overlay.
 
-- `Katastriüksus kontrollitud`
-- `Kitsenduste andmed kontrollitud`
-- `Planeeringute andmeid kontrollitakse…`
-- `Keskkonnaandmete kontroll ebaõnnestus — tulemus märgitakse puudulikuks`
-- `Reeglite hindamine`
-- `Ehituspassi koostamine`
+Clearly distinguish it from the saved authoritative server/PostGIS analysis.
 
-Avoid a fake “73% complete” indicator unless progress is mathematically derived from known steps.
+For example:
 
-## 9. Overall Ehituspass states
+`Eelvaade` vs `Kontrollitud tulemus`.
 
-### Conflict
+Client-side geometry never becomes the authoritative legal measurement.
 
-Estonian label suggestion:
+## 13. Basemap modes
 
-`Konflikt tuvastatud`
+Recommended user modes:
 
-Explanation:
+- `Kaart`
+- `Ortofoto`
+- later `Reljeef`
 
-> Vähemalt üks kontrollitud tingimus vajab enne kavandatud asukohaga jätkamist lahendamist.
+Official Maa- ja Ruumiamet tiled map services can be considered where terms/proxy/contact requirements are satisfied. Avoid querying a heavyweight WMS directly for every browser pan when tiled services are available.
 
-### Condition/manual check
+## 14. Analysis progress UX
 
-`Vajab täiendavat kontrolli`
+Because normal analysis uses local verified data releases, it should usually be much faster/predictable than a multi-provider live fetch.
 
-### Checked scope clear
+Show actual stages:
 
-`Kontrollitud ulatuses konflikti ei tuvastatud`
+- `Kontrollime krundi ja ehitise geomeetriat`
+- `Võrdleme planeeringute ja kitsendustega`
+- `Hindame toetatud reegleid`
+- `Koostame Ehituspassi`
 
-Never shorten this to simply `Lubatud`.
+Do not pretend the system is currently calling each authority when it is using a monthly/local data release.
 
-### Incomplete
+Show data-release date separately.
 
-`Analüüs on osaliselt puudulik`
+## 15. Ehituspass — result hierarchy
 
-Show which source/check could not complete.
+The first viewport must answer the decision question without hiding nuance.
 
-## 10. Finding card anatomy
-
-Each material finding:
-
-```text
-[STATE ICON] Title
-Short plain-language explanation
-
-Why it triggered:
-- measurement / overlap / plan detected
-
-Next step:
-- structured action
-
-Source:
-Authority · retrieved/date
-[Vaata ametlikku allikat]
-
-[Vaata kaardil]
-```
-
-Optional expandable section:
-
-`Miks see oluline on?`
-
-AI explanation, if used, appears clearly as an explanation rather than official quote.
-
-## 11. Unknown findings
-
-Unknown is a first-class design state.
-
-Use wording such as:
-
-`Seda ei saanud avalike/saadud andmete põhjal automaatselt kinnitada.`
-
-Then explain:
-
-- why;
-- which source failed/is unsupported/non-public;
-- what the user can do manually.
-
-Do not hide unknown items under “other”.
-
-## 12. Source freshness UI
-
-Ehituspass should show:
-
-`Andmete seis`
-
-Example:
-
-- Maa- ja Ruumiamet — kontrollitud 15.08.2026
-- PLANIS — kontrollitud 15.08.2026
-- EELIS — kontrollitud 15.08.2026
-- Heritage — automaatne kontroll ei ole selles versioonis toetatud
-
-Do not say “live” unless a live request actually succeeded.
-
-## 13. Next-steps checklist
-
-Order actions by importance/dependency:
-
-1. blocking conflicts;
-2. required authority/manual checks;
-3. permit/application path;
-4. design/survey prerequisites;
-5. optional preparation.
-
-Labels distinguish:
-
-- `Vajalik kontroll`
-- `Tõenäoline järgmine samm`
-- `Soovitus`
-
-Do not make all recommendations look legally mandatory.
-
-## 14. Saved projects
-
-Project card:
-
-- user project name;
-- cadastral ID;
-- structure type;
-- last analysis state;
-- last checked date;
-- `Ava projekt`;
-- `Kontrolli uuesti` when source/rules may have changed.
-
-## 15. Analysis history
-
-Show separate snapshots:
+### Header
 
 ```text
-15.08.2026  Ehituspass #3  Vajab kontrolli
-02.08.2026  Ehituspass #2  Konflikt tuvastatud
+Ehituspass
+[project / address]
+Analüüs: 15.08.2026
+Andmeväljalase: 2026-08
 ```
 
-Opening an older analysis must display its historical source/rule dates, not current-source wording masquerading as old output.
+### Overall state
 
-## 16. Accessibility
+One of:
 
-Target WCAG 2.2 AA where practical.
+- `Konflikt tuvastatud`
+- `Vajab täiendavat kontrolli`
+- `Kontrollitud ulatuses konflikti ei tuvastatud`
+- `Analüüs on puudulik`
 
-Required:
-
-- semantic labels;
-- keyboard navigation;
-- visible focus;
-- errors tied to fields;
-- sufficient contrast;
-- status not color-only;
-- map findings have textual alternatives;
-- touch targets suitable for mobile;
-- reduced-motion respect;
-- no essential information available only through hover.
-
-## 17. Map accessibility
-
-A map alone is not an accessible result.
-
-Every map conflict must also exist as a text finding with:
-
-- category;
-- intersection/distance statement;
-- source;
-- next action.
-
-Provide a non-map list of findings.
-
-## 18. Loading/error behavior
-
-Avoid generic `Something went wrong` for expected provider conditions.
+### Top actions
 
 Examples:
 
-- `Katastriandmete teenus ei vastanud. Proovi uuesti.`
-- `Planeeringute kontroll ei õnnestunud. Ülejäänud analüüs on olemas, kuid planeeringute osa on märgitud puudulikuks.`
+- `Vaata kriitilisi leide`
+- `Proovi teist asukohta`
+- `Vaata järgmisi samme`
+- `Prindi / ekspordi`
 
-Technical request ID can be available in details/support context.
+### Category navigation
 
-## 19. Trust signals
+Sticky/side tabs on desktop, horizontal chips/accordion on mobile:
 
-Useful trust elements:
+- Kokkuvõte
+- Planeeringud
+- Kitsendused
+- Keskkond
+- Muinsuskaitse
+- Tee/ligipääs
+- Luba/teatis
+- Kommunikatsioonid later
+- Kulud later
+- Allikad
 
-- `Ametlik allikas` link;
-- data retrieval date;
-- clear limitations;
-- visible distinction between source fact and AI explanation;
-- no exaggerated claims such as “100% legal certainty”.
+## 16. Finding card anatomy
 
-## 20. Visual direction
+```text
+[icon] [STATE LABEL]
+Title
 
-Brand should feel:
+Plain-language factual summary
 
-- modern Estonian digital service;
-- calm and technical;
-- trustworthy rather than bureaucratic;
-- map/data-led;
-- not visually imitating a government authority.
+Miks see käivitus?
+  3.2 m² kavandatud hoonest kattub ...
 
-Avoid using Estonian state branding in a way that could imply official-government status.
+Järgmine samm
+  [Kontrolli tingimusi ...]
 
-## 21. Empty state
+Ametlik allikas
+  Authority · dataset/date
+  [Ava ametlik allikas]
 
-A first-time user should see one clear action:
+[Vaata kaardil] [Miks see oluline on?]
+```
 
-> `Sisesta katastritunnus ja alusta.`
+The optional `Miks see oluline on?` may be Gemini-enhanced but must be visually labeled as explanation and grounded to the supplied finding.
 
-Do not require account creation before the user understands the product, unless abuse/security constraints require it. A future limited preview can provide value before signup.
+## 17. Map-to-finding interaction
 
-## 22. Print view
+Selecting a finding:
 
-Printable Ehituspass includes:
+- highlights proposal;
+- highlights only relevant evidence geometry;
+- dims unrelated layers;
+- zooms to useful extent;
+- shows measurement annotation where meaningful.
 
-- Krunditark branding;
-- generation date;
-- cadastral ID;
-- proposal summary;
-- finding statuses as text;
-- sources/links;
-- unknowns;
-- disclaimer;
-- optional map snapshot only if attribution remains legible.
+Selecting map geometry opens the associated finding card.
+
+This bidirectional interaction is a core differentiator from a text-only chatbot.
+
+## 18. Unknown and stale states
+
+### Unknown
+
+Use:
+
+> `Seda ei saanud olemasolevate/toetatud andmete põhjal automaatselt kinnitada.`
+
+Then say why and what to do.
+
+### Stale
+
+Use:
+
+> `Selle allika viimane edukas Krunditarga andmeuuendus oli 01.07.2026. Andmed võivad olla muutunud.`
+
+Do not show the analysis creation date as source freshness.
+
+## 19. Next-step plan
+
+End the report with an ordered action plan.
+
+Each action has a type:
+
+- `Vajalik kontroll`
+- `Tõenäoline menetlussamm`
+- `Soovitus`
+- `Valikuline ettevalmistus`
+
+Example:
+
+```text
+1. [Vajalik kontroll] Vaata detailplaneeringu tingimused
+2. [Vajalik kontroll] Täpsusta tee kaitsevööndi tingimused
+3. [Tõenäoline menetlussamm] Taotle projekteerimistingimusi
+4. [Soovitus] Telli geodeetiline alusplaan
+```
+
+Do not make recommendations look legally mandatory unless the verified rule says so.
+
+## 20. Variant comparison
+
+This should become a signature experience.
+
+CTA after a conflict/condition:
+
+`Proovi teist asukohta`
+
+Duplicate the current proposal and let the user move/rotate it.
+
+Comparison view:
+
+```text
+              Variant A   Variant B
+Konfliktid        1           0
+Tingimused        2           1
+Teadmata          1           1
+```
+
+Then list exact differences.
+
+Do not rank with an opaque AI score.
+
+Future optimizer may add:
+
+`Leia krundilt sobivamad kandidaat-alad`
+
+but user always sees why candidates were suggested.
+
+## 21. Ostukontroll UX
+
+A buyer often does not know the final building footprint.
+
+Do not force building placement.
+
+Report:
+
+- parcel facts;
+- planning context;
+- known restrictions;
+- EHR existing buildings when supported;
+- road/access context;
+- environment/heritage;
+- important unknowns;
+- `Küsimused müüjale/KOV-ile`;
+- `Testi siia maja` upgrade.
+
+Future compare mode:
+
+`Võrdle krunte`
+
+with transparent category differences rather than a single “investment score”.
+
+## 22. Existing building / extension UX
+
+Later:
+
+- select EHR building visually/list;
+- choose change type;
+- show existing footprint;
+- draw/import proposed change;
+- run separate rule profile.
+
+Do not visually imply a new-building analysis covers reconstruction rules.
+
+## 23. Projects dashboard
+
+### Consumer
+
+Card:
+
+```text
+Saunaprojekt
+[address]
+Saun 48 m²
+Vajab kontrolli
+Viimane analüüs 15.08.2026
+[Uuemad andmed saadaval]
+
+[Ava projekt]
+```
+
+Filter/archive rather than complex enterprise tables.
+
+### Professional
+
+Optional table/list with:
+
+- client/project;
+- parcel;
+- proposal;
+- state;
+- data freshness;
+- assignee/team;
+- last activity;
+- batch actions later.
+
+## 24. Project workspace
+
+Desktop:
+
+```text
++------------------------------------------------------------------+
+| Project header | data freshness | share/export                   |
++-------------------------+----------------------------------------+
+| LEFT PANEL              | MAP                                    |
+|                         |                                        |
+| Parcel                  | parcel/proposal/evidence                |
+| Proposal variants       |                                        |
+| Findings                |                                        |
+| Next actions            |                                        |
+| Files (later)           |                                        |
++-------------------------+----------------------------------------+
+```
+
+A project should feel persistent, not like a one-time wizard once onboarding is complete.
+
+## 25. Change monitoring UX
+
+When a new verified data/rule release exists:
+
+```text
+[info banner]
+Uuemad kontrollandmed on saadaval.
+Sinu viimane Ehituspass põhineb 2026-07 andmetel.
+[Kontrolli uuesti]
+```
+
+Later after deterministic diff:
+
+- `Mõju ei tuvastatud`;
+- `Projektiga seotud muutus tuvastatud`;
+- exact changed categories.
+
+Never use alarmist push/email without computing impact.
+
+## 26. Pricing/paywall UX
+
+Consumer flow sells the decision/product, not “credits”.
+
+Labels:
+
+- `Ostukontroll`
+- `Ehituspass`
+- `Projektipass`
+
+Professional users may understand usage credits inside a subscription.
+
+Paywall shows:
+
+- exactly what will be checked/unlocked;
+- supported data date;
+- price including applicable tax presentation;
+- account/recovery behavior;
+- service limitation;
+- refund/technical-failure policy link.
+
+No preselected recurring subscription for one-off users.
+
+## 27. Auth UX
+
+Follow `AUTH_AND_ONBOARDING.md`.
+
+Principles:
+
+- no account before meaningful value;
+- account sheet appears contextually;
+- email OTP + Google;
+- preserve anonymous project;
+- no mandatory password;
+- show why identity is required (`save`, `buy`, `monitor`).
+
+## 28. Language UX
+
+Follow `LOCALIZATION_AND_LANGUAGE.md`.
+
+- ET/RU/EN selector visible from landing;
+- switching language preserves current state;
+- critical legal/status terms use reviewed translations;
+- source identity remains official/Estonian where appropriate;
+- translated explanation never looks like an official translated decision.
+
+## 29. Help architecture
+
+Contextual help beats a giant manual.
+
+Patterns:
+
+- `?` / `Miks seda küsime?` near parameters;
+- glossary tooltip;
+- report `Miks see oluline on?`;
+- short help articles;
+- AI follow-up grounded in current analysis;
+- `Teata võimalikust andmeveast`.
+
+Do not make the user leave the workflow to learn basic terms.
+
+## 30. Mobile strategy
+
+Mobile is important for parcel owners physically on site, but exact site-plan work is easier on desktop.
+
+Mobile must fully support:
+
+- search/select parcel;
+- view map;
+- place simple rectangle/template;
+- edit numeric dimensions;
+- run/read report;
+- source/action links;
+- pay/auth;
+- share.
+
+For advanced polygon/import workflows, the UI may recommend desktop without making the account/project inaccessible.
+
+Use bottom sheets carefully; do not cover the entire map with permanent controls.
+
+## 31. Accessibility
+
+Target WCAG 2.2 AA.
+
+Required:
+
+- semantic headings/landmarks;
+- keyboard operation;
+- visible focus;
+- labels/error associations;
+- status not color-only;
+- adequate contrast;
+- touch targets;
+- reduced motion;
+- no hover-only critical controls;
+- skip links;
+- map has textual alternative;
+- dialogs/sheets manage focus correctly;
+- charts/comparisons have tables/text equivalents.
+
+## 32. Performance UX
+
+Targets are experience-based, then measured.
+
+- landing/search should be quick before loading heavy map code;
+- lazy-load MapLibre where possible;
+- cache address/parcel results within source policy;
+- local data-release analysis should avoid a series of visible upstream waits;
+- render large vector evidence with simplification/tiles as needed;
+- skeletons preserve layout;
+- never use fake delay just to make analysis seem sophisticated.
+
+## 33. Empty/error states
+
+### Empty
+
+`Sisesta aadress või katastritunnus ja alusta.`
+
+### Parcel source unavailable
+
+`Krundiandmeid ei õnnestunud praegu laadida. Proovi uuesti.`
+
+### Unsupported rule scope
+
+`Selle ehitise menetlusreegleid Krunditark veel täielikult ei kata, kuid saad jätkata toetatud ruumi- ja piirangukontrollidega.`
+
+### Payment pending
+
+`Makse kinnitust oodatakse. Sinu projekt on salvestatud.`
+
+### Report creation failed after payment
+
+Never ask for another payment. Show recovery/support path and retry internally/idempotently.
+
+### AI failed
+
+`AI selgitus ei ole hetkel saadaval. Kontrollitud tulemused ja allikad on allpool olemas.`
+
+## 34. Notification design
+
+Only notifications with clear user value:
+
+- report ready;
+- payment/refund/account security;
+- newer data available for active monitored project;
+- material change later;
+- share/collaboration events;
+- project-pass expiry if action remains.
+
+Do not turn the product into marketing-email spam.
+
+## 35. Pro mode
+
+Pro mode is not simply “more features”. It changes information density.
+
+Features later:
+
+- advanced map/layers;
+- source IDs/version metadata visible by default;
+- reusable client/building templates;
+- keyboard shortcuts;
+- multiple active analyses;
+- comparison/export;
+- organization workspace;
+- API/batch status.
+
+Same factual engine and safety rules apply.
+
+## 36. Future high-value experiences
+
+### Best-location assistant
+
+Use deterministic candidate-area construction and transparent ranking.
+
+### Utility explorer
+
+Show:
+
+- known infrastructure/protection geometry;
+- distance/proximity;
+- service-area information;
+- direct request/quote action.
+
+Never present proximity as connection capacity/approval.
+
+### Terrain/flood/solar
+
+Map overlays and scenario cards with official-source metadata.
+
+### Blueprint import
+
+Upload PDF/DXF/IFC, extract candidate footprint, require scale/user confirmation, place on parcel.
+
+### Professional review
+
+`Vajan spetsialisti hinnangut`
+
+Share the exact analysis/evidence with user permission, reducing paid professional discovery time.
+
+### Application handoff
+
+Long-term, when official APIs/process allow it, prepare structured data/checklists for EHR/PLANIS workflows. Do not automate submissions before identity/authority/legal requirements are fully understood.
+
+## 37. Design-system component inventory
+
+Initial reusable components:
+
+- AppShell
+- Header / LocaleSwitcher
+- AddressParcelSearch
+- ParcelResultCard
+- MapShell
+- ParcelLayer
+- ProposalLayer
+- EvidenceLayer
+- BuildingTemplateCard
+- ProposalParameterForm
+- Stepper
+- StatusBadge
+- FindingCard
+- SourceBadge / SourceDetails
+- FreshnessBadge
+- NextActionCard
+- AnalysisSummary
+- VariantComparison
+- ProjectCard
+- Paywall/ProductCard
+- AuthSheet / OTPInput
+- EmptyState / ErrorState
+- ConfirmationDialog
+- BottomSheet
+- Toast for transient events only
+- Skeletons
+
+Avoid building a bespoke visual language per feature.
+
+## 38. Responsive breakpoints
+
+Exact tokens belong to the design system, but behavior should be content-driven.
+
+Desktop:
+
+- map + side panel simultaneously.
+
+Tablet:
+
+- collapsible side panel.
+
+Mobile:
+
+- map full-width;
+- bottom sheet for forms/findings;
+- important CTA sticky but not obscuring map controls;
+- report becomes normal document flow.
+
+## 39. UX telemetry events
+
+Subject to privacy approval:
+
+- landing search started/succeeded;
+- parcel selected;
+- intent selected;
+- proposal template chosen;
+- placement completed;
+- analysis started/completed;
+- finding/source opened;
+- variant duplicated;
+- auth conversion;
+- paywall shown/purchase;
+- report reopened;
+- newer-data rerun;
+- support/data-error report.
+
+Use pseudonymous IDs; never send full addresses/parcel IDs to third-party analytics unless explicitly justified and disclosed.
+
+## 40. UX acceptance test
+
+Test at least these people/tasks:
+
+1. homeowner who does not know cadastral ID;
+2. older/low-GIS-confidence user placing a sauna;
+3. Russian-speaking user completing the full consumer flow;
+4. English-speaking resident/buyer;
+5. architect who wants exact source details quickly;
+6. buyer comparing land before purchase;
+7. mobile user at the property;
+8. screen-reader/keyboard user reading findings without map dependency.
+
+A successful session ends with a user knowing **what to do next**, not merely having viewed more data.

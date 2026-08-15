@@ -16,6 +16,10 @@ tsconfig.tsbuildinfo
 .env.local
 .env.*.local
 
+# Supabase CLI local state and temporary secrets
+supabase/.temp/
+supabase/.branches/
+
 # Logs
 *.log
 npm-debug.log*

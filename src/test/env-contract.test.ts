@@ -69,6 +69,8 @@ describe("environment contract", () => {
     expect(content).toMatch(/^\.env(\..*)?$/m);
     expect(content).toMatch(/^\.env\.local$/m);
     expect(content).toMatch(/^\.env\.\*\.local$/m);
+    expect(content).toMatch(/^supabase\/\.temp\/$/m);
+    expect(content).toMatch(/^supabase\/\.branches\/$/m);
   });
 
   it("does not ignore .env.example", () => {

@@ -151,10 +151,7 @@ describe("analysis snapshot database regression (KT-016)", () => {
       client,
       dataRelease.rows[0].id
     );
-    const { sourceId: _, sourceVersionId: __ } = await createSourceVersion(
-      client,
-      dataRelease.rows[0].id
-    );
+    void (await createSourceVersion(client, dataRelease.rows[0].id));
 
     await client.query(
       `
@@ -413,7 +410,7 @@ describe("analysis snapshot database regression (KT-016)", () => {
       client,
       dataRelease1.rows[0].id
     );
-    const { sourceId: _ } = await createSourceVersion(client, dataRelease2.rows[0].id);
+    void (await createSourceVersion(client, dataRelease2.rows[0].id));
 
     await client.query(
       `

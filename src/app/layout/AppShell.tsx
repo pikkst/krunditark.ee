@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom'
+import { Outlet } from "react-router-dom";
 
 export default function AppShell() {
   return (
@@ -10,5 +10,5 @@ export default function AppShell() {
         <Outlet />
       </main>
     </div>
-  )
+  );
 }

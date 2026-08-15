@@ -345,15 +345,17 @@ Implementation agents must read [`AGENTS.md`](./AGENTS.md) first.
 
 ## Current project status
 
-The repository has initialized the **React/TypeScript/Vite frontend foundation** (KT-001).
+The repository has initialized the **React/TypeScript/Vite frontend foundation** (KT-001) and added the **formatting/lint/test foundation** (KT-002).
 
 Implemented:
 - React 18 + TypeScript strict + Vite 6 at repository root.
 - `src/` directory structure aligned with `ARCHITECTURE.md`.
 - Minimal Estonian application shell with `HashRouter` for GitHub Pages compatibility.
-- `npm ci`, `typecheck`, and production `build` scripts verified.
+- ESLint 9 (flat config), Prettier, Vitest 4, and Testing Library configured.
+- `npm run format:check`, `lint`, `typecheck`, `test`, and `build` scripts verified.
+- Minimal deterministic smoke tests for App and LandingPage.
 
-Next steps follow `TASKS.md` (formatting/lint/test foundation, CI, i18n, Supabase, etc.).
+Next steps follow `TASKS.md` (GitHub Actions CI, GitHub Pages preview, environment contract, i18n, Supabase, etc.).
 
 ## Development rule
 

@@ -113,9 +113,9 @@ Acceptance:
 
 ## KT-011 — Enable PostGIS by migration
 
-- [ ] extension in documented schema.
-- [ ] required spatial functions.
-- [ ] GiST smoke test.
+- [x] extension in documented schema.
+- [x] required spatial functions.
+- [x] GiST smoke test.
 
 ## KT-012 — Create profile/role foundation
 

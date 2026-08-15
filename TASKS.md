@@ -147,13 +147,13 @@ Implement from `DATABASE_SCHEMA.md` / canonical refresh doc:
 
 ## KT-015 — Create rule/legal schemas
 
-- [ ] legal sources.
-- [ ] rule definitions.
-- [ ] immutable rule versions.
-- [ ] effective dates.
-- [ ] `draft|verified|retired`.
-- [ ] legal-change candidates.
-- [ ] rule-source links.
+- [x] legal sources.
+- [x] rule definitions.
+- [x] immutable rule versions.
+- [x] effective dates.
+- [x] `draft|verified|retired`.
+- [x] legal-change candidates.
+- [x] rule-source links.
 
 ## KT-016 — Create analysis snapshot schema
 

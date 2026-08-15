@@ -370,10 +370,10 @@ The system duplicates the proposal, allowing user to move/rotate it.
 
 Comparison UI:
 
-| Variant | Conflict | Conditions | Unknowns | Notes |
-|---|---:|---:|---:|---|
-| A | 1 | 2 | 1 | original |
-| B | 0 | 1 | 1 | moved 12 m west |
+| Variant | Conflict | Conditions | Unknowns | Notes           |
+| ------- | -------: | ---------: | -------: | --------------- |
+| A       |        1 |          2 |        1 | original        |
+| B       |        0 |          1 |        1 | moved 12 m west |
 
 Do not rank solely by a fake “buildability score”.
 

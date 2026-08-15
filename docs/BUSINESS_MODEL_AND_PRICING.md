@@ -401,12 +401,12 @@ break_even_paid_reports
 For planning, if a €24.90 report produces a deliberately conservative **€20 contribution** after variable costs (before company taxes/VAT/accounting treatment and before founder/team salary), then:
 
 | Monthly fixed operating cost | Reports to cover it at €20 contribution |
-|---:|---:|
-| €500 | 25 |
-| €1,000 | 50 |
-| €3,000 | 150 |
-| €6,000 | 300 |
-| €10,000 | 500 |
+| ---------------------------: | --------------------------------------: |
+|                         €500 |                                      25 |
+|                       €1,000 |                                      50 |
+|                       €3,000 |                                     150 |
+|                       €6,000 |                                     300 |
+|                      €10,000 |                                     500 |
 
 The point of this table is not to claim that contribution is exactly €20. It gives the team an operational break-even model.
 
@@ -447,12 +447,15 @@ Consumer pricing page first asks:
 Then show three simple choices:
 
 ### Kontrollin krunti enne ostu
+
 `Ostukontroll`
 
 ### Tahan testida ühte ehitusideed
+
 `Ehituspass`
 
 ### Planeerin projekti ja tahan variante võrrelda
+
 `Projektipass`
 
 Below a divider:

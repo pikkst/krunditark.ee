@@ -43,12 +43,12 @@ Acceptance:
 
 ## KT-002 — Add formatting/lint/test foundation
 
-- [ ] ESLint.
-- [ ] Prettier.
-- [ ] Vitest.
-- [ ] Testing Library where useful.
-- [ ] scripts: `format:check`, `lint`, `typecheck`, `test`, `build`.
-- [ ] minimal deterministic tests.
+- [x] ESLint.
+- [x] Prettier.
+- [x] Vitest.
+- [x] Testing Library where useful.
+- [x] scripts: `format:check`, `lint`, `typecheck`, `test`, `build`.
+- [x] minimal deterministic tests.
 
 ## KT-003 — Configure GitHub Actions CI
 

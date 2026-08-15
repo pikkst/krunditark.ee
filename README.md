@@ -296,64 +296,67 @@ Implementation agents must read [`AGENTS.md`](./AGENTS.md) first.
 
 ### Core product
 
-| Document | Purpose |
-|---|---|
-| [`AGENTS.md`](./AGENTS.md) | Non-negotiable coding-agent contract |
-| [`TASKS.md`](./TASKS.md) | Ordered active engineering backlog |
-| [`docs/PRODUCT_REQUIREMENTS.md`](./docs/PRODUCT_REQUIREMENTS.md) | Full product requirements |
-| [`docs/USER_JOURNEYS_AND_PERSONAS.md`](./docs/USER_JOURNEYS_AND_PERSONAS.md) | Real users, problems and end-to-end journeys |
-| [`docs/UX_UI_SPEC.md`](./docs/UX_UI_SPEC.md) | Landing, map, report, mobile, Pro and design-system UX |
-| [`docs/MVP_SCOPE.md`](./docs/MVP_SCOPE.md) | Minimum first trustworthy vertical slice |
-| [`docs/ROADMAP.md`](./docs/ROADMAP.md) | Full product evolution |
-| [`docs/PRODUCT_EXPANSION_BACKLOG.md`](./docs/PRODUCT_EXPANSION_BACKLOG.md) | Post-core initiatives before promotion to TASKS |
+| Document                                                                     | Purpose                                                |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------ |
+| [`AGENTS.md`](./AGENTS.md)                                                   | Non-negotiable coding-agent contract                   |
+| [`TASKS.md`](./TASKS.md)                                                     | Ordered active engineering backlog                     |
+| [`docs/PRODUCT_REQUIREMENTS.md`](./docs/PRODUCT_REQUIREMENTS.md)             | Full product requirements                              |
+| [`docs/USER_JOURNEYS_AND_PERSONAS.md`](./docs/USER_JOURNEYS_AND_PERSONAS.md) | Real users, problems and end-to-end journeys           |
+| [`docs/UX_UI_SPEC.md`](./docs/UX_UI_SPEC.md)                                 | Landing, map, report, mobile, Pro and design-system UX |
+| [`docs/MVP_SCOPE.md`](./docs/MVP_SCOPE.md)                                   | Minimum first trustworthy vertical slice               |
+| [`docs/ROADMAP.md`](./docs/ROADMAP.md)                                       | Full product evolution                                 |
+| [`docs/PRODUCT_EXPANSION_BACKLOG.md`](./docs/PRODUCT_EXPANSION_BACKLOG.md)   | Post-core initiatives before promotion to TASKS        |
 
 ### Architecture/data
 
-| Document | Purpose |
-|---|---|
-| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | Service/system boundaries |
-| [`docs/DATABASE_SCHEMA.md`](./docs/DATABASE_SCHEMA.md) | PostgreSQL/PostGIS data model |
-| [`docs/API_SPECIFICATION.md`](./docs/API_SPECIFICATION.md) | Client API contract |
-| [`docs/DATA_SOURCES.md`](./docs/DATA_SOURCES.md) | Official source registry |
+| Document                                                             | Purpose                                       |
+| -------------------------------------------------------------------- | --------------------------------------------- |
+| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)                     | Service/system boundaries                     |
+| [`docs/DATABASE_SCHEMA.md`](./docs/DATABASE_SCHEMA.md)               | PostgreSQL/PostGIS data model                 |
+| [`docs/API_SPECIFICATION.md`](./docs/API_SPECIFICATION.md)           | Client API contract                           |
+| [`docs/DATA_SOURCES.md`](./docs/DATA_SOURCES.md)                     | Official source registry                      |
 | [`docs/DATA_REFRESH_AND_CACHE.md`](./docs/DATA_REFRESH_AND_CACHE.md) | Canonical source refresh/cache/release policy |
-| [`docs/GIS_AND_RULES_ENGINE.md`](./docs/GIS_AND_RULES_ENGINE.md) | Spatial/rule semantics |
+| [`docs/GIS_AND_RULES_ENGINE.md`](./docs/GIS_AND_RULES_ENGINE.md)     | Spatial/rule semantics                        |
 
 ### AI/auth/language/commerce
 
-| Document | Purpose |
-|---|---|
-| [`docs/AI_SAFETY_AND_EXPLANATIONS.md`](./docs/AI_SAFETY_AND_EXPLANATIONS.md) | Gemini boundary/safety |
-| [`docs/AUTH_AND_ONBOARDING.md`](./docs/AUTH_AND_ONBOARDING.md) | Guest-first Auth/account flow |
-| [`docs/LOCALIZATION_AND_LANGUAGE.md`](./docs/LOCALIZATION_AND_LANGUAGE.md) | ET/RU/EN strategy |
-| [`docs/BUSINESS_MODEL_AND_PRICING.md`](./docs/BUSINESS_MODEL_AND_PRICING.md) | Monetization/pricing/unit economics hypotheses |
-| [`docs/COMMERCE_AND_ENTITLEMENTS.md`](./docs/COMMERCE_AND_ENTITLEMENTS.md) | Provider-neutral payment/access design |
-| [`docs/MARKET_AND_COMPETITIVE_POSITIONING.md`](./docs/MARKET_AND_COMPETITIVE_POSITIONING.md) | Market position/defensibility |
-| [`docs/PRODUCT_ANALYTICS_AND_GROWTH.md`](./docs/PRODUCT_ANALYTICS_AND_GROWTH.md) | Metrics, experiments and growth loops |
+| Document                                                                                     | Purpose                                        |
+| -------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| [`docs/AI_SAFETY_AND_EXPLANATIONS.md`](./docs/AI_SAFETY_AND_EXPLANATIONS.md)                 | Gemini boundary/safety                         |
+| [`docs/AUTH_AND_ONBOARDING.md`](./docs/AUTH_AND_ONBOARDING.md)                               | Guest-first Auth/account flow                  |
+| [`docs/LOCALIZATION_AND_LANGUAGE.md`](./docs/LOCALIZATION_AND_LANGUAGE.md)                   | ET/RU/EN strategy                              |
+| [`docs/BUSINESS_MODEL_AND_PRICING.md`](./docs/BUSINESS_MODEL_AND_PRICING.md)                 | Monetization/pricing/unit economics hypotheses |
+| [`docs/COMMERCE_AND_ENTITLEMENTS.md`](./docs/COMMERCE_AND_ENTITLEMENTS.md)                   | Provider-neutral payment/access design         |
+| [`docs/MARKET_AND_COMPETITIVE_POSITIONING.md`](./docs/MARKET_AND_COMPETITIVE_POSITIONING.md) | Market position/defensibility                  |
+| [`docs/PRODUCT_ANALYTICS_AND_GROWTH.md`](./docs/PRODUCT_ANALYTICS_AND_GROWTH.md)             | Metrics, experiments and growth loops          |
 
 ### Trust/operations
 
-| Document | Purpose |
-|---|---|
-| [`docs/SECURITY_PRIVACY.md`](./docs/SECURITY_PRIVACY.md) | RLS, privacy and threat model |
-| [`docs/LEGAL_AND_COMPLIANCE.md`](./docs/LEGAL_AND_COMPLIANCE.md) | Legal-source/disclaimer policy |
-| [`docs/TESTING.md`](./docs/TESTING.md) | Test strategy |
-| [`docs/ENVIRONMENT.md`](./docs/ENVIRONMENT.md) | Environment/config contract |
-| [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md) | GitHub Pages/Supabase/Cloudflare deployment |
-| [`docs/DEFINITION_OF_DONE.md`](./docs/DEFINITION_OF_DONE.md) | Global completion gate |
-| [`docs/OPEN_QUESTIONS.md`](./docs/OPEN_QUESTIONS.md) | Genuine unresolved decisions only |
-| [`docs/adr/`](./docs/adr/) | Accepted architecture/product decisions |
+| Document                                                         | Purpose                                     |
+| ---------------------------------------------------------------- | ------------------------------------------- |
+| [`docs/SECURITY_PRIVACY.md`](./docs/SECURITY_PRIVACY.md)         | RLS, privacy and threat model               |
+| [`docs/LEGAL_AND_COMPLIANCE.md`](./docs/LEGAL_AND_COMPLIANCE.md) | Legal-source/disclaimer policy              |
+| [`docs/TESTING.md`](./docs/TESTING.md)                           | Test strategy                               |
+| [`docs/ENVIRONMENT.md`](./docs/ENVIRONMENT.md)                   | Environment/config contract                 |
+| [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md)                     | GitHub Pages/Supabase/Cloudflare deployment |
+| [`docs/DEFINITION_OF_DONE.md`](./docs/DEFINITION_OF_DONE.md)     | Global completion gate                      |
+| [`docs/OPEN_QUESTIONS.md`](./docs/OPEN_QUESTIONS.md)             | Genuine unresolved decisions only           |
+| [`docs/adr/`](./docs/adr/)                                       | Accepted architecture/product decisions     |
 
 ## Current project status
 
-The repository has initialized the **React/TypeScript/Vite frontend foundation** (KT-001).
+The repository has initialized the **React/TypeScript/Vite frontend foundation** (KT-001) and added the **formatting/lint/test foundation** (KT-002).
 
 Implemented:
+
 - React 18 + TypeScript strict + Vite 6 at repository root.
 - `src/` directory structure aligned with `ARCHITECTURE.md`.
 - Minimal Estonian application shell with `HashRouter` for GitHub Pages compatibility.
-- `npm ci`, `typecheck`, and production `build` scripts verified.
+- ESLint 9 (flat config), Prettier, Vitest 4, and Testing Library configured.
+- `npm run format:check`, `lint`, `typecheck`, `test`, and `build` scripts verified.
+- Minimal deterministic smoke tests for App and LandingPage.
 
-Next steps follow `TASKS.md` (formatting/lint/test foundation, CI, i18n, Supabase, etc.).
+Next steps follow `TASKS.md` (GitHub Actions CI, GitHub Pages preview, environment contract, i18n, Supabase, etc.).
 
 ## Development rule
 

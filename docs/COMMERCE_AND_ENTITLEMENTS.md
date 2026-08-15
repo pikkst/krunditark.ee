@@ -322,9 +322,9 @@ Server-side APIs call a single owned authorization service, conceptually:
 
 ```ts
 interface EntitlementService {
-  canRunAnalysis(input: AnalysisEntitlementRequest): Promise<Decision>
-  consumeUsage(input: UsageConsumption): Promise<UsageResult>
-  canAccessReport(input: ReportAccessRequest): Promise<Decision>
+  canRunAnalysis(input: AnalysisEntitlementRequest): Promise<Decision>;
+  consumeUsage(input: UsageConsumption): Promise<UsageResult>;
+  canAccessReport(input: ReportAccessRequest): Promise<Decision>;
 }
 ```
 
@@ -382,9 +382,9 @@ Conceptual boundary:
 
 ```ts
 interface PaymentProvider {
-  createCheckout(input: CheckoutInput): Promise<CheckoutResult>
-  verifyWebhook(request: RawWebhookRequest): Promise<VerifiedProviderEvent>
-  refund(input: RefundInput): Promise<RefundResult>
+  createCheckout(input: CheckoutInput): Promise<CheckoutResult>;
+  verifyWebhook(request: RawWebhookRequest): Promise<VerifiedProviderEvent>;
+  refund(input: RefundInput): Promise<RefundResult>;
 }
 ```
 

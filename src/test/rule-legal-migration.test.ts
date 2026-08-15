@@ -232,4 +232,64 @@ describe("rule/legal migration (KT-015)", () => {
     expect(sql).not.toMatch(/TO\s+authenticated/i);
     expect(sql).not.toMatch(/TO\s+anon/i);
   });
+
+  test("creates immutability trigger function for rule versions", () => {
+    expect(sql).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+rules\.prevent_verified_rule_version_mutation/i
+    );
+    expect(sql).toMatch(/RETURNS\s+trigger/i);
+    expect(sql).toMatch(/LANGUAGE\s+plpgsql/i);
+    expect(sql).toMatch(/SECURITY\s+DEFINER/i);
+    expect(sql).toMatch(/SET\s+search_path\s*=\s*rules/i);
+  });
+
+  test("rule version trigger allows draft edits and deletes", () => {
+    expect(sql).toMatch(/OLD\.status\s*=\s*'draft'/i);
+    expect(sql).toMatch(/RETURN\s+NEW/i);
+  });
+
+  test("rule version trigger rejects delete of verified/retired versions", () => {
+    expect(sql).toMatch(/cannot delete.*rule version/i);
+  });
+
+  test("rule version trigger allows verified to retired transition only when no substantive fields changed", () => {
+    expect(sql).toMatch(/OLD\.status\s*=\s*'verified'\s*AND\s*NEW\.status\s*=\s*'retired'/i);
+    expect(sql).toMatch(/IS\s+NOT\s+DISTINCT\s+FROM/i);
+    expect(sql).toMatch(/cannot modify substantive fields of verified rule version/i);
+  });
+
+  test("rule version trigger rejects any other update of verified/retired versions", () => {
+    expect(sql).toMatch(/cannot modify.*rule version/i);
+  });
+
+  test("creates trigger on rule_versions for immutability", () => {
+    expect(sql).toMatch(
+      /CREATE\s+TRIGGER\s+prevent_verified_rule_version_mutation\s+BEFORE\s+UPDATE\s+OR\s+DELETE\s+ON\s+rules\.rule_versions\s+FOR\s+EACH\s+ROW\s+EXECUTE\s+FUNCTION\s+rules\.prevent_verified_rule_version_mutation\(\)/i
+    );
+  });
+
+  test("creates immutability trigger function for rule version source links", () => {
+    expect(sql).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+rules\.prevent_verified_source_link_mutation/i
+    );
+    expect(sql).toMatch(/RETURNS\s+trigger/i);
+    expect(sql).toMatch(/LANGUAGE\s+plpgsql/i);
+    expect(sql).toMatch(/SECURITY\s+DEFINER/i);
+    expect(sql).toMatch(/SET\s+search_path\s*=\s*rules/i);
+  });
+
+  test("source link trigger rejects mutations when parent is verified or retired", () => {
+    expect(sql).toMatch(/v_status\s+IN\s*\(\s*'verified'\s*,\s*'retired'\s*\)/i);
+    expect(sql).toMatch(/cannot modify source links for.*rule version/i);
+  });
+
+  test("source link trigger allows mutations when parent is draft", () => {
+    expect(sql).toMatch(/RETURN\s+COALESCE\s*\(\s*NEW\s*,\s*OLD\s*\)/i);
+  });
+
+  test("creates trigger on rule_version_sources for immutability", () => {
+    expect(sql).toMatch(
+      /CREATE\s+TRIGGER\s+prevent_verified_source_link_mutation\s+BEFORE\s+INSERT\s+OR\s+UPDATE\s+OR\s+DELETE\s+ON\s+rules\.rule_version_sources\s+FOR\s+EACH\s+ROW\s+EXECUTE\s+FUNCTION\s+rules\.prevent_verified_source_link_mutation\(\)/i
+    );
+  });
 });

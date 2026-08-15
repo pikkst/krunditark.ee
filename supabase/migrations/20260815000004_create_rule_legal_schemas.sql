@@ -6,7 +6,11 @@
 -- - legal_sources records official legal source metadata (acts, annexes, etc.).
 -- - rule_definitions owns stable rule identity; rule_versions are immutable versions.
 -- - rule_versions.status enforces draft/verified/retired lifecycle.
--- - rule_version_sources links rule versions to legal sources.
+-- - Verified/retired rule versions are protected by database triggers:
+--   * Draft versions can be freely updated or deleted.
+--   * Verified versions can only transition to retired.
+--   * Retired versions are fully immutable.
+-- - rule_version_sources links are frozen once the parent rule version is verified/retired.
 -- - legal_change_candidates tracks detected legal changes pending review.
 -- - The rules schema is not exposed through the Data API.
 
@@ -118,7 +122,82 @@ CREATE TABLE rules.rule_version_sources (
     PRIMARY KEY (rule_version_id, legal_source_id)
 );
 
--- 7. Indexes for common query patterns
+-- 7. Immutability triggers for rule versions and source links
+--
+-- These triggers enforce the documented rule lifecycle at the database layer,
+-- ensuring that verified/retired rule versions and their provenance cannot be
+-- silently mutated. Legal changes must create a new rule version instead.
+
+CREATE OR REPLACE FUNCTION rules.prevent_verified_rule_version_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = rules
+AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        RETURN NEW;
+    END IF;
+
+    -- Draft versions are fully editable
+    IF OLD.status = 'draft' THEN
+        RETURN NEW;
+    END IF;
+
+    -- Verified and retired versions are immutable
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION 'cannot delete % rule version %', OLD.status, OLD.id;
+    END IF;
+
+    IF TG_OP = 'UPDATE' THEN
+        -- Allow verified -> retired transition only if no substantive fields changed
+        IF OLD.status = 'verified' AND NEW.status = 'retired' THEN
+            IF (NEW.id, NEW.rule_definition_id, NEW.version, NEW.implementation_key, NEW.effective_from, NEW.effective_to, NEW.verified_at, NEW.verified_by, NEW.created_at)
+               IS NOT DISTINCT FROM
+               (OLD.id, OLD.rule_definition_id, OLD.version, OLD.implementation_key, OLD.effective_from, OLD.effective_to, OLD.verified_at, OLD.verified_by, OLD.created_at) THEN
+                RETURN NEW;
+            END IF;
+            RAISE EXCEPTION 'cannot modify substantive fields of verified rule version %', OLD.id;
+        END IF;
+        RAISE EXCEPTION 'cannot modify % rule version %', OLD.status, OLD.id;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER prevent_verified_rule_version_mutation
+    BEFORE UPDATE OR DELETE ON rules.rule_versions
+    FOR EACH ROW
+    EXECUTE FUNCTION rules.prevent_verified_rule_version_mutation();
+
+CREATE OR REPLACE FUNCTION rules.prevent_verified_source_link_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = rules
+AS $$
+DECLARE
+    v_status text;
+BEGIN
+    -- Get the status of the parent rule version
+    SELECT status INTO v_status FROM rules.rule_versions WHERE id = COALESCE(NEW.rule_version_id, OLD.rule_version_id);
+
+    -- If the parent rule version is verified or retired, prevent mutations
+    IF v_status IN ('verified', 'retired') THEN
+        RAISE EXCEPTION 'cannot modify source links for % rule version %', v_status, COALESCE(NEW.rule_version_id, OLD.rule_version_id);
+    END IF;
+
+    RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+CREATE TRIGGER prevent_verified_source_link_mutation
+    BEFORE INSERT OR UPDATE OR DELETE ON rules.rule_version_sources
+    FOR EACH ROW
+    EXECUTE FUNCTION rules.prevent_verified_source_link_mutation();
+
+-- 8. Indexes for common query patterns
 
 CREATE INDEX idx_legal_sources_authority ON rules.legal_sources (authority);
 CREATE INDEX idx_legal_sources_document_identifier ON rules.legal_sources (document_identifier) WHERE document_identifier IS NOT NULL;
@@ -137,9 +216,13 @@ CREATE INDEX idx_rule_versions_effective_period ON rules.rule_versions (effectiv
 
 CREATE INDEX idx_rule_version_sources_legal_source_id ON rules.rule_version_sources (legal_source_id);
 
--- 8. Grants
+-- 9. Grants
 -- Rules schema tables are internal/administrative. Only service_role (server-side
 -- Edge Functions / admin) should access them.
+--
+-- Note: immutability is enforced by triggers, not by revoking DML grants.
+-- service_role retains UPDATE/DELETE so that draft versions can be edited,
+-- while triggers reject mutations to verified/retired versions.
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON rules.legal_sources TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON rules.legal_change_candidates TO service_role;

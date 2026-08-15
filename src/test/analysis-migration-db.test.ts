@@ -10,8 +10,20 @@ const migrationPath = join(
   "migrations",
   "20260815000005_create_analysis_snapshot_schemas.sql"
 );
+const concurrencyFixPath = join(
+  root,
+  "supabase",
+  "migrations",
+  "20260815000006_fix_terminal_child_concurrency.sql"
+);
 
 const migrationSql = readFileSync(migrationPath, "utf-8");
+const concurrencyFixSql = readFileSync(concurrencyFixPath, "utf-8");
+
+async function applyMigrations(client: Client) {
+  await client.query(migrationSql);
+  await client.query(concurrencyFixSql);
+}
 
 describe("analysis snapshot database regression (KT-016)", () => {
   let client: Client;
@@ -46,7 +58,7 @@ describe("analysis snapshot database regression (KT-016)", () => {
   runTest("applies migration to a clean database", async () => {
     await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
     await client.query("CREATE SCHEMA analysis");
-    await client.query(migrationSql);
+    await applyMigrations(client);
     const result = await client.query(
       "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'analysis'"
     );
@@ -99,7 +111,7 @@ describe("analysis snapshot database regression (KT-016)", () => {
   runTest("prevents child mutation after parent analysis reaches terminal state", async () => {
     await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
     await client.query("CREATE SCHEMA analysis");
-    await client.query(migrationSql);
+    await applyMigrations(client);
 
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
@@ -123,7 +135,7 @@ describe("analysis snapshot database regression (KT-016)", () => {
     const proposal = await client.query(
       `
       INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2)
-      VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::geometry, 3301), 100)
+      VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100)
       RETURNING id
     `,
       [project.rows[0].id]
@@ -182,7 +194,7 @@ describe("analysis snapshot database regression (KT-016)", () => {
   runTest("prevents child update after parent analysis reaches terminal state", async () => {
     await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
     await client.query("CREATE SCHEMA analysis");
-    await client.query(migrationSql);
+    await applyMigrations(client);
 
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
@@ -206,7 +218,7 @@ describe("analysis snapshot database regression (KT-016)", () => {
     const proposal = await client.query(
       `
       INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2)
-      VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::geometry, 3301), 100)
+      VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100)
       RETURNING id
     `,
       [project.rows[0].id]
@@ -262,7 +274,7 @@ describe("analysis snapshot database regression (KT-016)", () => {
   runTest("prevents child delete after parent analysis reaches terminal state", async () => {
     await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
     await client.query("CREATE SCHEMA analysis");
-    await client.query(migrationSql);
+    await applyMigrations(client);
 
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
@@ -286,7 +298,7 @@ describe("analysis snapshot database regression (KT-016)", () => {
     const proposal = await client.query(
       `
       INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2)
-      VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::geometry, 3301), 100)
+      VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100)
       RETURNING id
     `,
       [project.rows[0].id]
@@ -340,7 +352,7 @@ describe("analysis snapshot database regression (KT-016)", () => {
   runTest("prevents moving child rows away from terminal analysis", async () => {
     await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
     await client.query("CREATE SCHEMA analysis");
-    await client.query(migrationSql);
+    await applyMigrations(client);
 
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
@@ -364,7 +376,7 @@ describe("analysis snapshot database regression (KT-016)", () => {
     const proposal = await client.query(
       `
       INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2)
-      VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::geometry, 3301), 100)
+      VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100)
       RETURNING id
     `,
       [project.rows[0].id]
@@ -440,7 +452,7 @@ describe("analysis snapshot database regression (KT-016)", () => {
   runTest("allows normal child insert/update/delete on non-terminal analysis", async () => {
     await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
     await client.query("CREATE SCHEMA analysis");
-    await client.query(migrationSql);
+    await applyMigrations(client);
 
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
@@ -464,7 +476,7 @@ describe("analysis snapshot database regression (KT-016)", () => {
     const proposal = await client.query(
       `
       INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2)
-      VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::geometry, 3301), 100)
+      VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100)
       RETURNING id
     `,
       [project.rows[0].id]
@@ -514,7 +526,7 @@ describe("analysis snapshot database regression (KT-016)", () => {
   runTest("rejects mismatched evidence source sync run and dataset version", async () => {
     await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
     await client.query("CREATE SCHEMA analysis");
-    await client.query(migrationSql);
+    await applyMigrations(client);
 
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
@@ -538,7 +550,7 @@ describe("analysis snapshot database regression (KT-016)", () => {
     const proposal = await client.query(
       `
       INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2)
-      VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::geometry, 3301), 100)
+      VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100)
       RETURNING id
     `,
       [project.rows[0].id]

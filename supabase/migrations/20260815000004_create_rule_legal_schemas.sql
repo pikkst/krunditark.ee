@@ -178,14 +178,23 @@ SECURITY DEFINER
 SET search_path = rules
 AS $$
 DECLARE
-    v_status text;
+    v_old_parent_status text;
+    v_new_parent_status text;
 BEGIN
-    -- Get the status of the parent rule version
-    SELECT status INTO v_status FROM rules.rule_versions WHERE id = COALESCE(NEW.rule_version_id, OLD.rule_version_id);
+    -- Check the old parent for DELETE and UPDATE
+    IF TG_OP IN ('DELETE', 'UPDATE') THEN
+        SELECT status INTO v_old_parent_status FROM rules.rule_versions WHERE id = OLD.rule_version_id;
+        IF v_old_parent_status IN ('verified', 'retired') THEN
+            RAISE EXCEPTION 'cannot modify source links for % rule version %', v_old_parent_status, OLD.rule_version_id;
+        END IF;
+    END IF;
 
-    -- If the parent rule version is verified or retired, prevent mutations
-    IF v_status IN ('verified', 'retired') THEN
-        RAISE EXCEPTION 'cannot modify source links for % rule version %', v_status, COALESCE(NEW.rule_version_id, OLD.rule_version_id);
+    -- Check the new parent for INSERT and UPDATE
+    IF TG_OP IN ('INSERT', 'UPDATE') THEN
+        SELECT status INTO v_new_parent_status FROM rules.rule_versions WHERE id = NEW.rule_version_id;
+        IF v_new_parent_status IN ('verified', 'retired') THEN
+            RAISE EXCEPTION 'cannot modify source links for % rule version %', v_new_parent_status, NEW.rule_version_id;
+        END IF;
     END IF;
 
     RETURN COALESCE(NEW, OLD);

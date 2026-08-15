@@ -278,9 +278,21 @@ describe("rule/legal migration (KT-015)", () => {
     expect(sql).toMatch(/SET\s+search_path\s*=\s*rules/i);
   });
 
-  test("source link trigger rejects mutations when parent is verified or retired", () => {
-    expect(sql).toMatch(/v_status\s+IN\s*\(\s*'verified'\s*,\s*'retired'\s*\)/i);
+  test("source link trigger checks old parent for DELETE and UPDATE", () => {
+    expect(sql).toMatch(/IF\s+TG_OP\s+IN\s*\(\s*'DELETE'\s*,\s*'UPDATE'\s*\)/i);
+    expect(sql).toMatch(/v_old_parent_status\s+IN\s*\(\s*'verified'\s*,\s*'retired'\s*\)/i);
     expect(sql).toMatch(/cannot modify source links for.*rule version/i);
+  });
+
+  test("source link trigger checks new parent for INSERT and UPDATE", () => {
+    expect(sql).toMatch(/IF\s+TG_OP\s+IN\s*\(\s*'INSERT'\s*,\s*'UPDATE'\s*\)/i);
+    expect(sql).toMatch(/v_new_parent_status\s+IN\s*\(\s*'verified'\s*,\s*'retired'\s*\)/i);
+    expect(sql).toMatch(/cannot modify source links for.*rule version/i);
+  });
+
+  test("source link trigger rejects moving link from verified parent to draft parent", () => {
+    expect(sql).toMatch(/v_old_parent_status\s+IN\s*\(\s*'verified'\s*,\s*'retired'\s*\)/i);
+    expect(sql).toMatch(/OLD\.rule_version_id/i);
   });
 
   test("source link trigger allows mutations when parent is draft", () => {

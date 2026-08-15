@@ -30,17 +30,20 @@ Supabase
   |- PostgreSQL + PostGIS
   |- Storage
   |- Edge Functions
-  |- scheduled jobs where needed
+  |- Cron / scheduled ingestion
+  |- versioned official-data releases
     |
-    +--> Maa- ja Ruumiamet WFS/WMS
+    +--> Maa- ja Ruumiamet WFS/WMS/downloads
     +--> PLANIS WFS/WMS
     +--> EELIS/Keskkonnaportaal WFS
     +--> E-ehitus/EHR APIs when approved
     +--> heritage official source
     +--> Transpordiamet/road official source
     +--> Riigi Teataja / maintained legal-source workflow
-    +--> optional LLM provider
+    +--> Google Gemini API for explanation only
 ```
+
+The normal user-analysis path reads promoted internal source snapshots from Postgres/PostGIS. It does **not** synchronously call every upstream provider.
 
 ## 3. Core separation of responsibilities
 
@@ -64,18 +67,19 @@ The browser does **not**:
 - call paid/private AI APIs directly;
 - make legal decisions;
 - persist verified rule changes;
+- run official-data synchronization;
 - rely on arbitrary government-provider CORS for critical analysis.
 
 ### Edge Function responsibility
 
 Edge Functions handle:
 
-- external provider adapters;
+- official-source adapters and scheduled ingestion orchestration;
 - request validation;
 - auth/authorization for server APIs;
-- orchestration;
+- analysis orchestration;
 - rate limiting coordination;
-- LLM provider calls;
+- Gemini provider calls;
 - privileged database operations where explicitly required;
 - source timeout/retry/size controls;
 - response normalization;
@@ -87,11 +91,13 @@ Database handles:
 
 - application state;
 - project/proposal persistence;
-- normalized geospatial data/cache;
+- normalized geospatial datasets;
+- source dataset versions and composite data releases;
 - source provenance;
 - immutable analysis snapshots;
 - rule versions;
 - spatial predicates/measurements;
+- scheduled job state/leases where appropriate;
 - relational integrity;
 - RLS;
 - audit history.
@@ -151,6 +157,9 @@ supabase/
     parcel/
     analysis/
     explain-analysis/
+    sync-sources/
+    sync-source/
+    promote-data-release/
     _shared/
       auth/
       cors/
@@ -158,6 +167,8 @@ supabase/
       providers/
       schemas/
       source-provenance/
+      ingestion/
+      source-registry/
       rules/
 ```
 
@@ -180,7 +191,7 @@ Only data intentionally reachable through Supabase Data API with RLS, such as:
 
 ### `geo`
 
-Normalized geospatial/cache data, usually accessed server-side or through controlled RPCs:
+Normalized, versioned geospatial source data, usually accessed server-side or through controlled RPCs:
 
 - parcels;
 - restrictions;
@@ -193,7 +204,7 @@ Do not expose broadly merely because data originates publicly.
 
 ### `rules`
 
-Versioned deterministic rule definitions and legal references.
+Versioned deterministic rule definitions, legal references and legal-change review candidates.
 
 ### `analysis`
 
@@ -201,7 +212,10 @@ Immutable analysis snapshots, findings and evidence relationships.
 
 ### `private`
 
-- source connector runs;
+- source definitions;
+- source sync runs;
+- source dataset versions;
+- composite data releases;
 - raw/sanitized source snapshot metadata;
 - admin/audit data;
 - AI request metadata as allowed by retention policy;
@@ -240,30 +254,50 @@ Every chosen predicate must match the actual legal/domain semantics. “Intersec
 
 ## 8. Data acquisition strategy
 
-### MVP: on-demand + cache
+### Default: scheduled, versioned replication
 
-Do not start by mirroring every national dataset unless the source or performance profile requires it.
+Krunditark does not re-fetch all laws, restrictions, planning data and other official datasets for every user request.
 
-For a requested parcel:
+The baseline production model is:
 
-1. resolve parcel;
-2. compute query envelope/buffer required for checks;
-3. query relevant source layers server-side;
-4. validate and normalize;
-5. persist/cache normalized source objects with retrieval metadata;
-6. run analysis against the snapshot.
+1. Supabase Cron schedules source synchronization;
+2. server-side ingestion fetches approved official datasets;
+3. data is validated and normalized into staging/versioned tables;
+4. stable IDs and hashes are used for change detection;
+5. candidate dataset versions pass source-specific quality gates;
+6. verified versions are promoted into a composite Krunditark data release;
+7. analyses query that promoted release from Postgres/PostGIS.
 
-### Later: scheduled national/regional sync
+The initial baseline is a **monthly full reconciliation** for replicated datasets, with documented source-specific exceptions.
 
-Promote layers to scheduled ingestion when:
+### Why this is the default
 
-- provider latency is too high;
-- provider availability harms UX;
-- bulk analysis is needed;
-- source terms permit local replication;
-- change detection/provenance benefits justify it.
+This avoids:
 
-This should be an explicit ADR/source decision per dataset.
+- repeated official-provider calls per user;
+- provider latency in the critical UX path;
+- token cost for data retrieval;
+- inconsistent data changing midway through one analysis;
+- fragile behavior during temporary official-source outages.
+
+### Live lookup exceptions
+
+Live lookup is allowed only when explicitly registered because:
+
+- the data is genuinely real-time/request-specific;
+- replication is prohibited or unsuitable;
+- no stable snapshot/bulk mechanism exists;
+- the product semantics require a current provider response.
+
+A live lookup must never become an undocumented fallback for a failed monthly sync.
+
+### Legal changes
+
+Legal-source synchronization may detect changed acts, sections or annexes, but it does not automatically modify verified deterministic rules.
+
+A legal change creates a review candidate. New rule versions require explicit verification and tests before production activation.
+
+See `docs/DATA_REFRESH_AND_VERSIONING.md` and ADR 0005.
 
 ## 9. Source adapter contract
 
@@ -290,35 +324,46 @@ interface SourceAdapter<TQuery, TRaw, TNormalized> {
 
 Provider errors become typed domain failures, not unstructured strings.
 
+The same adapter contract may be used by scheduled ingestion and explicitly approved live lookups, but the source definition determines which mode is allowed.
+
 ## 10. Analysis orchestration
 
 ```text
 Analysis request
    |
    +--> validate user/proposal
-   +--> resolve exact parcel snapshot
-   +--> resolve required source set from analysis profile
-   +--> fetch/cache source snapshots
+   +--> select latest eligible promoted data release
+   +--> resolve exact parcel/source versions from that release
    +--> calculate source completeness/freshness
-   +--> compute GIS facts
+   +--> compute GIS facts from normalized PostGIS data
    +--> load verified effective rule versions
    +--> evaluate rules deterministically
    +--> derive deterministic overall summary
    +--> persist immutable analysis snapshot/findings/evidence
-   +--> optionally request AI explanation
+   +--> persist data_release_id + exact source/rule versions
+   +--> optionally request Gemini explanation
    v
 Ehituspass response
 ```
 
 AI explanation must not be in the transaction path required to persist the factual result.
 
+A normal analysis does not trigger a bulk refresh of MaRu, PLANIS, EELIS or legal sources.
+
 ## 11. Transaction boundaries
+
+### Data-release promotion
+
+Promotion of a candidate source version/composite release must be transactional so readers never observe a half-promoted state.
+
+A failed candidate must leave the previous verified version active.
 
 ### Analysis persistence
 
 The following should become atomically consistent where practical:
 
 - analysis snapshot header;
+- data release reference;
 - selected rule-version references;
 - findings;
 - finding-to-evidence relationships;
@@ -330,11 +375,11 @@ If AI explanation fails after factual analysis commits, factual analysis remains
 
 Do not hold database transactions open while waiting on slow external APIs.
 
-Fetch/normalize first, then persist snapshots and analysis with appropriate transaction boundaries.
+Fetch/normalize into controlled staging first, then persist/promote with appropriate transaction boundaries.
 
 ## 12. Immutable analysis design
 
-A completed analysis represents what Krunditark knew at a specific time.
+A completed analysis represents what Krunditark knew at a specific time using a specific promoted data release and exact rule versions.
 
 Do not mutate its material fields after completion.
 
@@ -343,12 +388,12 @@ A rerun creates a new analysis linked to the same project/proposal or a proposal
 Recommended state machine:
 
 ```text
-queued -> collecting_sources -> evaluating -> completed
-                              \-> partial
-                \-------------> failed
+queued -> preparing -> evaluating -> completed
+                         \-> partial
+          \--------------> failed
 ```
 
-`partial` means useful results exist but one or more required categories are incomplete. It is not equivalent to failed.
+`partial` means useful results exist but one or more required categories are incomplete/stale beyond the allowed policy. It is not equivalent to failed.
 
 ## 13. Rule architecture
 
@@ -368,6 +413,8 @@ If later using JSON Logic/DSL, add an ADR and sandbox/validation model first.
 
 ## 14. AI architecture
 
+The initial provider is **Google Gemini API**.
+
 ```text
 Structured completed analysis
        + approved source excerpts
@@ -377,7 +424,7 @@ Structured completed analysis
          Prompt builder
                  |
                  v
-       LLM provider adapter
+     Gemini provider adapter
                  |
                  v
         Schema validation
@@ -390,6 +437,8 @@ Structured completed analysis
  AI explanation     deterministic template
 ```
 
+Gemini receives minimal structured evidence. It does not search for current official facts during the normal analysis path.
+
 Store provider/model/request metadata only to the extent allowed by privacy/retention policy.
 
 The factual analysis does not depend on model determinism.
@@ -401,6 +450,7 @@ The factual analysis does not depend on model determinism.
 - Admin authorization is an explicit server-side role check.
 - Client claims are not trusted for privilege escalation.
 - Public analysis endpoints, if enabled, have rate/abuse controls and cannot access private user data.
+- ingestion/sync/promotion endpoints are privileged server/admin operations only.
 
 ## 16. GitHub Pages phase
 
@@ -435,14 +485,21 @@ Minimum structured events:
 
 - request/trace ID;
 - analysis ID;
+- data release ID;
 - source adapter ID;
+- source sync run ID;
 - source duration/status;
+- records added/changed/removed;
+- release promotion status;
 - rule count/evaluation duration;
 - source freshness age;
+- stale/carried-forward source count;
 - typed error code;
-- AI provider duration/status without logging secrets/full sensitive payloads.
+- Gemini duration/status without logging secrets/full sensitive payloads.
 
 Do not log entire government responses by default.
+
+Operational monitoring must detect missed monthly syncs, schema changes, abnormal data diffs and critical stale sources.
 
 ## 19. Failure model
 
@@ -453,6 +510,10 @@ Use typed errors such as:
 - `SOURCE_TIMEOUT`;
 - `SOURCE_UNAVAILABLE`;
 - `SOURCE_RESPONSE_INVALID`;
+- `SOURCE_STALE`;
+- `SOURCE_SYNC_FAILED`;
+- `DATA_RELEASE_UNAVAILABLE`;
+- `DATA_RELEASE_INCOMPLETE`;
 - `PROPOSAL_GEOMETRY_INVALID`;
 - `ANALYSIS_SCOPE_UNSUPPORTED`;
 - `RULESET_UNAVAILABLE`;
@@ -463,11 +524,18 @@ Use typed errors such as:
 
 Do not collapse source outage into not-found.
 
+A failed scheduled refresh keeps the previous verified source version active; it must never replace it with an empty result.
+
 ## 20. Architecture constraints that require an ADR to change
 
 - AI is explanation-only for material findings.
+- Google Gemini API is the initial production AI provider.
 - Supabase is MVP backend.
 - PostGIS is authoritative spatial computation engine.
+- official replicated data uses scheduled, versioned releases by default.
+- monthly full reconciliation is the baseline refresh strategy.
+- ordinary analysis does not bulk-fetch every official source.
+- legal-source changes do not auto-promote rule interpretations.
 - analysis snapshots are versioned/immutable.
 - official-source provenance is mandatory.
 - GitHub Pages frontend contains no elevated secrets.

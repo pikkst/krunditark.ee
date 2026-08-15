@@ -348,7 +348,7 @@ Implementation agents must read [`AGENTS.md`](./AGENTS.md) first.
 
 ## Current project status
 
-The repository has initialized the **React/TypeScript/Vite frontend foundation** (KT-001) and added the **formatting/lint/test foundation** (KT-002).
+The repository has initialized the **React/TypeScript/Vite frontend foundation** (KT-001), added the **formatting/lint/test foundation** (KT-002), configured **GitHub Actions CI** (KT-003), **GitHub Pages preview** (KT-004), the **environment contract** (KT-005), and the **i18n architecture** (KT-006).
 
 Implemented:
 
@@ -357,9 +357,12 @@ Implemented:
 - Minimal Estonian application shell with `HashRouter` for GitHub Pages compatibility.
 - ESLint 9 (flat config), Prettier, Vitest 4, and Testing Library configured.
 - `npm run format:check`, `lint`, `typecheck`, `test`, and `build` scripts verified.
+- i18next + react-i18next with ET/RU/EN locale support.
+- Locale-aware routing (`/:locale/landing`), locale switcher in header, and translation catalogs.
+- Missing-key development warnings and i18n catalog completeness tests.
 - Minimal deterministic smoke tests for App and LandingPage.
 
-Next steps follow `TASKS.md` (GitHub Actions CI, GitHub Pages preview, environment contract, i18n, Supabase, etc.).
+Next steps follow `TASKS.md` (Supabase/PostGIS foundation, address search, map/proposal editor, etc.).
 
 ## Development rule
 

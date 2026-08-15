@@ -119,10 +119,10 @@ Acceptance:
 
 ## KT-012 — Create profile/role foundation
 
-- [ ] `profiles` keyed to `auth.users`.
-- [ ] minimal `user/admin` internal role model.
-- [ ] no client-controlled elevation.
-- [ ] RLS.
+- [x] `profiles` keyed to `auth.users`.
+- [x] minimal `user/admin` internal role model.
+- [x] no client-controlled elevation.
+- [x] RLS.
 
 ## KT-013 — Create project/proposal model
 

@@ -20,5 +20,25 @@
     "et": "Estonian",
     "ru": "Russian",
     "en": "English"
+  },
+  "ui": {
+    "dialog": {
+      "close": "Close"
+    },
+    "status": {
+      "clear": "Clear",
+      "condition": "Condition",
+      "conflict": "Conflict",
+      "unknown": "Unknown"
+    },
+    "freshness": {
+      "fresh": "Fresh",
+      "stale": "Stale",
+      "unknown": "Unknown"
+    },
+    "source": {
+      "officialSource": "Official source",
+      "openSource": "Open source"
+    }
   }
 }

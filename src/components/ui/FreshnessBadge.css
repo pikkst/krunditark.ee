@@ -1,0 +1,34 @@
+.freshness-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: var(--leading-tight);
+  white-space: nowrap;
+}
+
+.freshness-badge time {
+  font-size: var(--text-xs);
+  opacity: 0.9;
+}
+
+.freshness-fresh {
+  background-color: var(--color-status-clear-bg);
+  color: var(--color-status-clear-text);
+  border: 1px solid var(--color-status-clear-border);
+}
+
+.freshness-stale {
+  background-color: var(--color-status-condition-bg);
+  color: var(--color-status-condition-text);
+  border: 1px solid var(--color-status-condition-border);
+}
+
+.freshness-unknown {
+  background-color: var(--color-status-unknown-bg);
+  color: var(--color-status-unknown-text);
+  border: 1px solid var(--color-status-unknown-border);
+}

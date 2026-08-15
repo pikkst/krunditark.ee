@@ -90,15 +90,15 @@ Acceptance:
 
 ## KT-007 — Create accessible design-system foundation
 
-- [ ] typography/token baseline with Latin + Cyrillic support.
-- [ ] buttons/inputs/cards/dialog/sheet/status badge/source/freshness components.
-- [ ] focus/keyboard behavior.
-- [ ] status semantics not color-only.
-- [ ] responsive layout primitives.
+- [x] typography/token baseline with Latin + Cyrillic support.
+- [x] buttons/inputs/cards/dialog/sheet/status badge/source/freshness components.
+- [x] focus/keyboard behavior.
+- [x] status semantics not color-only.
+- [x] responsive layout primitives.
 
 Acceptance:
 
-- representative components pass basic accessibility tests.
+- [x] representative components pass basic accessibility tests.
 
 ---
 

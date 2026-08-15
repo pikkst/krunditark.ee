@@ -20,5 +20,25 @@
     "et": "Eesti",
     "ru": "Vene",
     "en": "English"
+  },
+  "ui": {
+    "dialog": {
+      "close": "Sulge"
+    },
+    "status": {
+      "clear": "Selge",
+      "condition": "Tingimus",
+      "conflict": "Konflikt",
+      "unknown": "Teadmata"
+    },
+    "freshness": {
+      "fresh": "Värsked",
+      "stale": "Vananenud",
+      "unknown": "Teadmata"
+    },
+    "source": {
+      "officialSource": "Ametlik allikas",
+      "openSource": "Ava allikas"
+    }
   }
 }

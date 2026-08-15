@@ -95,22 +95,23 @@ $$;
 -- Create a smoke-test table with a GiST index, insert sample geometries,
 -- and verify spatial predicates work. The table is intentionally left in place as a
 -- lightweight regression artifact; drop it manually if desired.
-CREATE TABLE IF NOT EXISTS geo._postgis_smoke_test (
+DROP TABLE IF EXISTS geo._postgis_smoke_test;
+
+CREATE TABLE geo._postgis_smoke_test (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     name text NOT NULL,
     geom extensions.geometry(Geometry, 3301) NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_postgis_smoke_test_geom
+CREATE INDEX idx_postgis_smoke_test_geom
     ON geo._postgis_smoke_test USING GIST (geom);
 
 INSERT INTO geo._postgis_smoke_test (name, geom)
 VALUES
     ('smoke_polygon_a', extensions.ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301)),
-    ('smoke_polygon_b', extensions.ST_SetSRID('POLYGON((5 5, 15 5, 15 15, 5 15, 5 5))'::extensions.geometry, 3301)),
-    ('smoke_point_c', extensions.ST_SetSRID('POINT(20 20)'::extensions.geometry, 3301))
-ON CONFLICT DO NOTHING;
+    ('smoke_polygon_b', extensions.ST_SetSRID('POLYGON((30 30, 40 30, 40 40, 30 40, 30 30))'::extensions.geometry, 3301)),
+    ('smoke_point_c', extensions.ST_SetSRID('POINT(20 20)'::extensions.geometry, 3301));
 
 -- Verify core PostGIS operations return expected results.
 -- Disable sequential scans locally so the planner must use the GiST index for

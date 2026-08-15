@@ -409,4 +409,210 @@ describe("analysis snapshot database regression (KT-016)", () => {
       )
     ).rejects.toThrow("cannot modify child rows of terminal analysis");
   });
+
+  runTest("allows normal child insert/delete on non-terminal analysis", async () => {
+    await client.query(migrationSql);
+
+    await client.query(`
+      INSERT INTO public.profiles (id, role) VALUES (gen_random_uuid(), 'user')
+      ON CONFLICT DO NOTHING
+    `);
+
+    const user = await client.query("SELECT id FROM public.profiles LIMIT 1");
+    const userId = user.rows[0]?.id || crypto.randomUUID();
+
+    await client.query(
+      `
+      INSERT INTO auth.users (id, email, role) VALUES ($1, 'test@example.com', 'authenticated')
+      ON CONFLICT DO NOTHING
+    `,
+      [userId]
+    );
+
+    const project = await client.query(
+      `
+      INSERT INTO public.projects (user_id, name, cadastral_id)
+      VALUES ($1, 'Test', '12345')
+      RETURNING id
+    `,
+      [userId]
+    );
+
+    const proposal = await client.query(
+      `
+      INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2)
+      VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::geometry, 3301), 100)
+      RETURNING id
+    `,
+      [project.rows[0].id]
+    );
+
+    const dataRelease = await client.query(`
+      INSERT INTO private.data_releases (release_key, status)
+      VALUES ('test-release', 'promoted')
+      RETURNING id
+    `);
+
+    const analysis = await client.query(
+      `
+      INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
+      VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
+      RETURNING id
+    `,
+      [project.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]
+    );
+
+    const sourceVersion = await client.query(
+      `
+      INSERT INTO analysis.analysis_source_versions (analysis_id, source_id, source_dataset_version_id)
+      VALUES ($1, 'test', gen_random_uuid())
+      RETURNING id
+    `,
+      [analysis.rows[0].id]
+    );
+
+    await client.query(
+      `
+      UPDATE analysis.analysis_source_versions SET source_id = 'other' WHERE id = $1
+    `,
+      [sourceVersion.rows[0].id]
+    );
+
+    await client.query(
+      `
+      DELETE FROM analysis.analysis_source_versions WHERE id = $1
+    `,
+      [sourceVersion.rows[0].id]
+    );
+  });
+
+  runTest("rejects mismatched evidence source sync run and dataset version", async () => {
+    await client.query(migrationSql);
+
+    await client.query(`
+      INSERT INTO public.profiles (id, role) VALUES (gen_random_uuid(), 'user')
+      ON CONFLICT DO NOTHING
+    `);
+
+    const user = await client.query("SELECT id FROM public.profiles LIMIT 1");
+    const userId = user.rows[0]?.id || crypto.randomUUID();
+
+    await client.query(
+      `
+      INSERT INTO auth.users (id, email, role) VALUES ($1, 'test@example.com', 'authenticated')
+      ON CONFLICT DO NOTHING
+    `,
+      [userId]
+    );
+
+    const project = await client.query(
+      `
+      INSERT INTO public.projects (user_id, name, cadastral_id)
+      VALUES ($1, 'Test', '12345')
+      RETURNING id
+    `,
+      [userId]
+    );
+
+    const proposal = await client.query(
+      `
+      INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2)
+      VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::geometry, 3301), 100)
+      RETURNING id
+    `,
+      [project.rows[0].id]
+    );
+
+    const dataRelease = await client.query(`
+      INSERT INTO private.data_releases (release_key, status)
+      VALUES ('test-release', 'promoted')
+      RETURNING id
+    `);
+
+    const analysis = await client.query(
+      `
+      INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
+      VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
+      RETURNING id
+    `,
+      [project.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]
+    );
+
+    const finding = await client.query(
+      `
+      INSERT INTO analysis.findings (analysis_id, code, category, state, title_key)
+      VALUES ($1, 'TEST', 'test', 'clear', 'test.key')
+      RETURNING id
+    `,
+      [analysis.rows[0].id]
+    );
+
+    const sourceDef = await client.query(`
+      INSERT INTO private.source_definitions (id, name, authority, source_type, refresh_policy, verification_policy)
+      VALUES ('test.source', 'Test', 'Test', 'WFS', 'monthly_snapshot', 'automatic_quality_gates')
+      RETURNING id
+    `);
+
+    const syncRunA = await client.query(
+      `
+      INSERT INTO private.source_sync_runs (source_id, status, started_at)
+      VALUES ($1, 'success', now())
+      RETURNING id
+    `,
+      [sourceDef.rows[0].id]
+    );
+
+    const syncRunB = await client.query(
+      `
+      INSERT INTO private.source_sync_runs (source_id, status, started_at)
+      VALUES ($1, 'success', now())
+      RETURNING id
+    `,
+      [sourceDef.rows[0].id]
+    );
+
+    const versionA = await client.query(
+      `
+      INSERT INTO private.source_dataset_versions (source_id, version_key, sync_run_id, record_count)
+      VALUES ($1, 'version-a', $2, 0)
+      RETURNING id
+    `,
+      [sourceDef.rows[0].id, syncRunA.rows[0].id]
+    );
+
+    const versionB = await client.query(
+      `
+      INSERT INTO private.source_dataset_versions (source_id, version_key, sync_run_id, record_count)
+      VALUES ($1, 'version-b', $2, 0)
+      RETURNING id
+    `,
+      [sourceDef.rows[0].id, syncRunB.rows[0].id]
+    );
+
+    await client.query(
+      `
+      INSERT INTO private.data_release_sources (data_release_id, source_id, source_dataset_version_id)
+      VALUES ($1, $2, $3)
+    `,
+      [dataRelease.rows[0].id, sourceDef.rows[0].id, versionA.rows[0].id]
+    );
+
+    await client.query(
+      `
+      INSERT INTO private.data_release_sources (data_release_id, source_id, source_dataset_version_id)
+      VALUES ($1, $2, $3)
+    `,
+      [dataRelease.rows[0].id, sourceDef.rows[0].id, versionB.rows[0].id]
+    );
+
+    await expect(
+      client.query(
+        `
+        INSERT INTO analysis.finding_evidence (finding_id, evidence_type, source_sync_run_id, source_dataset_version_id)
+        VALUES ($1, 'source', $2, $3)
+      `,
+        [finding.rows[0].id, syncRunA.rows[0].id, versionB.rows[0].id]
+      )
+    ).rejects.toThrow("was not produced by sync run");
+  });
 });

@@ -259,6 +259,19 @@ BEGIN
         END IF;
     END IF;
 
+    -- If both source_sync_run_id and source_dataset_version_id are supplied,
+    -- ensure the dataset version was produced by that exact sync run.
+    IF NEW.source_sync_run_id IS NOT NULL AND NEW.source_dataset_version_id IS NOT NULL THEN
+        IF NOT EXISTS (
+            SELECT 1
+            FROM private.source_dataset_versions dv
+            WHERE dv.id = NEW.source_dataset_version_id
+            AND dv.sync_run_id = NEW.source_sync_run_id
+        ) THEN
+            RAISE EXCEPTION 'evidence source version % was not produced by sync run %', NEW.source_dataset_version_id, NEW.source_sync_run_id;
+        END IF;
+    END IF;
+
     RETURN NEW;
 END;
 $$;
@@ -272,8 +285,8 @@ CREATE TRIGGER validate_evidence_source_provenance
 --
 -- Once an analysis reaches completed/partial/failed, the entire snapshot
 -- (source versions, rule versions, findings, evidence) must be frozen.
--- For UPDATE, both the old parent and the new parent are checked so that
--- rows cannot be silently moved away from a terminal analysis.
+-- OLD/NEW records are branched by TG_OP to avoid dereferencing undefined
+-- trigger records during INSERT/DELETE.
 
 CREATE OR REPLACE FUNCTION analysis.prevent_terminal_child_mutation()
 RETURNS trigger
@@ -284,81 +297,89 @@ AS $$
 DECLARE
     v_old_parent_status text;
     v_new_parent_status text;
+    v_old_id uuid;
+    v_new_id uuid;
 BEGIN
     IF TG_TABLE_NAME = 'analysis_source_versions' OR TG_TABLE_NAME = 'analysis_rule_versions' THEN
-        SELECT status INTO v_old_parent_status
-        FROM analysis.analyses
-        WHERE id = COALESCE(OLD.analysis_id, NEW.analysis_id);
+        IF TG_OP = 'UPDATE' OR TG_OP = 'DELETE' THEN
+            v_old_id := OLD.analysis_id;
+            SELECT status INTO v_old_parent_status
+            FROM analysis.analyses
+            WHERE id = v_old_id;
+        END IF;
 
-        IF TG_OP = 'UPDATE' THEN
+        IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+            v_new_id := NEW.analysis_id;
             SELECT status INTO v_new_parent_status
             FROM analysis.analyses
-            WHERE id = NEW.analysis_id;
-        ELSE
-            v_new_parent_status := v_old_parent_status;
+            WHERE id = v_new_id;
         END IF;
 
         IF v_old_parent_status IN ('completed', 'partial', 'failed') OR v_new_parent_status IN ('completed', 'partial', 'failed') THEN
             IF TG_OP = 'DELETE' THEN
-                RAISE EXCEPTION 'cannot delete child rows of terminal analysis %', COALESCE(OLD.analysis_id, NEW.analysis_id);
+                RAISE EXCEPTION 'cannot delete child rows of terminal analysis %', v_old_id;
             END IF;
             IF TG_OP = 'UPDATE' THEN
-                RAISE EXCEPTION 'cannot modify child rows of terminal analysis %', COALESCE(OLD.analysis_id, NEW.analysis_id);
+                RAISE EXCEPTION 'cannot modify child rows of terminal analysis %', v_old_id;
             END IF;
             IF TG_OP = 'INSERT' THEN
-                RAISE EXCEPTION 'cannot insert child rows for terminal analysis %', NEW.analysis_id;
+                RAISE EXCEPTION 'cannot insert child rows for terminal analysis %', v_new_id;
             END IF;
         END IF;
 
     ELSIF TG_TABLE_NAME = 'findings' THEN
-        SELECT status INTO v_old_parent_status
-        FROM analysis.analyses
-        WHERE id = COALESCE(OLD.analysis_id, NEW.analysis_id);
+        IF TG_OP = 'UPDATE' OR TG_OP = 'DELETE' THEN
+            v_old_id := OLD.analysis_id;
+            SELECT status INTO v_old_parent_status
+            FROM analysis.analyses
+            WHERE id = v_old_id;
+        END IF;
 
-        IF TG_OP = 'UPDATE' THEN
+        IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+            v_new_id := NEW.analysis_id;
             SELECT status INTO v_new_parent_status
             FROM analysis.analyses
-            WHERE id = NEW.analysis_id;
-        ELSE
-            v_new_parent_status := v_old_parent_status;
+            WHERE id = v_new_id;
         END IF;
 
         IF v_old_parent_status IN ('completed', 'partial', 'failed') OR v_new_parent_status IN ('completed', 'partial', 'failed') THEN
             IF TG_OP = 'DELETE' THEN
-                RAISE EXCEPTION 'cannot delete child rows of terminal analysis %', COALESCE(OLD.analysis_id, NEW.analysis_id);
+                RAISE EXCEPTION 'cannot delete child rows of terminal analysis %', v_old_id;
             END IF;
             IF TG_OP = 'UPDATE' THEN
-                RAISE EXCEPTION 'cannot modify child rows of terminal analysis %', COALESCE(OLD.analysis_id, NEW.analysis_id);
+                RAISE EXCEPTION 'cannot modify child rows of terminal analysis %', v_old_id;
             END IF;
             IF TG_OP = 'INSERT' THEN
-                RAISE EXCEPTION 'cannot insert child rows for terminal analysis %', NEW.analysis_id;
+                RAISE EXCEPTION 'cannot insert child rows for terminal analysis %', v_new_id;
             END IF;
         END IF;
 
     ELSIF TG_TABLE_NAME = 'finding_evidence' THEN
-        SELECT a.status INTO v_old_parent_status
-        FROM analysis.findings f
-        JOIN analysis.analyses a ON a.id = f.analysis_id
-        WHERE f.id = COALESCE(OLD.finding_id, NEW.finding_id);
+        IF TG_OP = 'UPDATE' OR TG_OP = 'DELETE' THEN
+            v_old_id := OLD.finding_id;
+            SELECT a.status INTO v_old_parent_status
+            FROM analysis.findings f
+            JOIN analysis.analyses a ON a.id = f.analysis_id
+            WHERE f.id = v_old_id;
+        END IF;
 
-        IF TG_OP = 'UPDATE' THEN
+        IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+            v_new_id := NEW.finding_id;
             SELECT a.status INTO v_new_parent_status
             FROM analysis.findings f
             JOIN analysis.analyses a ON a.id = f.analysis_id
-            WHERE f.id = NEW.finding_id;
-        ELSE
-            v_new_parent_status := v_old_parent_status;
+            WHERE f.id = v_new_id;
         END IF;
 
         IF v_old_parent_status IN ('completed', 'partial', 'failed') OR v_new_parent_status IN ('completed', 'partial', 'failed') THEN
             IF TG_OP = 'DELETE' THEN
-                RAISE EXCEPTION 'cannot delete child rows of terminal analysis %', COALESCE(OLD.finding_id, NEW.finding_id);
+                RAISE EXCEPTION 'cannot delete child rows of terminal analysis %', v_old_id;
             END IF;
             IF TG_OP = 'UPDATE' THEN
-                RAISE EXCEPTION 'cannot modify child rows of terminal analysis %', COALESCE(OLD.finding_id, NEW.finding_id);
+                RAISE EXCEPTION 'cannot modify child rows of terminal analysis %', v_old_id;
             END IF;
             IF TG_OP = 'INSERT' THEN
-                RAISE EXCEPTION 'cannot insert child rows for terminal analysis %', NEW.finding_id;
+                RAISE EXCEPTION 'cannot insert child rows for terminal analysis %', v_new_id;
             END IF;
         END IF;
     END IF;

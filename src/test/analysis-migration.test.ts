@@ -437,20 +437,21 @@ describe("analysis snapshot migration (KT-016)", () => {
     expect(sql).toMatch(
       /evidence sync run % does not produce a dataset version in the analysis data release/i
     );
+    expect(sql).toMatch(/evidence source version % was not produced by sync run %/i);
     expect(sql).toMatch(
       /CREATE\s+TRIGGER\s+validate_evidence_source_provenance\s+BEFORE\s+INSERT\s+OR\s+UPDATE\s+ON\s+analysis\.finding_evidence/i
     );
   });
 
-  test("terminal child mutation trigger checks both old and new parents on update", () => {
+  test("terminal child mutation trigger branches on TG_OP before dereferencing OLD/NEW", () => {
     expect(sql).toMatch(/v_old_parent_status\s+text/i);
     expect(sql).toMatch(/v_new_parent_status\s+text/i);
-    expect(sql).toMatch(
-      /SELECT\s+status\s+INTO\s+v_old_parent_status\s+FROM\s+analysis\.analyses\s+WHERE\s+id\s*=\s*COALESCE\s*\(\s*OLD\.analysis_id\s*,\s*NEW\.analysis_id\s*\)/i
-    );
-    expect(sql).toMatch(
-      /SELECT\s+status\s+INTO\s+v_new_parent_status\s+FROM\s+analysis\.analyses\s+WHERE\s+id\s*=\s*NEW\.analysis_id/i
-    );
+    expect(sql).toMatch(/v_old_id\s+uuid/i);
+    expect(sql).toMatch(/v_new_id\s+uuid/i);
+    expect(sql).toMatch(/IF\s+TG_OP\s*=\s*'UPDATE'\s+OR\s+TG_OP\s*=\s*'DELETE'\s+THEN/i);
+    expect(sql).toMatch(/IF\s+TG_OP\s*=\s*'INSERT'\s+OR\s+TG_OP\s*=\s*'UPDATE'\s+THEN/i);
+    expect(sql).toMatch(/v_old_id\s*:\s*=\s*OLD\.analysis_id/i);
+    expect(sql).toMatch(/v_new_id\s*:\s*=\s*NEW\.analysis_id/i);
     expect(sql).toMatch(
       /v_old_parent_status\s+IN\s*\(\s*'completed'\s*,\s*'partial'\s*,\s*'failed'\s*\)\s+OR\s+v_new_parent_status\s+IN\s*\(\s*'completed'\s*,\s*'partial'\s*,\s*'failed'\s*\)/i
     );
@@ -463,14 +464,14 @@ describe("analysis snapshot migration (KT-016)", () => {
     expect(sql).toMatch(
       /FROM\s+analysis\.findings\s+f\s+JOIN\s+analysis\.analyses\s+a\s+ON\s+a\.id\s*=\s*f\.analysis_id/i
     );
-    expect(sql).toMatch(
-      /WHERE\s+f\.id\s*=\s*COALESCE\s*\(\s*OLD\.finding_id\s*,\s*NEW\.finding_id\s*\)/i
-    );
+    expect(sql).toMatch(/WHERE\s+f\.id\s*=\s*v_old_id/i);
+    expect(sql).toMatch(/WHERE\s+f\.id\s*=\s*v_new_id/i);
     expect(sql).not.toMatch(/FROM\s+analysis\.finding_evidence\s+fe\s+JOIN/i);
   });
 
   test("finding_evidence terminal check uses finding_id not analysis_id", () => {
-    expect(sql).toMatch(/COALESCE\s*\(\s*OLD\.finding_id\s*,\s*NEW\.finding_id\s*\)/i);
+    expect(sql).toMatch(/v_old_id\s*:\s*=\s*OLD\.finding_id/i);
+    expect(sql).toMatch(/v_new_id\s*:\s*=\s*NEW\.finding_id/i);
     expect(sql).not.toMatch(/NEW\.analysis_id\s*,\s*OLD\.analysis_id/i);
   });
 });

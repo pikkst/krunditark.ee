@@ -177,7 +177,7 @@ Production (custom domain, future):
 https://krunditark.ee
 ```
 
-Because the GitHub Pages phase uses hash routing, test the actual Supabase Auth callback flow before marking auth complete.
+Because the GitHub Pages preview uses a repository-path base, test the actual Supabase Auth callback flow before marking auth complete.
 
 ## 11. CORS origins
 

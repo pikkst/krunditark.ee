@@ -21,9 +21,10 @@ Before implementing a task, read:
 3. `docs/PRODUCT_REQUIREMENTS.md`
 4. `docs/MVP_SCOPE.md`
 5. `docs/ARCHITECTURE.md`
-6. the task-specific specification documents
-7. relevant ADRs in `docs/adr/`
-8. `docs/DEFINITION_OF_DONE.md`
+6. `docs/DATA_REFRESH_AND_VERSIONING.md` for any source/data/rules/analysis task
+7. the task-specific specification documents
+8. relevant ADRs in `docs/adr/`
+9. `docs/DEFINITION_OF_DONE.md`
 
 If code and documentation disagree, do not silently choose one. Treat the documentation as the intended design, identify the conflict in the PR/task notes, and update the documentation as part of the same change if the design is intentionally changed.
 
@@ -63,6 +64,8 @@ Every finding shown in an Ehituspass must be traceable to the inputs that produc
 
 Persist or reference:
 
+- data release;
+- source dataset version;
 - source;
 - source record/object ID when available;
 - official URL/service endpoint;
@@ -94,6 +97,18 @@ MVP and initial production are Estonia-only. Do not introduce multi-country abst
 
 A cadastral identifier and public parcel information do not prove that the current user owns the parcel. Use terms such as “selected parcel” or “your project parcel” unless ownership has actually been verified by an approved future mechanism.
 
+### 3.6 User requests do not refresh national source data
+
+A normal user analysis must use the latest eligible **promoted Krunditark data release**.
+
+It must not synchronously re-download all laws, cadastral restrictions, PLANIS data, EELIS data or other national datasets.
+
+Bulk official-data acquisition happens through scheduled/server-side ingestion, normally as a monthly reconciliation.
+
+Live lookup is allowed only for a source explicitly registered as `live_lookup`.
+
+A failed upstream refresh must keep the previous verified dataset active and expose stale/unknown freshness where appropriate. It must never convert a failed fetch into “no restriction”.
+
 ## 4. Architecture boundaries
 
 ### Frontend
@@ -119,7 +134,7 @@ Use Supabase Cloud for:
 - Auth;
 - Storage;
 - Edge Functions;
-- scheduled/background database tasks when appropriate.
+- Supabase Cron / `pg_cron` scheduled ingestion and maintenance tasks when appropriate.
 
 All schema changes must be committed as ordered migrations in `supabase/migrations/`.
 
@@ -152,7 +167,7 @@ Operations requiring elevated access must run in Supabase Edge Functions or anot
 
 ### Public-source access
 
-Do not make important WFS/API analysis dependent on uncontrolled browser CORS behavior. Source adapters should run server-side through Edge Functions and/or ingestion jobs, normalize responses, cache where permitted, and expose a stable Krunditark contract to the frontend.
+Do not make important WFS/API analysis dependent on uncontrolled browser CORS behavior. Source adapters run server-side through Edge Functions/ingestion jobs, normalize responses, version them where replication is allowed, and expose stable Krunditark contracts to the frontend.
 
 A WMS basemap/visual overlay may be consumed client-side when the provider permits it, but visual tiles are not a substitute for structured analysis data.
 
@@ -166,7 +181,7 @@ A WMS basemap/visual overlay may be consumed client-side when the provider permi
 - Use PostGIS spatial predicates and GiST indexes.
 - Boundary behavior must be tested: touching, crossing, contained, near-boundary, zero-distance and invalid geometry cases.
 - Normalize invalid geometries explicitly; do not silently discard them.
-- Record source and transformation metadata for persisted normalized geometry.
+- Record source, source dataset version and transformation metadata for persisted normalized geometry.
 
 ## 6. Source adapter rules
 
@@ -183,11 +198,59 @@ Every adapter must expose a typed internal contract and include:
 - source object identifier where available;
 - raw-response hash or equivalent provenance field;
 - normalization version;
-- explicit failure classification.
+- explicit failure classification;
+- refresh policy;
+- freshness thresholds;
+- replication/retention decision;
+- release-blocking behavior.
 
 Unit tests must not require the public internet. Store sanitized deterministic fixtures.
 
 Do not scrape a web page when an official API/WFS/WMS/download endpoint is available and suitable.
+
+### 6.1 Scheduled data synchronization
+
+Replicated source data uses the pipeline defined in `docs/DATA_REFRESH_AND_VERSIONING.md` and ADR 0005.
+
+Required behavior:
+
+- baseline full reconciliation is monthly;
+- synchronization is server-side and privileged;
+- synchronization is idempotent;
+- overlapping runs are prevented;
+- ingest into staging/candidate versions, not directly into active production rows;
+- validate schema, CRS, required fields and configured sanity thresholds before promotion;
+- detect added/changed/removed objects using stable IDs/hashes where available;
+- incomplete fetches cannot imply deletions;
+- failed candidates cannot replace the previous verified version;
+- promotion is transactional;
+- analyses pin the exact promoted data release/source versions used;
+- historical versions referenced by analyses remain reproducible.
+
+A source may deviate from monthly snapshotting only through an explicit documented source policy.
+
+### 6.2 Legal source synchronization
+
+Legal text/source changes and deterministic rule changes are separate lifecycles.
+
+A detected law/annex/section change may create a review candidate and mark affected rules for review.
+
+It must not automatically:
+
+- rewrite a threshold;
+- mark a new interpretation verified;
+- retire a rule solely based on AI output;
+- change completed analyses.
+
+New/changed rule versions require official-source verification and deterministic tests before production activation.
+
+### 6.3 AI/token cost during data refresh
+
+Normal scheduled source synchronization must use **zero Gemini tokens**.
+
+Gemini must not be used to discover official data for every cadastral analysis.
+
+If a future admin-only legal-diff summarizer uses Gemini, it remains advisory and outside the authoritative promotion path.
 
 ## 7. Rules engine rules
 
@@ -216,7 +279,7 @@ An agent must not copy a random secondary website’s interpretation into produc
 
 - Enable RLS on all client-accessible tables.
 - Default deny; add least-privilege policies deliberately.
-- Internal ingestion/legal/audit/source-cache tables must not be exposed through the public Data API unless explicitly required.
+- Internal ingestion/legal/audit/source-cache/data-release tables must not be exposed through the public Data API unless explicitly required.
 - Users may access only their own saved projects/analyses unless a resource is explicitly public.
 - Admin roles must be verified server-side; never trust a client-provided `isAdmin` flag.
 - Elevated server-side clients must be scoped to the smallest operation possible.
@@ -225,8 +288,10 @@ An agent must not copy a random secondary website’s interpretation into produc
 - Prefer UUID identifiers for application entities.
 - Do not use mutable human-readable fields as foreign keys.
 - Critical analysis records should be immutable snapshots or versioned records, not silently overwritten.
+- Source dataset versions and composite data releases are versioned records, not one mutable “current data” blob.
+- Do not delete a source/rule version that remains referenced by a completed analysis without an approved archival strategy preserving reproducibility.
 
-See `docs/DATABASE_SCHEMA.md`.
+See `docs/DATABASE_SCHEMA.md` and `docs/DATA_REFRESH_AND_VERSIONING.md`.
 
 ## 9. Security and privacy rules
 
@@ -240,8 +305,9 @@ See `docs/DATABASE_SCHEMA.md`.
 - Minimize personal data.
 - Never log auth tokens, cookies, API keys or full sensitive payloads.
 - Record security-relevant administrative actions in an audit log.
+- Scheduled sync/promotion endpoints must reject ordinary user sessions.
 
-See `docs/SECURITY_PRIVACY.md`.
+See `SECURITY.md`, `docs/LEGAL_AND_COMPLIANCE.md` and task-specific security documentation.
 
 ## 10. UX rules
 
@@ -255,12 +321,15 @@ Every user-facing finding must show:
 - what geometry/condition triggered it when relevant;
 - official source;
 - source date/retrieval date;
+- data release/freshness where material;
 - direct verification link when available;
 - recommended next step.
 
 Use color only as a secondary signal; states must remain understandable with text/icons for accessibility.
 
 Never use legalese as the only explanation.
+
+Do not display “checked today” merely because the user ran an analysis today if the authoritative source snapshot is older.
 
 ## 11. Cost estimation rules
 
@@ -300,6 +369,7 @@ Minimum test categories:
 - fixture tests for source adapters;
 - database migration/RLS tests;
 - PostGIS geometry tests;
+- source sync/idempotency/promotion tests;
 - Edge Function contract/auth tests;
 - component tests for complex UI states where valuable;
 - Playwright E2E for critical user journeys.
@@ -307,6 +377,18 @@ Minimum test categories:
 Critical GIS/rule tests must include boundary and negative cases.
 
 No unit test should depend on a live government endpoint or live Gemini API.
+
+Source synchronization tests must cover at minimum:
+
+- identical repeated import;
+- add/change/remove diff;
+- incomplete import safety;
+- failed candidate keeps previous version active;
+- duplicate cron invocation;
+- atomic promotion;
+- analysis remains pinned to historical release;
+- legal change does not automatically promote a rule;
+- Gemini is not called during normal source sync.
 
 ## 14. Git and task workflow
 
@@ -326,6 +408,8 @@ Prefer one coherent task or tightly coupled task group per PR/change set.
 
 Do not perform unrelated refactors inside feature tasks.
 
+For source/cache work, the requirements in `docs/DATA_REFRESH_AND_VERSIONING.md` are part of the acceptance contract even if an older task description uses the word “cache”.
+
 ## 15. Documentation maintenance
 
 Documentation is part of the product.
@@ -335,6 +419,8 @@ Update it when changing:
 - API contracts;
 - data models;
 - external sources;
+- source refresh/sync policies;
+- freshness thresholds;
 - rule semantics;
 - security model;
 - deployment flow;
@@ -351,17 +437,23 @@ A task is not done until it satisfies `docs/DEFINITION_OF_DONE.md` and its task-
 
 For analysis-related tasks specifically, completion requires reproducibility, provenance and deterministic test coverage.
 
+For source synchronization tasks, completion additionally requires safe versioning, idempotency, failure handling, freshness metadata and no per-user bulk source refresh dependency.
+
 ## 17. Explicitly forbidden shortcuts
 
 Do not:
 
 - ask Gemini “can this building be built here?” and use that response as the decision;
+- ask Gemini/web search to rediscover all current laws/restrictions for every user analysis;
 - expose a Supabase service/secret role key or Gemini API key to GitHub Pages;
 - disable RLS to make development easier;
 - trust client-calculated geometry as authoritative without server validation;
 - hardcode a legal interpretation without source/version metadata;
 - silently fall back from failed official data to Gemini/model knowledge;
 - label missing data as “no restrictions”;
+- replace a verified dataset with an incomplete/failed scheduled import;
+- delete missing source records when the source sync was not proven complete;
+- automatically convert changed legal text into a verified rule;
 - use browser-only geometry calculations for authoritative distance/intersection findings;
 - store critical provenance only in free-form JSON when a structured relationship is required;
 - claim an official permit or approval has been granted;

@@ -1,359 +1,545 @@
 # Security and Privacy — Krunditark
 
-## 1. Security objectives
+Last security architecture review: **2026-08-15**
+
+## 1. Security objective
+
+Krunditark combines public official parcel/spatial facts with **private user intent**: selected parcels, proposed building locations, notes, report history, identity, future files and payments.
+
+Public source data does not make a user's project public.
 
 Protect:
 
-- user accounts and saved projects;
-- analysis history;
-- administrative rule/source controls;
-- Supabase/database credentials;
-- external provider credentials;
-- AI provider credentials;
-- integrity of regulatory/spatial analysis;
-- service availability from abusive expensive queries.
+- anonymous and permanent user projects;
+- analysis/report history;
+- rule/source administration;
+- source/data-release integrity;
+- Supabase/Gemini/SMTP/payment credentials;
+- future uploaded plans;
+- payment/entitlement integrity;
+- availability against expensive source/GIS/AI abuse.
 
-A public government dataset does not make Krunditark's internal administration, caches or user projects public.
+## 2. Trust boundaries
 
-## 2. Frontend trust model
+### Browser — untrusted
 
-The GitHub Pages/browser application is an untrusted client.
+Never trust client-supplied:
 
-It may contain:
+- role/admin flags;
+- `is_anonymous` booleans;
+- project ownership IDs;
+- geometry measurements;
+- price/currency/product entitlement;
+- payment success query parameters;
+- source URLs;
+- uploaded MIME/filename;
+- AI/source text as instructions.
 
-- public frontend configuration;
-- Supabase URL;
-- Supabase publishable key;
-- public map/style configuration.
+### Supabase Auth
 
-It must never contain:
+Identifies a session. Authorization still comes from RLS/server checks.
 
-- Supabase secret/service-role key;
-- database password;
-- AI provider key;
-- privileged government/provider credential;
-- admin bypass token;
-- private signing key.
+### Edge Functions/server
 
-Assume every value bundled by Vite is publicly readable.
+Privileged boundary for:
 
-## 3. Supabase key policy
+- source adapters/ingestion;
+- analysis orchestration;
+- admin operations;
+- Gemini calls;
+- payment webhook/checkout later;
+- entitlement checks;
+- future file parsing.
 
-Use current Supabase key model for new implementation:
+### Official sources
 
-- browser: publishable key;
-- server/Edge Functions: secret/elevated credentials only when needed.
+Authoritative for their documented scope only. Payload shape/content is external and must be validated.
 
-Legacy `anon`/`service_role` naming may appear in older tooling, but no elevated/service credential may be sent to a browser.
+### Gemini
 
-## 4. Row Level Security
+Untrusted generative component. Output can never modify deterministic state.
 
-RLS is mandatory on all browser-accessible user tables.
+### Payment provider — future
 
-Principles:
+Payment authority only after exact server-side webhook/signature verification; browser redirect is not proof of payment.
 
+## 3. Secrets
+
+Never expose in browser/Git/logs/fixtures:
+
+- Supabase elevated/service credentials;
+- `GEMINI_API_KEY`;
+- SMTP credentials;
+- payment-provider secret/API keys;
+- webhook signing secrets;
+- restricted source credentials;
+- admin/service tokens.
+
+Any `VITE_*` value is public.
+
+## 4. Authentication model
+
+See ADR 0006.
+
+### Public
+
+Static marketing/help/sample content can be unauthenticated.
+
+### Anonymous Auth user
+
+Supabase anonymous user:
+
+- has unique Auth ID;
+- uses PostgreSQL `authenticated` role;
+- JWT exposes `is_anonymous`;
+- can own a bounded guest project;
+- cannot recover after losing local/session identity unless linked.
+
+A policy only saying `to authenticated` does **not** distinguish guest from permanent user.
+
+### Permanent consumer
+
+Email OTP/Google-linked account for cross-device recovery, commerce, monitoring, sharing and Pro.
+
+### Admin/internal verifier
+
+Explicit server-side role; never client-elevated.
+
+## 5. RLS requirements
+
+- RLS on every client-accessible user table;
 - default deny;
-- owner access derived from authenticated `auth.uid()` relationships;
-- no user can choose `user_id` to gain access to someone else's project;
-- profile role changes are not client writable;
-- internal tables are not exposed merely because RLS could be added.
+- ownership via `auth.uid()`;
+- anonymous A cannot access anonymous B;
+- permanent A cannot access B;
+- permanent-only operations explicitly require non-anonymous verified identity;
+- internal `geo`, `rules`, ingestion, audit and commerce-event tables not broadly exposed;
+- admin role cannot be changed through ordinary profile update;
+- orders/entitlements private to user/org;
+- future organization data checks membership/role;
+- share access uses controlled token/scope, not public table SELECT.
 
-Minimum tests:
+RLS tests are mandatory on clean DB.
 
-- anon denied;
-- user A own project allowed;
-- user A user B project denied;
-- user cannot self-promote admin;
-- user cannot read internal source/audit/rules mutation tables;
-- deleted/expired auth session behavior.
+## 6. Anonymous abuse prevention
 
-## 5. Admin authorization
+Controls:
 
-Admin action requires both:
+- rate limits per IP/session/user as appropriate;
+- CAPTCHA/Turnstile on suspicious/burst or policy-defined guest Auth flows;
+- bounded guest projects/proposals/analyses;
+- geometry/body limits;
+- no user-triggered national sync;
+- abandoned anonymous user/draft cleanup;
+- permanent identity required for paid history/monitoring/sharing/Pro.
 
-1. valid authenticated session/server identity;
-2. server-side verified admin role/claim sourced from controlled data.
+Avoid long-term raw IP retention without a justified operational/legal reason.
 
-Never trust:
+## 7. Guest -> permanent conversion
 
-```json
-{"isAdmin": true}
-```
+Must:
 
-from client input.
+- use supported Supabase identity-link/conversion flow;
+- preserve exact project;
+- handle existing identity conflicts safely;
+- be retry/idempotency safe;
+- never copy a project based on a client-provided target user ID;
+- prevent duplicate/incorrect ownership.
 
-Admin actions must be audited.
+## 8. Auth email security
 
-## 6. Edge Function security
-
-Every public Edge Function must implement:
-
-- explicit allowed methods;
-- content-type validation;
-- input schema validation;
-- auth requirement or explicit public classification;
-- authorization;
-- request/body size limits;
-- timeout behavior;
-- safe error mapping;
-- CORS policy;
-- rate/abuse controls when expensive;
-- request/trace ID.
-
-Do not proxy arbitrary user-supplied URLs.
-
-## 7. SSRF prevention in source adapters
-
-Government/provider adapters must use allow-listed/configured endpoints.
-
-Never accept a URL from user input and fetch it server-side as part of generic source retrieval.
-
-Prevent:
-
-- internal IP access;
-- metadata-service access;
-- alternate-protocol fetches;
-- redirect escape to unapproved host where relevant.
-
-If following provider redirects, validate final host policy.
-
-## 8. External-source poisoning and integrity
-
-External responses are untrusted input even when the authority is trusted.
-
-Validate:
-
-- content type;
-- maximum size;
-- schema;
-- geometry validity;
-- identifiers;
-- coordinate system;
-- expected layer/source semantics.
-
-Unexpected provider schema => `SOURCE_RESPONSE_INVALID` / `unknown`, not best-effort silent coercion.
-
-Persist source/payload hash or equivalent provenance metadata.
-
-## 9. Geometry resource exhaustion
-
-Apply limits to:
-
-- proposal vertex count;
-- polygon size/extent;
-- WFS bounding boxes;
-- maximum provider features;
-- intersection output complexity;
-- geometry simplification for client display.
-
-Do not allow a malicious client to request national-scale arbitrary PostGIS intersections through a generic API.
-
-## 10. Rate limiting
-
-Prioritize limits for:
-
-- parcel/source refresh;
-- analysis creation;
-- AI explanation/questions;
-- document upload/parsing;
-- future batch APIs.
-
-Use per-user limits for authenticated actions and suitable abuse controls for public endpoints.
-
-Do not retain full IP addresses indefinitely merely for convenience. Document any IP processing/retention used for security.
-
-## 11. CORS
-
-Development may allow documented local origins.
-
-Production allow-list should include only intended origins, for example:
-
-- the current GitHub Pages preview origin;
-- `https://krunditark.ee` after launch;
-- `https://www.krunditark.ee` only if actually used.
-
-Do not use wildcard origins with credentialed requests.
-
-## 12. Content Security Policy
-
-When hosting capability permits, deploy a restrictive CSP allowing only required sources for:
-
-- self scripts/styles/assets;
-- Supabase HTTPS/WebSocket endpoints;
-- approved map tile/style endpoints;
-- approved images/fonts if used.
-
-Avoid unsafe inline scripts unless technically unavoidable and documented.
-
-GitHub Pages header limitations may require a transition strategy/meta CSP; Cloudflare can later provide stronger response-header controls.
-
-## 13. Authentication
-
-Preferred MVP direction: low-friction Supabase Auth email magic link/OTP unless product owner selects another method.
+Public email OTP requires custom SMTP.
 
 Requirements:
 
-- approved redirect URLs only;
-- secure session handling via official Supabase SDK;
-- no token logging;
-- logout clears local session state;
-- sensitive actions re-check server auth.
+- SPF/DKIM/DMARC;
+- Krunditark-controlled sender/domain;
+- sensible OTP expiry/resend/rate limits;
+- delivery failure monitoring;
+- no secrets/sensitive report details in Auth mail;
+- disable provider link tracking if it alters Auth links.
 
-## 14. File uploads
+## 9. Authorization dimensions are separate
 
-Future blueprint/document upload:
+Do not conflate:
 
-- authenticated user only unless explicit public workflow;
-- bucket RLS;
-- size limit;
-- allow-listed MIME/extensions;
-- generated storage object names;
-- do not trust filename;
-- malware/scanning strategy before broad document support;
-- no public bucket for private project documents;
-- signed URLs with short expiry where needed;
-- parser resource/time limits.
+```text
+identity
+role
+resource ownership
+paid entitlement
+organization membership
+share permission
+```
 
-## 15. Personal-data minimization
+Examples:
 
-Do not require or store parcel-owner identity for normal analysis.
+- authenticated != paid;
+- paid != admin;
+- share recipient != owner;
+- Pro subscriber != member of every organization.
 
-Possible personal data Krunditark itself may process:
+Server is authoritative.
 
-- account email;
-- profile name if user adds one;
-- project names/notes;
-- uploaded plans/documents;
-- support/audit/security metadata;
-- AI questions/content.
+## 10. External source fetching / SSRF
 
-Collect only what a feature requires.
+Never build a generic server fetch proxy.
 
-## 16. Public cadastral data and privacy
+Every adapter has:
 
-Do not infer that every piece of land-related information is non-personal in every context. Public availability does not remove obligations around combining, profiling, retention or user-associated project data.
+- fixed/allow-listed host/base path;
+- controlled layer/endpoint/query construction;
+- protocol restrictions;
+- timeout/retry;
+- max response size;
+- redirect policy;
+- content/schema validation;
+- typed failure.
 
-Krunditark should avoid creating unnecessary owner-person profiles.
+User input may select a cadastral ID/search value, never an arbitrary URL.
 
-## 17. Privacy by design
+## 11. Source-response/parser safety
+
+Validate:
+
+- content type/encoding;
+- response size;
+- XML external-entity/parser behavior;
+- JSON/schema;
+- identifier/text length;
+- geometry/SRID;
+- unexpected codes/enums.
+
+Provider/source text is output-escaped; never render raw untrusted HTML.
+
+Source text sent to Gemini is evidence, not instructions.
+
+## 12. GIS resource controls
+
+Before PostGIS:
+
+- geometry type;
+- coordinate count/range;
+- Estonia/sensible bounds where applicable;
+- max area/extent;
+- request size;
+- topology validity;
+- complexity limits.
+
+Use query/statement timeouts where appropriate. Client-computed area/distance is never authoritative.
+
+## 13. Scheduled ingestion security
+
+- privileged jobs separate from user traffic;
+- source registry controls endpoints;
+- locking/idempotency/checkpoints;
+- staging before promotion;
+- schema/CRS/geometry validation;
+- abnormal-diff quarantine;
+- failed/incomplete fetch cannot replace/delete active good release;
+- admin manual promotion/refresh audited;
+- routine sync uses zero Gemini calls.
+
+## 14. Legal/rule administration
+
+High-trust operations:
+
+- draft/verify/retire server/admin only;
+- exact official source/effective date;
+- actor/time/audit;
+- versions already used by reports remain immutable;
+- detected legal change creates candidate, never auto-promotes;
+- stronger MFA for internal high-trust admins should be required/decided before production.
+
+## 15. Gemini security/privacy
+
+Server-side only.
+
+Send minimum necessary:
+
+- selected structured findings;
+- measurements;
+- approved source identifiers/short excerpts where permitted;
+- locale/current question.
+
+Do not send by default:
+
+- account/billing identity;
+- unrelated project history;
+- private notes;
+- private plan uploads until a separate privacy decision approves it.
+
+Output rules:
+
+- schema validated;
+- references limited to supplied IDs;
+- reject invented source URL/state change;
+- deterministic fallback;
+- no autonomous web-search as authoritative project source without future ADR.
+
+## 16. AI logging/retention
+
+Prefer metadata:
+
+- provider/model;
+- prompt-template/schema version;
+- analysis/finding IDs;
+- latency/status;
+- token/cost metadata when available;
+- cache hit/miss.
+
+Do not indefinitely retain/log unrestricted raw prompts/responses.
+
+## 17. Commerce security — future
+
+See `COMMERCE_AND_ENTITLEMENTS.md`.
+
+Client never controls:
+
+- authoritative price;
+- entitlement grant;
+- paid/subscription state;
+- refund state.
+
+### Webhook
+
+- verify current provider signature scheme;
+- use raw body if provider requires;
+- unique provider event ID/dedupe;
+- amount/currency/order relationship validated;
+- replay/idempotency safe;
+- secrets excluded from logs;
+- provider event maps to Krunditark order/payment/entitlement state.
+
+Prefer provider-hosted/secure checkout so Krunditark never handles raw card/bank credentials.
+
+Never store PAN/CVV/payment instrument secrets.
+
+## 18. Entitlement integrity
+
+- server checks entitlement on paid operation;
+- consumption atomic/idempotent;
+- concurrent requests cannot overconsume;
+- technical retry does not consume twice;
+- client UI flags are not authorization;
+- admin manual grant/revoke/refund audited;
+- subscription expiry does not silently delete report/project history.
+
+## 19. Share-link security — future
+
+- opt-in;
+- cryptographically strong token;
+- ideally hashed token storage where design permits;
+- exact read-only scope by default;
+- optional expiry;
+- revocable;
+- private notes/files excluded by default;
+- noindex;
+- revoke on relevant delete/security event;
+- avoid leaking token to analytics/referrers.
+
+Use an appropriate `Referrer-Policy` on private/shared views.
+
+## 20. File upload security — future
+
+For PDF/DXF/DWG/IFC:
+
+- private Storage bucket;
+- ownership/org RLS;
+- random object keys;
+- extension not trusted;
+- MIME/content validation;
+- file/decompression/parser time-memory limits;
+- no path traversal;
+- safe content disposition;
+- malware scanning if risk/scale justifies;
+- retention/delete;
+- never automatically send private upload to Gemini before approved privacy flow.
+
+Treat extracted document text as prompt-injection capable.
+
+## 21. Data classification
+
+### Public-source facts
+
+Parcel geometry, public restrictions/plans/building facts etc. Still subject to source terms/attribution.
+
+### Account PII
+
+Email, display name, linked identity/billing information.
+
+### Private project intent
+
+Selected parcel-user association, proposed geometry, notes, variants, questions, reports, files.
+
+### Commerce/accounting
+
+Orders, totals, provider IDs, invoice/refund records.
+
+### Security/operations
+
+Audit, errors, rate/abuse state, source health.
+
+## 22. Data minimization
+
+Do not collect by default:
+
+- landowner identity just because a parcel is checked;
+- personal code;
+- phone/postal address when not needed;
+- raw payment instrument data;
+- exact device location unless user explicitly uses a feature needing it;
+- analytics copies of full cadastral ID/geometry/notes.
+
+## 23. Privacy defaults
+
+- projects private;
+- parcel search does not publish user interest;
+- no public profile required;
+- sharing off by default;
+- monitoring opt-in where non-mandatory;
+- uploads private;
+- professional/partner sees report only after explicit user share/lead action.
+
+## 24. Analytics privacy
+
+Before enabling a provider, decide legal basis/consent/cookie behavior.
+
+Do not send to third-party analytics by default:
+
+- full address;
+- cadastral ID;
+- exact proposal GeoJSON;
+- user notes/files;
+- email/name;
+- AI prompt/answer;
+- payment/order identifiers.
+
+Prefer coarse semantic events and first-party authoritative server events for payments/report completion.
+
+Analytics failure never blocks product.
+
+## 25. Logging
+
+Allow:
+
+- trace/request ID;
+- safe internal project/analysis/source/order IDs;
+- error code/status/latency;
+- data release/rule version;
+- sync metrics;
+- commerce fulfillment state.
+
+Do not log:
+
+- Authorization/cookies;
+- API/SMTP/webhook secrets;
+- raw card data;
+- full private plan;
+- unrestricted provider response;
+- full raw AI prompt/response by default.
+
+## 26. Retention
+
+Define separately before production:
+
+- anonymous users/drafts;
+- permanent projects/reports;
+- source datasets/evidence;
+- raw source diagnostics;
+- audit/security logs;
+- AI content/metadata;
+- uploads;
+- orders/accounting/refunds;
+- share links;
+- analytics.
+
+Do not delete evidence needed for a retained historical report without an equivalent reproducibility mechanism.
+
+## 27. User deletion/export
 
 Before production:
 
-- privacy notice available from every page/footer;
-- define controller/contact information;
-- purposes/legal bases documented;
-- subprocessors/providers listed as required;
-- retention periods defined;
-- account/project deletion implemented;
-- data-subject request process defined;
-- analytics decision documented;
-- AI provider data handling documented.
+- account/project deletion workflow;
+- revoke sessions/share links;
+- delete private files;
+- erase/anonymize project PII as applicable;
+- transparently retain only justified statutory accounting/security records;
+- explain that national public-source records are not removed by deleting a Krunditark account;
+- support appropriate data export/DSAR process.
 
-## 18. Retention baseline
+## 28. Admin security
 
-Exact periods require product/legal decision before launch.
+- permanent verified account;
+- server-verified role;
+- MFA requirement/review for high-trust admin;
+- no role via profile PATCH;
+- audit rule/source/refund/entitlement changes;
+- least privilege;
+- avoid broad service-role use in browser/admin UI.
 
-Recommended design categories:
+## 29. CORS and security headers
 
-- active user projects: until user deletion/account policy;
-- analyses: user history, delete with project/account unless legal/security reason requires otherwise;
-- source cache: based on freshness/terms, not user identity;
-- operational source-fetch logs: short/medium term;
-- security audit logs: longer justified term;
-- AI raw payloads: minimize and avoid indefinite retention;
-- uploaded documents: user-controlled lifecycle.
+Production:
 
-Retention must be operationally enforceable, not only written in a policy.
+- explicit allowed origins;
+- no wildcard credentialed CORS;
+- CSP compatible with map/Supabase/selected providers;
+- HSTS after production HTTPS readiness;
+- `X-Content-Type-Options: nosniff` where supported;
+- suitable `Referrer-Policy`;
+- `frame-ancestors` restriction except future deliberately embeddable widget.
 
-## 19. Logging
+## 30. Supply-chain/security operations
 
-Use structured logs with:
+- lockfile + `npm ci`;
+- deliberate dependency upgrades;
+- avoid unnecessary parser/GIS/AI/payment packages;
+- secret scanning;
+- branch protection/required CI before production;
+- protect GitHub/Supabase organization accounts with MFA;
+- production/staging access minimized.
 
-- request ID;
-- user ID only when needed, preferably internal UUID;
-- analysis ID;
-- adapter/rule code;
-- status/duration;
-- safe error code.
+## 31. Threat scenarios
 
-Redact/never log:
+At minimum test/review:
 
-- Authorization headers;
-- cookies;
-- access/refresh tokens;
-- API/secret keys;
-- database connection strings;
-- complete private documents;
-- arbitrary sensitive request bodies.
+1. IDOR with guessed project/report/order UUID;
+2. anonymous user accessing permanent-only action;
+3. client role/admin spoof;
+4. forged cheap checkout amount;
+5. fake `payment=success` redirect;
+6. replayed/invalid payment webhook;
+7. guessed share report URL;
+8. SSRF arbitrary URL;
+9. huge/malicious geometry;
+10. malicious XML/source payload;
+11. source/upload prompt injection;
+12. Gemini invented legal source;
+13. source sync suddenly removes most objects;
+14. stale data shown current;
+15. account delete with active shares/payments;
+16. analytics receiving private parcel/project data;
+17. upload parser resource exhaustion.
 
-## 20. Secrets management
+## 32. Production readiness gate
 
-- local secrets in ignored `.env`/Supabase local secret mechanism;
-- cloud secrets in Supabase secret management;
-- GitHub Actions secrets only for deployment values that truly require them;
-- frontend publishable variables are not secrets.
+Before public paid production:
 
-Rotate any secret immediately if committed accidentally. Removing a git line is not sufficient once pushed.
+- no secret in frontend/repo/logs;
+- production/non-production Supabase separation/backup decision;
+- owner/admin MFA policy;
+- RLS tests green;
+- anonymous abuse controls;
+- custom SMTP;
+- Auth redirects/CORS correct;
+- source allow-lists/health/last-known-good release;
+- current verified rules;
+- Gemini privacy/config reviewed;
+- payment webhook/idempotency tests if commerce enabled;
+- account deletion/retention implemented;
+- privacy/terms/refund/payment disclosures reviewed;
+- CSP/headers tested;
+- incident/support path.
 
-## 21. Dependency security
-
-- commit lockfile;
-- use `npm ci` in CI;
-- review major dependency changes;
-- avoid unmaintained map/drawing/auth packages where alternatives exist;
-- enable automated dependency/security update tooling when repository policy is ready.
-
-## 22. Threat model summary
-
-### T1 — Cross-user data access
-
-Mitigation: RLS + ownership tests + server authorization.
-
-### T2 — Secret leakage from static bundle
-
-Mitigation: publishable-key-only frontend; server-side privileged APIs.
-
-### T3 — Rule tampering/admin compromise
-
-Mitigation: server-only verification workflow + audit + immutable versions.
-
-### T4 — Upstream source schema manipulation/change
-
-Mitigation: strict validation, fixture/contract monitoring, fail to unknown.
-
-### T5 — Prompt injection
-
-Mitigation: AI separated from deterministic findings; evidence treated as data; output validation.
-
-### T6 — GIS DoS
-
-Mitigation: geometry/query size limits, indexed bounded queries, rate limits.
-
-### T7 — SSRF
-
-Mitigation: allow-listed adapter endpoints; no generic URL fetch API.
-
-### T8 — Misleading stale data
-
-Mitigation: freshness metadata and stale policies.
-
-### T9 — XSS from source/user text
-
-Mitigation: React escaping, sanitize only where rendering rich HTML is unavoidable, never render provider HTML directly.
-
-### T10 — Broken auth callback/deep links on static host
-
-Mitigation: tested GitHub Pages routing strategy and restricted redirect URLs.
-
-## 23. Security launch gate
-
-Do not launch production until:
-
-- RLS tests pass from clean database;
-- no elevated secret exists in frontend bundle;
-- admin writes require server role verification;
-- analysis endpoints have resource/rate controls;
-- privacy notice/retention decisions exist;
-- dependency/secret scanning is enabled or documented;
-- threat review is completed;
-- provider/AI errors fail safely.
+Security is part of each feature's Definition of Done, not a launch-week task.

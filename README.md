@@ -2,150 +2,151 @@
 
 **Tea enne, kui ehitad.**
 
-Krunditark is an Estonia-first property intelligence and buildability platform. A user selects a cadastral parcel, describes or places a planned building on the map, and receives a source-backed analysis of what may affect the project: planning conditions, cadastral restrictions, environmental constraints, heritage constraints, road/access considerations, likely permit path, required next steps, and links to official sources.
+Krunditark is an Estonia-first property/buildability decision platform. It helps a person find the correct parcel, understand supported official constraints, test a concrete building scenario on the map, compare alternatives, understand supported administrative next steps and keep a reproducible project history.
 
-The core user-facing product is the **Ehituspass** (Buildability Passport).
+The flagship user-facing product is **Ehituspass**.
 
-> Krunditark is an information and decision-support service. It does not issue permits and must never present an AI-generated interpretation as an official authority decision or legal advice.
+> Krunditark is an information and decision-support service. It does not issue permits or official approvals and must never present AI-generated wording as an authority decision or legal advice.
 
-## Project status
+## Product position
 
-The repository is in the **foundation / pre-MVP** phase. The documentation in this repository is the source of truth for implementation.
+Krunditark is deliberately **not just an AI chatbot**.
 
-Current deployment direction:
-
-- Frontend: static React + TypeScript application.
-- Development/public preview hosting: GitHub Pages.
-- Backend: Supabase Cloud.
-- Database: PostgreSQL + PostGIS.
-- Authentication: Supabase Auth.
-- Server-side API/orchestration: Supabase Edge Functions.
-- Scheduled official-data refresh: Supabase Cron / `pg_cron` + Edge Functions.
-- File storage: Supabase Storage.
-- AI provider: **Google Gemini API** through the current Google GenAI SDK/API, called server-side only.
-- Current domain registrar: Zone (`krunditark.ee`).
-- Later edge/DNS/hosting target: Cloudflare, without assuming that `.ee` registration itself can be transferred to Cloudflare Registrar.
-- Estonia only for MVP and initial production scope.
-
-## Core principle
-
-Krunditark must separate official-data acquisition, deterministic facts and AI explanation:
+The core product is:
 
 ```text
-Official data + legal sources
-          |
-          | scheduled ingestion / monthly baseline
-          v
-Versioned normalized data releases
-PostgreSQL + PostGIS
-          |
-          v
-GIS checks + versioned rules engine
-          |
-          v
-Structured analysis result
-          |
-          v
-Google Gemini explanation layer
-          |
-          v
-Human-readable Ehituspass
+real parcel
++ user intent
++ exact proposed geometry/scenario
++ versioned official source data
++ deterministic PostGIS checks
++ verified versioned rules
+= reproducible findings + map evidence + next actions
 ```
 
-Gemini is **not** the legal or geospatial decision engine. It may explain structured findings, summarize approved source material and help users understand next steps, but it may not invent rules, restrictions, permit requirements, distances, costs or authority decisions.
+Google Gemini may explain the already-computed result in plain language, but it cannot change the factual state.
 
-The Gemini API key is a server-side secret stored for Supabase Edge Functions. It must never be placed in frontend code or a `VITE_*` variable.
+The long-term differentiation is scenario modeling, variant comparison, project history/change monitoring, pre-purchase checks and professional/B2B workflows.
 
-Official data is not rediscovered through Gemini or re-downloaded from every government source for every user request. Replicated sources are synchronized server-side into versioned Krunditark datasets, with a monthly full reconciliation as the baseline policy. Normal analyses read the latest eligible promoted data release.
+## Primary user journeys
 
-## Primary user journey
+Krunditark should support different decisions on the same parcel:
 
-1. User enters a cadastral identifier or searches for a parcel.
-2. Krunditark resolves the parcel from the latest eligible promoted official-data release or an explicitly approved live source where required.
-3. User opens the parcel on a map.
-4. User selects a building type and provides dimensions/height/storeys.
-5. User places, rotates or draws the proposed building footprint.
-6. Backend selects the exact promoted data release and verified rule versions for the analysis.
-7. PostGIS computes spatial intersections, distances and containment checks from normalized versioned data.
-8. The rules engine evaluates versioned rules against the structured facts.
-9. Krunditark returns findings classified as clear, conditional, conflicting or unknown.
-10. Every material finding includes provenance: data release, source, retrieval time, legal/data version where available, and official link.
-11. Google Gemini may convert the already-structured findings into understandable Estonian explanations without changing their meaning.
-12. User receives an Ehituspass with required actions and official next-step links.
+### I want to build
 
-A user request does **not** normally trigger a national data refresh. Scheduled synchronization is an independent server-side process.
+1. Search by **address, cadastral ID or map**.
+2. Select the exact parcel.
+3. Choose what you want to build.
+4. Start from a simple footprint template or enter dimensions.
+5. Drag/rotate the structure on the parcel.
+6. Run Ehituspass.
+7. See conflicts, conditions, unknowns, sources and next steps.
+8. Duplicate/move the proposal and compare variants.
 
-## Documentation map
+### I am considering buying land
 
-Implementation agents must read [`AGENTS.md`](./AGENTS.md) first.
+Use the future **Ostukontroll** flow:
 
-| Document | Purpose |
-|---|---|
-| [`AGENTS.md`](./AGENTS.md) | Non-negotiable rules for coding agents |
-| [`TASKS.md`](./TASKS.md) | Ordered implementation backlog |
-| [`docs/PRODUCT_REQUIREMENTS.md`](./docs/PRODUCT_REQUIREMENTS.md) | Product requirements and acceptance criteria |
-| [`docs/MVP_SCOPE.md`](./docs/MVP_SCOPE.md) | Exact MVP boundary |
-| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | System architecture and service boundaries |
-| [`docs/DATABASE_SCHEMA.md`](./docs/DATABASE_SCHEMA.md) | PostgreSQL/PostGIS data model |
-| [`docs/API_SPECIFICATION.md`](./docs/API_SPECIFICATION.md) | Public/client API contract |
-| [`docs/DATA_SOURCES.md`](./docs/DATA_SOURCES.md) | Official source registry and adapter rules |
-| [`docs/DATA_REFRESH_AND_VERSIONING.md`](./docs/DATA_REFRESH_AND_VERSIONING.md) | Monthly synchronization, data releases, freshness, change detection and promotion |
-| [`docs/GIS_AND_RULES_ENGINE.md`](./docs/GIS_AND_RULES_ENGINE.md) | Spatial analysis and deterministic rule design |
-| [`docs/AI_SAFETY_AND_EXPLANATIONS.md`](./docs/AI_SAFETY_AND_EXPLANATIONS.md) | Gemini integration plus allowed/forbidden AI behavior |
-| [`docs/SECURITY_PRIVACY.md`](./docs/SECURITY_PRIVACY.md) | RLS, secrets, privacy and threat model |
-| [`docs/LEGAL_AND_COMPLIANCE.md`](./docs/LEGAL_AND_COMPLIANCE.md) | Legal-source and disclaimer requirements |
-| [`docs/UX_UI_SPEC.md`](./docs/UX_UI_SPEC.md) | Main screens and interaction rules |
-| [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md) | GitHub Pages, Supabase and later Cloudflare deployment |
-| [`docs/TESTING.md`](./docs/TESTING.md) | Test strategy and deterministic fixtures |
-| [`docs/ENVIRONMENT.md`](./docs/ENVIRONMENT.md) | Environment variables and local setup contract |
-| [`docs/ROADMAP.md`](./docs/ROADMAP.md) | Post-MVP expansion plan |
-| [`docs/DEFINITION_OF_DONE.md`](./docs/DEFINITION_OF_DONE.md) | Global completion gate |
-| [`docs/adr/`](./docs/adr/) | Architecture decision records |
+- supported planning/restriction/environment/road/building context;
+- important unknowns;
+- questions to ask seller/KOV;
+- optionally test a concrete house on the parcel afterward.
 
-## Official-source baseline
+### I am a professional
 
-The first implementation must be designed around official or authoritative sources, including:
+Future Pro workflows add:
 
-- Maa- ja Ruumiamet / Geoportaal cadastral and restriction data.
-- PLANIS planning data and WMS/WFS services.
-- E-ehitus / Ehitisregister APIs and public data where available.
-- Keskkonnaportaal / EELIS environmental spatial data.
-- Riigi Teataja for legislation and versioned legal basis.
-- Muinsuskaitse official data for monuments and protection zones.
-- Transpordiamet for state-road/access-related data and requirements.
-- Local-government sources where national structured data is incomplete.
+- many projects;
+- advanced map/source detail;
+- reusable templates;
+- team/workspace;
+- batch/API;
+- client sharing/export.
 
-See `docs/DATA_SOURCES.md` for source status, limitations and ingestion rules.
+The factual engine remains the same.
 
-## Data refresh model
+See [`docs/USER_JOURNEYS_AND_PERSONAS.md`](./docs/USER_JOURNEYS_AND_PERSONAS.md).
 
-Replicated official data is maintained independently from user traffic.
+## User-experience decisions
 
-Baseline:
+- Consumer landing starts with **`Sisesta aadress või katastritunnus`**.
+- A cadastral ID is not required as the only entry method.
+- No forced account before the user sees meaningful parcel/proposal value.
+- Beginner mode uses building templates + drag/rotate rather than requiring GIS polygon drawing.
+- Every material result shows source/freshness.
+- Every report ends with next actions.
+- `unknown` is a first-class safe result.
+- No fake “92% buildable” score.
+- Map findings always have textual equivalents.
+- Parcel selection is not proof of ownership.
 
-- monthly full reconciliation for approved replicated datasets;
-- manual/emergency refresh when an important change is known before the next scheduled run;
-- source-specific freshness thresholds;
-- candidate dataset validation before promotion;
-- previous verified version remains active when a refresh fails;
-- historical source versions remain available for reproducible analyses;
-- legal text changes create review candidates and do not automatically rewrite production rules;
-- normal scheduled synchronization uses zero Gemini tokens.
+See [`docs/UX_UI_SPEC.md`](./docs/UX_UI_SPEC.md).
 
-Each Ehituspass stores the exact `data_release_id` and rule/source version provenance used to produce it.
+## Authentication
 
-## Technology direction
+Krunditark uses a **guest-first** onboarding model.
+
+- Supabase anonymous Auth may own temporary guest projects.
+- Consumer can later link/convert to permanent identity.
+- Primary permanent methods: email OTP and Google.
+- No password required by default.
+- Production email Auth requires custom SMTP.
+- Account conversion must preserve the exact parcel/proposal.
+
+See [`docs/AUTH_AND_ONBOARDING.md`](./docs/AUTH_AND_ONBOARDING.md) and ADR 0006.
+
+## Languages
+
+Estonia is the only initial market, but the product is multilingual.
+
+Architecture target from the first frontend implementation:
+
+- **ET** — canonical/default and legal terminology source;
+- **RU** — full consumer localization target;
+- **EN** — full consumer/professional localization target.
+
+Critical legal/status/payment/privacy wording is controlled/reviewed; Gemini may localize explanations but not reinterpret findings.
+
+See [`docs/LOCALIZATION_AND_LANGUAGE.md`](./docs/LOCALIZATION_AND_LANGUAGE.md) and ADR 0008.
+
+## Commercial direction
+
+Krunditark uses a **hybrid** model rather than forcing every consumer into a subscription.
+
+Recommended product ladder to validate:
+
+- free `Krundi ülevaade`;
+- one-time `Ostukontroll`;
+- one-time `Ehituspass`;
+- limited-duration `Projektipass` for an active project;
+- recurring Pro/Team plans for professional repeat users;
+- B2B/API later;
+- professional referral/review layer later.
+
+Current price points are test hypotheses, not permanent constants.
+
+Krunditark should **not use programmatic/banner advertising inside the analysis/report workspace**. Future sponsored/referral provider content must be separate and cannot influence findings.
+
+See:
+
+- [`docs/BUSINESS_MODEL_AND_PRICING.md`](./docs/BUSINESS_MODEL_AND_PRICING.md)
+- [`docs/COMMERCE_AND_ENTITLEMENTS.md`](./docs/COMMERCE_AND_ENTITLEMENTS.md)
+- ADR 0007.
+
+## Architecture
+
+Current direction:
 
 ### Frontend
 
 - React
-- TypeScript with strict mode
+- TypeScript strict mode
 - Vite
 - MapLibre GL JS
 - React Router
 - TanStack Query
-- Zod at external data/API boundaries
-- Accessible component primitives; avoid locking the project to a proprietary UI system
+- Zod at external boundaries
+- i18n architecture from first UI
 
 ### Backend
 
@@ -154,85 +155,214 @@ Each Ehituspass stores the exact `data_release_id` and rule/source version prove
 - PostGIS
 - Supabase Auth
 - Supabase Storage
-- Supabase Edge Functions (TypeScript/Deno)
-- Supabase Cron / `pg_cron` for scheduled source synchronization
-- SQL migrations committed under `supabase/migrations/`
+- Supabase Edge Functions
+- Supabase Cron/scheduled orchestration
+- ordered SQL migrations under `supabase/migrations/`
 
 ### AI
 
 - Google Gemini API
-- Google GenAI SDK/API through a small Krunditark-owned adapter
-- API key available only to Supabase Edge Functions
-- selected Gemini model configured server-side rather than hard-coded across domain code
-- structured/schema-validated explanation outputs
-- deterministic non-AI fallback for every material finding
-- no Gemini dependency in normal official-data synchronization
+- current supported Google GenAI SDK/API at implementation time
+- server-side only
+- `GEMINI_API_KEY` stored as server secret
+- model ID configured server-side
+- structured/validated outputs
+- deterministic fallback
 
-### Quality
+### Hosting
 
-- ESLint
-- Prettier
-- Vitest
-- Playwright
-- database/RLS tests
-- deterministic rule-engine and GIS boundary tests
-- source sync/change-detection/idempotency tests
-- GitHub Actions for format, lint, typecheck, tests and production build
+- development/public preview: GitHub Pages
+- domain currently registered at Zone
+- later Cloudflare DNS/edge/possibly static frontend hosting
+- backend remains Supabase unless an ADR changes it
 
-Exact package/model versions belong in the lockfile/server configuration and must be upgraded intentionally; documentation should not be treated as a permanent model-version pin.
+## Data refresh architecture
 
-## Data and coordinate-system rule
+A normal analysis does **not** query every government source again.
 
-Official Estonian spatial datasets commonly use **L-EST97 / EPSG:3301**. Krunditark should preserve authoritative geometries in the source/native reference system where practical and use PostGIS transformations for web display and external interfaces. The browser map normally consumes WGS84/Web Mercator compatible GeoJSON/tiles. Distance and area rules must be evaluated in an appropriate metric CRS, not by naive latitude/longitude arithmetic.
+Canonical policy: [`docs/DATA_REFRESH_AND_CACHE.md`](./docs/DATA_REFRESH_AND_CACHE.md).
+
+High-level:
+
+```text
+Official sources
+   |
+   +--> heavy spatial scheduled/incremental sync
+   +--> cheap daily/weekly change watches where supported
+   +--> live/short-cache interactive lookup where appropriate
+   v
+versioned source datasets
+   v
+verified composite data release
+   v
+local PostGIS + verified rules
+   v
+cached Ehituspass
+   v
+cached Gemini explanation
+```
+
+Examples:
+
+- heavy analytical spatial data: monthly baseline where appropriate;
+- Riigi Teataja: cheap legal version/hash watch more frequently;
+- EHR: incremental changed-after synchronization where approved;
+- In-AKS: live/short-cache address lookup.
+
+Routine sync uses **zero Gemini tokens**.
+
+Failed sync never erases the last known-good verified dataset.
+
+## Official-source baseline
+
+Priority sources include:
+
+- Maa- ja Ruumiamet cadastral and restriction data;
+- In-AKS address search;
+- PLANIS planning data/WMS/WFS;
+- E-ehitus/EHR APIs where public/authorized;
+- Keskkonnaportaal/EELIS selected public spatial data;
+- Riigi Teataja legal sources;
+- verified Muinsuskaitse authoritative data;
+- verified Transpordiamet/road data;
+- local-government sources where structured national data is incomplete;
+- later utility/elevation/flood/geology sources.
+
+See [`docs/DATA_SOURCES.md`](./docs/DATA_SOURCES.md).
+
+## Source-of-truth rule
+
+Krunditark separates deterministic facts from explanation:
+
+```text
+Official/source data
+      |
+      v
+versioned normalization/data release
+      |
+      v
+PostGIS facts + verified deterministic rules
+      |
+      v
+immutable structured analysis
+      |
+      +--> deterministic user-facing templates
+      |
+      +--> optional Google Gemini explanation
+```
+
+Gemini never becomes the legal/geospatial authority.
+
+## Geospatial rule
+
+Official Estonian spatial datasets commonly use L-EST97 / **EPSG:3301**.
+
+- Authoritative metric distance/area/intersection calculations run server-side/PostGIS in an appropriate metric CRS.
+- Browser display/API GeoJSON may use EPSG:4326/3857 as documented.
+- Never calculate material legal distances with naive lat/lon degree arithmetic.
 
 ## Security rule
 
-No privileged credential may be shipped in the GitHub Pages bundle.
+No privileged credential may ship in the static frontend.
 
-Browser code may use only the Supabase publishable key and APIs protected by RLS. Any operation needing elevated database access, Google Gemini API keys, third-party secrets, ingestion credentials or protected source access must execute inside Supabase Edge Functions or another server-side environment.
+Browser may use only public/publishable Supabase configuration and RLS-protected APIs.
 
-Scheduled sync/promotion operations are privileged and may not be exposed to ordinary user sessions.
+Server secrets include, as applicable:
 
-## Source provenance rule
+- elevated Supabase/server credentials;
+- Gemini API key;
+- external provider credentials;
+- payment provider/webhook secrets;
+- SMTP credentials.
 
-Every material analysis finding must be reproducible. At minimum persist:
+## Historical reproducibility
 
-- data release identifier;
-- exact source dataset version;
-- source identifier;
-- source URL or service endpoint;
-- source record/object identifiers where available;
-- retrieval timestamp;
-- source publication/effective date where available;
-- normalized input facts;
-- rule version evaluated;
-- geometry/evidence identifiers;
-- analysis engine version.
+A completed Ehituspass records/references at least:
 
-A finding without provenance must not be presented as an authoritative Krunditark result.
+- exact parcel/proposal version;
+- data release;
+- source dataset versions;
+- rule versions;
+- source evidence;
+- measurements/geometry evidence;
+- analysis engine/profile version;
+- analysis date.
 
-## MVP success definition
+Old reports are never silently rewritten using current data.
 
-Given a supported Estonian cadastral identifier and a user-placed building footprint, the MVP can:
+## Documentation map
 
-- resolve the parcel;
-- display it accurately on a map;
-- detect supported spatial restrictions and planning overlays from a versioned promoted data release;
-- classify basic building/permit implications through deterministic versioned rules;
-- explain findings in Estonian, optionally enhanced by Gemini;
-- show official evidence and links;
-- explicitly label missing, stale or inconclusive data as unknown/condition as appropriate;
-- save and reproduce an analysis with its data/rule versions;
-- run securely from a static GitHub Pages frontend backed by Supabase.
+Implementation agents must read [`AGENTS.md`](./AGENTS.md) first.
 
-See `docs/MVP_SCOPE.md` for exclusions.
+### Core product
+
+| Document | Purpose |
+|---|---|
+| [`AGENTS.md`](./AGENTS.md) | Non-negotiable coding-agent contract |
+| [`TASKS.md`](./TASKS.md) | Ordered active engineering backlog |
+| [`docs/PRODUCT_REQUIREMENTS.md`](./docs/PRODUCT_REQUIREMENTS.md) | Full product requirements |
+| [`docs/USER_JOURNEYS_AND_PERSONAS.md`](./docs/USER_JOURNEYS_AND_PERSONAS.md) | Real users, problems and end-to-end journeys |
+| [`docs/UX_UI_SPEC.md`](./docs/UX_UI_SPEC.md) | Landing, map, report, mobile, Pro and design-system UX |
+| [`docs/MVP_SCOPE.md`](./docs/MVP_SCOPE.md) | Minimum first trustworthy vertical slice |
+| [`docs/ROADMAP.md`](./docs/ROADMAP.md) | Full product evolution |
+| [`docs/PRODUCT_EXPANSION_BACKLOG.md`](./docs/PRODUCT_EXPANSION_BACKLOG.md) | Post-core initiatives before promotion to TASKS |
+
+### Architecture/data
+
+| Document | Purpose |
+|---|---|
+| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | Service/system boundaries |
+| [`docs/DATABASE_SCHEMA.md`](./docs/DATABASE_SCHEMA.md) | PostgreSQL/PostGIS data model |
+| [`docs/API_SPECIFICATION.md`](./docs/API_SPECIFICATION.md) | Client API contract |
+| [`docs/DATA_SOURCES.md`](./docs/DATA_SOURCES.md) | Official source registry |
+| [`docs/DATA_REFRESH_AND_CACHE.md`](./docs/DATA_REFRESH_AND_CACHE.md) | Canonical source refresh/cache/release policy |
+| [`docs/GIS_AND_RULES_ENGINE.md`](./docs/GIS_AND_RULES_ENGINE.md) | Spatial/rule semantics |
+
+### AI/auth/language/commerce
+
+| Document | Purpose |
+|---|---|
+| [`docs/AI_SAFETY_AND_EXPLANATIONS.md`](./docs/AI_SAFETY_AND_EXPLANATIONS.md) | Gemini boundary/safety |
+| [`docs/AUTH_AND_ONBOARDING.md`](./docs/AUTH_AND_ONBOARDING.md) | Guest-first Auth/account flow |
+| [`docs/LOCALIZATION_AND_LANGUAGE.md`](./docs/LOCALIZATION_AND_LANGUAGE.md) | ET/RU/EN strategy |
+| [`docs/BUSINESS_MODEL_AND_PRICING.md`](./docs/BUSINESS_MODEL_AND_PRICING.md) | Monetization/pricing/unit economics hypotheses |
+| [`docs/COMMERCE_AND_ENTITLEMENTS.md`](./docs/COMMERCE_AND_ENTITLEMENTS.md) | Provider-neutral payment/access design |
+| [`docs/MARKET_AND_COMPETITIVE_POSITIONING.md`](./docs/MARKET_AND_COMPETITIVE_POSITIONING.md) | Market position/defensibility |
+| [`docs/PRODUCT_ANALYTICS_AND_GROWTH.md`](./docs/PRODUCT_ANALYTICS_AND_GROWTH.md) | Metrics, experiments and growth loops |
+
+### Trust/operations
+
+| Document | Purpose |
+|---|---|
+| [`docs/SECURITY_PRIVACY.md`](./docs/SECURITY_PRIVACY.md) | RLS, privacy and threat model |
+| [`docs/LEGAL_AND_COMPLIANCE.md`](./docs/LEGAL_AND_COMPLIANCE.md) | Legal-source/disclaimer policy |
+| [`docs/TESTING.md`](./docs/TESTING.md) | Test strategy |
+| [`docs/ENVIRONMENT.md`](./docs/ENVIRONMENT.md) | Environment/config contract |
+| [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md) | GitHub Pages/Supabase/Cloudflare deployment |
+| [`docs/DEFINITION_OF_DONE.md`](./docs/DEFINITION_OF_DONE.md) | Global completion gate |
+| [`docs/OPEN_QUESTIONS.md`](./docs/OPEN_QUESTIONS.md) | Genuine unresolved decisions only |
+| [`docs/adr/`](./docs/adr/) | Accepted architecture/product decisions |
+
+## Current project status
+
+The repository is in the **foundation / pre-implementation** phase.
+
+The foundation is intentionally extensive because the core risk is not drawing a nice map — it is making sure later coding agents do not invent legal semantics, break provenance, force the wrong onboarding model, duplicate expensive source calls or couple commercial logic to one provider.
 
 ## Development rule
 
-Do not begin a feature from a vague prompt. Pick the next unblocked item in `TASKS.md`, read the linked specifications, implement only the defined scope, add/update tests and documentation, then satisfy `docs/DEFINITION_OF_DONE.md`.
+Do not begin a feature from a vague idea.
 
-For any source/cache task, `docs/DATA_REFRESH_AND_VERSIONING.md` is part of the implementation contract even if an older task description uses the word “cache”.
+1. Pick an unblocked item from `TASKS.md`.
+2. Read `AGENTS.md` and linked specs.
+3. Verify current official/provider documentation for unstable integration details.
+4. Implement the smallest complete vertical slice.
+5. Add tests.
+6. Update documentation/contracts.
+7. Satisfy `DEFINITION_OF_DONE.md`.
+
+Future product ideas in `PRODUCT_EXPANSION_BACKLOG.md` must be promoted into `TASKS.md` before implementation.
 
 ## License
 
-No open-source license has been selected yet. Do not add one without an explicit project-owner decision.
+No open-source license has been selected. Do not add one without an explicit owner decision.

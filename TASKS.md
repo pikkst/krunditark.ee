@@ -75,18 +75,18 @@ Acceptance:
 
 Read `LOCALIZATION_AND_LANGUAGE.md` and ADR 0008.
 
-- [ ] locale type `et|ru|en`.
-- [ ] translation catalog structure.
-- [ ] Estonian canonical strings.
-- [ ] missing-key development/CI behavior.
-- [ ] locale persistence/routing abstraction compatible with GitHub Pages preview and clean production routes.
-- [ ] no scattered hard-coded user-facing copy.
+- [x] locale type `et|ru|en`.
+- [x] translation catalog structure.
+- [x] Estonian canonical strings.
+- [x] missing-key development/CI behavior.
+- [x] locale persistence/routing abstraction compatible with GitHub Pages preview and clean production routes.
+- [x] no scattered hard-coded user-facing copy.
 
 Acceptance:
 
-- switching locale framework state does not reload/recreate domain state;
-- ET complete for current shell;
-- RU/EN catalogs may be incomplete during development but missing critical keys are visible to developers.
+- [x] switching locale framework state does not reload/recreate domain state;
+- [x] ET complete for current shell;
+- [x] RU/EN catalogs may be incomplete during development but missing critical keys are visible to developers.
 
 ## KT-007 — Create accessible design-system foundation
 

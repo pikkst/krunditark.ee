@@ -1,0 +1,24 @@
+{
+  "app": {
+    "name": "Krunditark"
+  },
+  "tagline": "Know before you build.",
+  "landing": {
+    "title": "Krunditark",
+    "subtitle": "Know before you build.",
+    "description": "Enter an address or cadastral identifier to start analyzing a parcel and building possibilities.",
+    "search": {
+      "placeholder": "E.g. Pärnu mnt 10, Tallinn or 12345:678:9012",
+      "button": "Search"
+    }
+  },
+  "header": {
+    "brand": "Krunditark"
+  },
+  "locale": {
+    "switchLabel": "Language",
+    "et": "Estonian",
+    "ru": "Russian",
+    "en": "English"
+  }
+}

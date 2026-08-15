@@ -1,610 +1,532 @@
-# Data Refresh and Cache Architecture — Krunditark
+# Data Refresh, Cache and Release Architecture — Krunditark
+
+**Canonical refresh document.**
+
+Last research review: **2026-08-15**
+
+`DATA_REFRESH_AND_VERSIONING.md` is retained only as a compatibility pointer to this document.
 
 ## 1. Goal
 
-Krunditark must **not** query every official source, re-read legislation, or call Google Gemini every time a user opens or runs the same project analysis.
+Krunditark must not re-download every official dataset, re-read legislation or call Gemini for every user analysis.
 
-The default architecture is **snapshot-first**:
+At the same time, “refresh everything once per month” is too blunt because different official sources change at different rates and expose different change capabilities.
+
+The production model is **source-specific snapshot/change-watch + verified release**:
 
 ```text
 Official sources
       |
-      | scheduled sync (monthly baseline)
-      v
-Validated + normalized versioned snapshots
+      +--> short-cache/live lookup where appropriate (e.g. address search)
       |
-      v
-PostgreSQL / PostGIS
+      +--> lightweight daily/weekly change watch where supported
       |
-      +--> verified rules
-      |
+      +--> scheduled full/incremental ingestion for analytical data
       v
-User analysis
-      |
+staging + validation + change detection
       v
-Cached deterministic Ehituspass
-      |
+versioned source dataset releases
       v
-Cached Gemini explanation (optional)
+composite verified Krunditark data release
+      v
+local PostgreSQL/PostGIS analysis
+      v
+cached deterministic Ehituspass
+      v
+cached Gemini explanation (optional)
 ```
 
-A normal user analysis reads from Krunditark's own current validated data snapshot and verified rule set.
+## 2. Non-negotiable user-request rule
 
-It does **not** perform live nationwide WFS/API/legal-document collection by default.
+A normal user analysis **does not fan out to all national WFS/API/legal sources**.
 
-## 2. Why this is required
+Normal priority:
 
-This architecture reduces:
+1. compatible cached completed analysis;
+2. local current verified PostGIS/data release;
+3. cached normalized source object;
+4. scheduled/background ingestion;
+5. live source retrieval only for source-specific approved use;
+6. Gemini only for uncached explanation.
 
-- upstream API traffic;
-- provider outages affecting user requests;
-- latency;
-- duplicate network transfer;
-- repeated parsing/normalization;
-- database write churn;
-- Gemini token/API cost;
-- risk that two users receive different results because a provider changed between requests.
+Ordinary users cannot trigger national refresh jobs.
 
-It also improves reproducibility because every Ehituspass can identify the exact dataset release and rule versions used.
+## 3. Source classes
 
-## 3. Three independent cache/version layers
+### Class A — Heavy replicated spatial datasets
 
-### Layer A — Official spatial/data snapshots
-
-Examples:
+Examples, where terms/volume permit:
 
 - cadastral restrictions;
-- PLANIS planning geometries/metadata;
-- selected EELIS public layers;
-- heritage data when supported;
-- state-road/protection-zone data when supported;
-- other approved public spatial datasets.
+- PLANIS planning geometry/metadata;
+- selected EELIS layers;
+- heritage layers;
+- roads/protection geometry;
+- later elevation/flood/geology generalized analytical layers.
 
-These are periodically imported/normalized into Krunditark PostGIS.
+Default:
 
-### Layer B — Legal source + verified rules
+- monthly full reconciliation **or** source-supported incremental strategy;
+- versioned snapshot;
+- PostGIS local query;
+- source-specific freshness threshold.
+
+### Class B — Frequently changing metadata/change feeds
 
 Examples:
 
-- Ehitusseadustik source metadata/content hash;
-- relevant annex versions;
-- other supported acts/regulations;
-- Krunditark deterministic `rule_versions`.
+- EHR changed-building identifiers;
+- legal version/effective metadata;
+- source schema/capabilities metadata.
 
-The monthly job may detect legal changes automatically, but **must not automatically promote a new legal interpretation into a verified production rule**.
+Default:
 
-### Layer C — Analysis + AI explanation cache
+- daily or weekly inexpensive change check;
+- detailed sync only when change detected;
+- no Gemini;
+- idempotent cursor/timestamp state.
 
-For unchanged:
+### Class C — Interactive official lookup
 
-- proposal input;
-- parcel snapshot;
-- dataset release bundle;
-- verified rule set;
-- analysis engine version;
+Example:
 
-the deterministic structured analysis may be reused.
+- In-AKS address search.
 
-For unchanged:
+Address autocomplete needs fresh results and the official service is specifically designed for integration. Do not mirror all address-search behavior into a monthly consumer index merely to avoid a small API lookup.
 
-- analysis ID/hash;
-- language;
-- Gemini model/config version;
-- prompt template version;
+Default:
 
-the stored Gemini explanation may be reused rather than generated again.
+- live server/client integration as terms/architecture allow;
+- bounded short cache (for example minutes/hours/24h based on final source policy);
+- official result is not part of the heavy analysis release unless a selected parcel snapshot is persisted.
 
-## 4. Default refresh cadence
+### Class D — Manual/verified legal interpretation
 
-The project baseline is **monthly refresh** for relatively stable official/regulatory datasets.
+Official legal text/version may be automatically monitored, but Krunditark rule semantics require human/admin verification before activation.
 
-Recommended default:
+### Class E — No-replication / sensitive / restricted
 
-```text
-Monthly dataset refresh window:
-1st day of month, off-peak hours (Europe/Tallinn operational convention)
-```
+Where terms, privacy or source policy do not permit replication:
 
-Exact cron execution uses UTC as configured in the database/runtime and must be documented explicitly when implemented.
+- keep only permitted metadata/evidence;
+- use approved live/manual workflow;
+- disclose incompleteness;
+- never infer absence from unavailable private data.
 
-Do not hard-code business meaning to “day 1” in domain logic. Cadence is source configuration.
+## 4. Current source cadence matrix
 
-Each source definition has:
+These are architecture defaults and must be reviewed during each adapter implementation.
 
-- refresh cadence;
-- last successful sync;
-- last attempted sync;
-- current release ID;
-- freshness threshold;
-- failure policy;
-- whether manual/emergency refresh is allowed.
+| Source/category | Retrieval strategy | Change watch | Full/incremental sync | Gemini |
+|---|---|---|---|---|
+| In-AKS address search | live/short cache | service-driven | no national monthly mirror required for search | never |
+| MaRu cadastral parcel facts | source-specific snapshot/object cache | weekly/daily metadata if available | monthly/incremental as practical | never |
+| MaRu restrictions | replicated PostGIS | optional weekly metadata/schema | monthly full/incremental | never |
+| PLANIS planning | replicated/indexed | weekly metadata/change where practical | monthly + emergency | never |
+| EELIS selected layers | replicated/indexed | weekly source health | monthly + emergency | never |
+| Heritage | source-specific after endpoint verified | source health | monthly/incremental if permitted | never |
+| State roads | source-specific | source health | monthly/incremental | never |
+| EHR actual building data | object/index cache | **daily changed-after cursor** where approved | fetch changed building data incrementally; periodic reconciliation | never |
+| Riigi Teataja legal sources | retained version metadata/content hash as permitted | **daily version/hash/effective check** | fetch changed acts only; periodic reconciliation | never |
+| Krunditark rule set | internal versioned | triggered by legal candidate/review | manual verified promotion | never required |
+| Gemini explanation | analysis-result cache | n/a | generate on cache miss | yes, explanation only |
 
-Monthly is the baseline, not an assertion that every source can never need a different cadence.
+Do not treat cadence values as legal guarantees. `source_definitions` owns final configuration.
 
-## 5. Supabase scheduling
+## 5. Research basis for differentiated cadence
 
-Use **Supabase Cron / `pg_cron`** to schedule refresh orchestration.
+### In-AKS
 
-Current Supabase Cron supports scheduled recurring jobs and can invoke SQL/database functions or Supabase Edge Functions.
+MaRu introduced In-AKS in production on 27 April 2026 and exposes address/Gazetteer APIs. The previous official integration documentation describes address data as kept current through nightly updates.
 
-Preferred pattern:
+Official:
 
-```text
-Supabase Cron
-    |
-    +--> invoke source-sync Edge Function / enqueue source sync
-              |
-              +--> retrieve official source
-              +--> validate
-              +--> normalize
-              +--> stage new release
-              +--> run integrity checks
-              +--> atomically activate release
-```
+- https://geoportaal.maaruum.ee/est/teenused/in-ads-in-aks/nb-muudatused-in-adsis-p1038.html
+- https://geoportaal.maaruum.ee/est/teenused/integreeritav-aadressiotsing-in-ads-p504.html
 
-Do not put a long national ETL directly into a single database transaction.
+Implication: use as an interactive lookup/short-cache service, not a once-a-month UX dependency.
 
-If a source dataset is too large for one Edge Function execution, split work into bounded batches/jobs and maintain resumable sync state.
+### EHR
 
-## 6. Monthly spatial-data refresh lifecycle
+The current Buildings Actual Data API exposes `GET /v2/find/ehrcodes/dateafter`, returning up to 1000 current building codes modified after a specified time, plus current building-data endpoints.
 
-For each supported source/layer:
+Official:
 
-### Step 1 — Start sync run
+- https://swaggerui.ehr.ee/ehitise_kehtivate_andmete_teenus
 
-Create a `source_sync_run` with:
+Implication: EHR synchronization can use a timestamp cursor/incremental queue instead of repeated full national retrieval.
 
-- source ID;
-- requested release/cadence;
-- started timestamp;
-- previous active release ID;
-- sync software/normalizer version.
+### Riigi Teataja
 
-### Step 2 — Retrieve official data
+Riigi Teataja provides public API search and act XML access. Its FAQ documents a changed XML API path from 1 June 2026 while general API use remains available.
 
-Prefer in order:
+Official:
 
-1. official full/incremental downloadable dataset if suitable;
-2. official WFS/API pagination/batching;
-3. approved source-specific mechanism.
+- https://www.riigiteataja.ee/kkk
 
-Do not query the same national dataset once per user parcel if a periodic local copy is practical and source terms permit it.
+Implication: cheap daily legal version/hash monitoring is appropriate; a full monthly-only law check could leave a recently effective change unnoticed for too long.
 
-### Step 3 — Stage, do not overwrite active data
+### PLANIS
 
-Write incoming normalized records into a new release/snapshot partition/version.
+PLANIS provides WMS/WFS access to planning data and was introduced in 2026. Source usage/notification arrangements should be followed.
 
-The active production release remains unchanged during import.
+Official:
 
-### Step 4 — Validate
+- https://planeerimine.ee/juhendid-ja-uuringud/planeeringute-andmekogu-planis-juhendid/planeeringute-andmekogu-wms-ja-wfs-teenused/
 
-At minimum check:
+## 6. Composite data release
 
-- schema/version;
-- feature count sanity;
-- non-empty conditions where expected;
-- geometry validity rate;
-- SRID;
-- duplicate stable IDs;
-- source object identifiers;
-- source update metadata;
-- payload/release hash where practical;
-- catastrophic count changes against previous release.
+User analysis references a **data release**, not vague “current data”.
 
-### Step 5 — Compare with previous release
-
-Record:
-
-- inserted features;
-- updated/changed features;
-- removed features;
-- unchanged features;
-- geometry changes;
-- source metadata changes.
-
-This enables auditing and future “what changed?” functionality.
-
-### Step 6 — Activate atomically
-
-Only after validation passes:
-
-- mark the new dataset release `active`;
-- mark prior release `superseded`;
-- update the source's active release pointer.
-
-Do not delete the old release immediately if analyses reference it.
-
-### Step 7 — Retention cleanup
-
-Old unreferenced source snapshots may eventually be archived/pruned under a retention policy.
-
-Any source snapshot/release referenced by an immutable historical analysis must remain reproducible or retain sufficient immutable evidence to reconstruct the finding.
-
-## 7. Failed monthly sync behavior
-
-If a new sync fails validation or provider retrieval fails:
-
-- do **not** replace the last known-good active release;
-- mark the sync run failed;
-- retain the old active snapshot;
-- expose its real age/freshness;
-- create an operational alert/admin warning;
-- retry according to bounded retry policy;
-- never claim the old release was freshly checked.
-
-If the old release exceeds the configured maximum safe age, affected analysis categories become `partial`/`unknown` according to rule/source policy.
-
-## 8. Emergency/manual refresh
-
-Monthly default must not prevent urgent updates.
-
-Provide an admin-only mechanism to request a source refresh when:
-
-- a major legal change becomes effective;
-- an authority announces a corrected dataset;
-- a source schema changed;
-- a critical restriction/plan dataset requires urgent update;
-- an incident invalidated current cached data.
-
-Manual refresh uses the same staging/validation/activation path as scheduled refresh.
-
-Never allow arbitrary ordinary users to trigger national dataset refreshes.
-
-## 9. Legislation refresh lifecycle
-
-Legal updates are more sensitive than geometry replacement.
-
-### Monthly law check
-
-For each registered legal source:
-
-1. retrieve official source metadata/current version from Riigi Teataja or other approved authority;
-2. compare document/version/effective metadata and content hash where permitted/available;
-3. if unchanged, record successful check;
-4. if changed, create a **legal change candidate**;
-5. preserve old source/rule version;
-6. queue review.
-
-### Critical rule
-
-A detected legal text change must **not** automatically rewrite production deterministic rules.
-
-Required path:
-
-```text
-official law changed
-      |
-      v
-change candidate detected
-      |
-      v
-rule impact review
-      |
-      v
-new draft rule version
-      |
-      v
-tests + exact source/effective dates
-      |
-      v
-admin/verifier approval
-      |
-      v
-verified rule version activated
-```
-
-Until verification is complete, current verified rule behavior remains explicit and the system may mark affected rule areas as requiring review if the legal change could invalidate them.
-
-## 10. Legal change candidate data
-
-A candidate should record:
-
-- legal source ID;
-- previous source version/hash;
-- detected source version/hash;
-- detected timestamp;
-- effective date if available;
-- changed source metadata;
-- review status;
-- impacted rule codes if known;
-- reviewer notes;
-- resulting new rule version IDs.
-
-Suggested statuses:
-
-- `detected`;
-- `reviewing`;
-- `no_rule_impact`;
-- `rule_update_required`;
-- `verified`;
-- `dismissed`.
-
-## 11. Data-release bundle
-
-An analysis should not reference a vague concept such as “current data”.
-
-Create a versioned **analysis data bundle** or equivalent manifest containing the exact active releases selected for an analysis profile.
-
-Conceptual:
+Conceptual manifest:
 
 ```json
 {
-  "profile": "mvp-v1",
-  "bundleId": "uuid",
-  "datasets": {
-    "cadastre": "release-...",
-    "restrictions": "release-...",
-    "planis": "release-...",
-    "eelis": "release-...",
-    "heritage": "release-...",
-    "roads": "release-..."
+  "dataReleaseId": "uuid",
+  "releasedAt": "2026-08-01T...Z",
+  "profile": "consumer-build-v1",
+  "sources": {
+    "cadastre": "dataset-version-...",
+    "restrictions": "dataset-version-...",
+    "planis": "dataset-version-...",
+    "eelis": "dataset-version-...",
+    "heritage": "dataset-version-...",
+    "roads": "dataset-version-...",
+    "ehr": "dataset/cursor-version-..."
   },
   "ruleSetManifestId": "uuid"
 }
 ```
 
-This manifest is immutable once used by a completed analysis.
+Once used by a completed analysis, membership is immutable.
 
-## 12. Normal user analysis behavior
+## 7. Data-release promotion
 
-Default request path:
+A dataset candidate is not automatically production data merely because download succeeded.
+
+Pipeline:
 
 ```text
-User proposal
-   |
-   v
-Resolve current validated data bundle
-   |
-   v
-Query local PostGIS only
-   |
-   v
-Run deterministic verified rules
-   |
-   v
-Reuse matching completed analysis if cache key matches
-   |
-   v
-Generate Gemini explanation only if no matching explanation exists
+fetch
+ -> validate transport/schema
+ -> normalize
+ -> validate geometry/required fields
+ -> compare prior release
+ -> run integrity tests
+ -> classify abnormal diff
+ -> promote source dataset version
+ -> assemble/promote composite data release
 ```
 
-No default per-analysis calls to:
+Readers never see a half-promoted source set.
 
-- national WFS restriction services;
-- PLANIS WFS;
-- EELIS WFS;
-- Riigi Teataja document retrieval;
-- Gemini for already-cached explanation.
+## 8. Heavy spatial monthly lifecycle
 
-Exceptions must be source/task-specific and documented.
+For each due source:
 
-## 13. Analysis cache key
+1. create `source_sync_run`;
+2. download/page source in bounded batches;
+3. stage new version;
+4. validate counts/schema/SRID/geometry/stable IDs;
+5. compare added/changed/removed;
+6. quarantine suspicious changes;
+7. promote only if gates pass;
+8. retain previous version needed for history;
+9. update source health/freshness.
 
-A reusable deterministic analysis cache key should be based on immutable/canonical inputs, for example:
+Monthly coordinator may run on the first day/off-peak, but exact schedule is infrastructure configuration.
+
+## 9. Lightweight change-watch lifecycle
+
+Change watch must be inexpensive and safe.
+
+Concept:
+
+```text
+cron (daily/weekly)
+ -> read source cursor/version/hash
+ -> make bounded metadata/change request
+ -> unchanged: record health/check only
+ -> changed: enqueue source-specific sync/review
+```
+
+No LLM is required.
+
+## 10. Legal change workflow
+
+```text
+Riigi Teataja metadata/version changed
+      |
+      v
+legal_change_candidate
+      |
+      v
+identify potentially affected rule codes
+      |
+      v
+human/admin legal/domain review
+      |
+      v
+new draft rule version
+      |
+      v
+tests + effective dates + exact source reference
+      |
+      v
+verified promotion
+```
+
+If a legal change may invalidate an active rule and review is pending, affected analysis profile can be degraded/flagged rather than silently using known-obsolete semantics.
+
+## 11. EHR incremental workflow
+
+Conceptual:
+
+```text
+last_ehr_change_cursor
+ -> GET changed EHR codes after cursor
+ -> enqueue changed IDs
+ -> fetch current building data in bounded batches
+ -> validate/normalize
+ -> write new object/dataset version
+ -> advance cursor only after successful committed batch
+```
+
+Requirements:
+
+- timestamp/cursor overlap to avoid boundary loss if API semantics require;
+- dedupe IDs;
+- idempotent fetch/write;
+- max 1000 result behavior handled by paging/window splitting if documented endpoint needs it;
+- periodic reconciliation to catch missed events;
+- source failures do not advance cursor incorrectly.
+
+## 12. Interactive address cache
+
+For In-AKS:
+
+- query based on user-entered search string with debouncing;
+- cache normalized responses briefly where terms permit;
+- never log sensitive unnecessary search strings long-term;
+- final selected address/object identifiers may be stored with project parcel resolution;
+- service outage is not “address does not exist”.
+
+## 13. Analysis cache
+
+Deterministic analysis key concept:
 
 ```text
 SHA-256(
   canonical proposal geometry + parameters
-  + parcel snapshot/release ID
-  + data bundle ID
+  + parcel snapshot ID
+  + data release ID
   + rule-set manifest ID
   + analysis profile version
   + engine version
 )
 ```
 
-Do not key only by cadastral ID. Moving the proposed building even one meaningful distance can change results.
+If compatible completed analysis exists:
 
-### Cache reuse rule
-
-If the exact input hash already has a completed compatible analysis:
-
-- return/reuse it or create a lightweight project reference to it according to privacy/data model;
-- do not re-run source ingestion;
-- do not re-run deterministic work unnecessarily.
-
-Never share user-private metadata merely because two analyses have identical technical inputs.
+- reuse technical result safely;
+- attach project/user relationship according to privacy model;
+- never leak another user's notes/metadata.
 
 ## 14. Gemini explanation cache
 
-Gemini is used only after the structured result exists.
-
-Explanation cache key concept:
+Key:
 
 ```text
-analysis structured-result hash
-+ language
+structured-result hash
++ locale
 + prompt template version
-+ configured Gemini model ID
++ configured model ID/config version
 + explanation schema version
 ```
 
-If a valid stored explanation exists for this key:
+Cache hit => no Gemini call.
 
-- return it;
-- do not call Gemini again.
+Gemini receives only compact relevant structured findings/source metadata and approved excerpts, not national law corpora.
 
-If the deterministic result is unchanged but a prompt/model version changes, a new explanation may be generated without changing the factual Ehituspass.
+## 15. Failure behavior
 
-## 15. Minimize Gemini tokens
+### Sync/provider failure
 
-Gemini must **not** receive entire national law corpora or every source document for each analysis.
+- old verified source version remains active;
+- failed run recorded;
+- no deletion/replacement;
+- alert/health degradation;
+- freshness age continues increasing;
+- beyond max safe age -> impacted category partial/unknown according to policy.
 
-Send only:
+### Suspicious dataset diff
 
-- the relevant structured finding(s);
-- deterministic measurements;
-- compact source metadata;
-- small approved excerpts only when needed;
-- structured next actions;
-- critical limitations/unknowns.
+Examples:
 
-The rules engine already contains the verified legal interpretation needed to derive status.
+- 80% of objects disappeared;
+- CRS unexpectedly changed;
+- IDs became null;
+- geometry validity collapsed.
 
-Gemini's job is wording, not re-research.
+Action:
 
-## 16. Parcel-specific data strategy
+- quarantine candidate;
+- require investigation/manual promotion depending severity;
+- keep previous good release.
 
-Not every dataset needs to be mirrored nationally on day one.
+### Change-watch failure
 
-Two approved patterns:
+Do not assume unchanged. Mark watch unhealthy and retry/alert.
 
-### Pattern A — National/large snapshot
+## 16. Source health model
 
-Use for datasets where:
+Each source exposes internally:
 
-- bulk/download access is practical;
-- source terms allow local caching;
-- data volume is manageable;
-- many analyses reuse the same features.
+- last attempted sync/check;
+- last successful sync/check;
+- active dataset version;
+- next due;
+- age;
+- warning/critical freshness threshold;
+- schema health;
+- last error;
+- pending change candidate;
+- release carried-forward status.
 
-Best candidate for restrictions/planning/environment layers when technically suitable.
+Admin dashboard aggregates these.
 
-### Pattern B — On-demand object cache
+## 17. User-facing freshness
 
-Use for datasets where:
+Ehituspass shows data basis by category, not just report date.
 
-- full national mirror is impractical;
-- API terms/volume favor lookup;
-- user queries sparse objects.
-
-Once fetched, persist a versioned normalized object cache and do not refetch it for every page view. Refresh according to source freshness policy/monthly maintenance where applicable.
-
-The source registry must specify which pattern applies.
-
-## 17. Source-specific cadence
-
-Every source definition includes a configuration such as:
-
-```yaml
-refresh_strategy: scheduled_snapshot
-refresh_cadence: monthly
-freshness_warning_after: P35D
-maximum_safe_age: P60D
-manual_refresh: true
-```
-
-These example durations are design examples, not production values.
-
-Production values require source-by-source review.
-
-## 18. Observability
-
-Track for every scheduled sync:
-
-- job/run ID;
-- source ID;
-- scheduled/manual trigger;
-- started/completed time;
-- records fetched;
-- records staged;
-- inserted/changed/removed counts;
-- validation result;
-- previous/new release ID;
-- bytes transferred if useful;
-- errors/retries;
-- current active release age.
-
-Track AI cache:
-
-- explanation cache hit/miss;
-- model;
-- prompt version;
-- input/output token usage when provider returns it;
-- request latency;
-- cost estimate if operationally useful;
-- provider failure rate.
-
-Do not log Gemini API keys or unrestricted private prompts.
-
-## 19. Scheduled job design
-
-Use small coordinator jobs rather than one unbounded monthly request.
-
-Conceptual:
+Example:
 
 ```text
-monthly-refresh coordinator
-  |
-  +--> restrictions sync
-  +--> PLANIS sync
-  +--> EELIS sync
-  +--> heritage sync
-  +--> road sync
-  +--> legal source check
-```
-
-Each child run is independently retryable and auditable.
-
-A failed EELIS sync must not roll back a valid PLANIS release.
-
-## 20. Supabase Cron operational constraints
-
-When implemented, review current Supabase Cron guidance and runtime limits.
-
-The current platform documentation recommends bounded jobs and provides job run history in Postgres. Large ETL work should therefore be split appropriately instead of assuming an unlimited cron execution window.
-
-Cron configuration must be represented by migration/controlled infrastructure code where practical so production scheduling is reproducible.
-
-## 21. User-facing freshness
-
-Ehituspass displays the actual data basis, for example:
-
-```text
-Kitsenduste andmed: dataset 2026-08, uuendatud 01.08.2026
-Planeeringud: dataset 2026-08, uuendatud 01.08.2026
-Keskkonnaandmed: dataset 2026-08, uuendatud 01.08.2026
-Õigusreeglid: kontrollitud 01.08.2026
 Analüüs koostatud: 15.08.2026
+Andmeväljalase: 2026-08
+
+Katastriandmed: 01.08.2026
+Planeeringud: 01.08.2026
+Keskkonnaandmed: 01.08.2026
+EHR hooneandmed: inkrementaalselt kontrollitud kuni 15.08.2026 04:00
+Õigusallikate muutusi kontrollitud: 15.08.2026
+Reeglistik: verified release 2026.08.1
 ```
 
-If the monthly refresh failed:
+If stale:
 
 ```text
-Planeeringud: viimati edukalt uuendatud 01.07.2026 — andmed võivad olla aegunud
+Planeeringud: viimati edukalt uuendatud 01.07.2026 — värskendamine ebaõnnestus; andmed võivad olla muutunud.
 ```
 
-Never show today's analysis date as though every underlying source was fetched today.
+## 18. Reanalysis behavior
 
-## 22. Reanalysis after new monthly release
+Old reports remain unchanged.
 
-Existing historical Ehituspass remains unchanged.
+When relevant new data/rules become active:
 
-When a new data bundle or verified rule set becomes active:
+- mark project `newer_data_available`;
+- user can rerun;
+- Project Pass/Pro may receive notification;
+- later compute deterministic report diff before sending “material change” alert.
 
-- old analysis remains viewable with its original snapshot versions;
-- project can be marked `newer_data_available`;
-- user may run a new analysis;
-- future product may proactively create/notify of material changes, but this is not required for MVP.
+## 19. Supabase scheduling
 
-Do not silently mutate an old report to current data.
+Use Supabase Cron/`pg_cron` and/or controlled scheduled Edge Function orchestration according to current platform guidance.
 
-## 23. Cost-control hierarchy
+Pattern:
 
-When satisfying a user request, prefer:
+```text
+cron
+  -> small coordinator
+      -> source job(s)
+          -> bounded batch/checkpoint
+```
 
-1. cached completed analysis;
-2. local PostGIS computation using current dataset bundle;
-3. cached normalized source object;
-4. scheduled/background official-source retrieval;
-5. live source retrieval only when explicitly required;
-6. Gemini only for explanation that is not already cached.
+Do not assume one Edge Function request can safely ETL every national dataset.
 
-This hierarchy is a core product architecture rule.
+Configuration should be reproducible through migrations/infrastructure code where practical.
 
-## 24. Implementation acceptance criteria
+## 20. Raw-data retention
 
-The refresh/cache system is complete when:
+Do not retain every raw response forever by default.
 
-- a monthly Supabase Cron schedule can trigger source sync orchestration;
-- each source sync creates an auditable run;
-- data is staged and validated before activation;
-- a failed sync leaves previous release active;
-- analyses reference immutable data-release/rule manifests;
-- legal source changes create review candidates rather than auto-verifying rules;
-- ordinary analysis does not call official WFS/legal services by default;
-- identical compatible analyses can be reused via deterministic cache key;
-- Gemini explanations are cached by analysis/model/prompt version;
-- source and AI cache hit/miss behavior is observable;
-- freshness is visible to the user;
-- manual admin refresh uses the same validated pipeline.
+Prefer:
+
+- source object ID;
+- dataset/version ID;
+- retrieval/sync run;
+- hash;
+- normalized evidence;
+- selected source excerpt/metadata where lawful/needed.
+
+Historical analyses require sufficient immutable evidence/references to reproduce the material finding.
+
+## 21. Storage optimization
+
+As data grows, evaluate:
+
+- partitioning by source/version;
+- geometry generalization for map display;
+- vector tiles;
+- object-version delta strategy;
+- archive/compressed cold evidence;
+- retention of unreferenced superseded datasets;
+- PostGIS indexes/statistics;
+- source-level national mirror vs on-demand object cache.
+
+Do not delete data referenced by a completed historical report without a reproducibility replacement.
+
+## 22. Cost control
+
+The largest optimization is architectural:
+
+- download heavy public data once per release, not once per user;
+- use local spatial indexes;
+- incremental EHR/legal monitoring;
+- cache completed deterministic results;
+- cache explanations;
+- send compact data to Gemini.
+
+Do not optimize by reducing evidence quality or hiding stale data.
+
+## 23. Observability
+
+Per sync/watch:
+
+- run ID/source;
+- trigger scheduled/manual/change;
+- cursor/window;
+- request count/bytes;
+- fetched/staged/changed/removed;
+- validation metrics;
+- prior/new version;
+- duration/retries;
+- error code;
+- freshness.
+
+AI:
+
+- cache hit/miss;
+- model/prompt version;
+- provider token usage/cost if returned;
+- latency/failure;
+- no secrets/full private prompts in logs.
+
+## 24. Acceptance criteria
+
+Refresh/cache platform is production-ready when:
+
+- each source has explicit source class/refresh policy;
+- heavy spatial sync runs independently of user traffic;
+- lightweight legal/EHR watches can run more frequently without Gemini;
+- In-AKS-style interactive lookup is not artificially limited to monthly data;
+- all candidate data is validated before promotion;
+- failed/suspicious sync preserves last good release;
+- composite releases are immutable;
+- analyses reference exact release/rules;
+- ordinary analysis does not call all official providers;
+- same analysis/explanation can be cached safely;
+- source freshness is visible;
+- manual emergency refresh uses same validation path;
+- historical reports remain reproducible.

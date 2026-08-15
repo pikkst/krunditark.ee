@@ -172,6 +172,8 @@ Current direction:
 ### Hosting
 
 - development/public preview: GitHub Pages
+  - deploy workflow: `.github/workflows/deploy-pages.yml`
+  - `VITE_BASE_PATH` configures repository-path asset loading
 - domain currently registered at Zone
 - later Cloudflare DNS/edge/possibly static frontend hosting
 - backend remains Supabase unless an ADR changes it

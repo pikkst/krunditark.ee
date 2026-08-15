@@ -8,7 +8,7 @@ Any variable included in the Vite browser build must be treated as public.
 
 ## 2. Frontend variables
 
-Planned variables:
+Implemented variables:
 
 ```dotenv
 VITE_APP_ENV=local
@@ -17,6 +17,16 @@ VITE_BASE_PATH=/
 VITE_SUPABASE_URL=https://example.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_example
 ```
+
+### `VITE_BASE_PATH`
+
+Configures the Vite `base` option for asset paths. Read from the environment at build time.
+
+- Local development default: `/`
+- GitHub Pages preview: `/krunditark.ee/`
+- Production (custom domain): `/`
+
+Only public values use `VITE_` prefix. `VITE_BASE_PATH` is safe to expose because it is deployment routing configuration, not a secret.
 
 Optional future public variables may include approved map-style URLs or public feature flags.
 

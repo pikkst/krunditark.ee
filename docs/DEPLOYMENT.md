@@ -41,27 +41,33 @@ Official GitHub Pages custom-domain documentation:
 
 ## 3. Preview URL and Vite base path
 
-During repository Pages preview the site may be served under a repository path such as:
+During repository Pages preview the site is served under a repository path such as:
 
 ```text
 https://pikkst.github.io/krunditark.ee/
 ```
 
-The build must account for that base path.
+The Vite build reads `VITE_BASE_PATH` to configure the asset base path. Default is `/`.
 
-Recommended implementation approach:
+### Preview build
 
-- make Vite base configurable per deployment environment;
-- do not hardcode production `krunditark.ee` paths into source;
-- test asset loading in Pages preview.
+```text
+VITE_BASE_PATH=/krunditark.ee/ npm run build
+```
+
+### Production build (custom domain)
+
+```text
+VITE_BASE_PATH=/ npm run build
+```
+
+Do not hardcode production `krunditark.ee` paths into application source. The base path is deployment configuration only.
 
 ## 4. Routing on GitHub Pages
 
 GitHub Pages does not provide an application server that rewrites arbitrary SPA paths to `index.html`.
 
-For the preview stage, prefer **HashRouter** or another static-host-safe strategy rather than relying on an undocumented 404 rewrite hack for critical auth/project routes.
-
-Example:
+For the preview stage, Krunditark uses **HashRouter** for static-host-safe routing. Deep links work on refresh because the hash fragment is never sent to the server:
 
 ```text
 /#/kaart
@@ -75,23 +81,34 @@ Do not make route format part of core domain IDs/API.
 
 ## 5. GitHub Actions deployment pipeline
 
-Expected pipeline:
+A dedicated workflow (`.github/workflows/deploy-pages.yml`) deploys the static build to GitHub Pages.
+
+### Trigger
+
+- Push to `main`
+- Manual `workflow_dispatch`
+
+### Steps
 
 ```text
-push/PR
+push/PR to main
   -> npm ci
   -> format check
   -> lint
   -> typecheck
   -> unit tests
-  -> production build
-
-push main after green build
+  -> production build with Pages base path
   -> upload Pages artifact
   -> deploy GitHub Pages
 ```
 
+The workflow runs quality checks before deploying. A separate CI workflow (`ci.yml`) also runs on every PR and push to main.
+
 Deployment must not bypass failing quality checks.
+
+### GitHub Pages source
+
+The repository must be configured to use **GitHub Actions** as the Pages source in the repository settings (`Settings -> Pages -> Build and deployment -> Source`).
 
 ## 6. Environment configuration
 

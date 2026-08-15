@@ -1,300 +1,743 @@
 # Product Requirements — Krunditark
 
+Last comprehensive product review: **2026-08-15**
+
 ## 1. Product vision
 
-Krunditark makes the first stage of planning construction on an Estonian parcel understandable, evidence-based and significantly faster.
+Krunditark is an Estonia-first property and buildability decision platform.
 
-The product combines public/authoritative spatial and regulatory information into one project view and answers:
+It helps a user move from:
 
-- What is known about the selected parcel?
-- What known restrictions overlap the proposed building location?
-- What planning information applies?
-- Which supported permit/notification path is indicated by verified rules?
-- What cannot yet be determined from available public data?
-- Which authority/provider/source should the user verify next?
+> “I have this parcel / I am thinking about buying this land / I want to put this building here — where do I even start?”
 
-The first product is the **Ehituspass**.
+into:
 
-## 2. Problem statement
+> “I understand the checked constraints, what remains unknown, which scenario is better, which source supports the result, and what I should do next.”
 
-A person considering a house, sauna, shed, garage or other structure must currently assemble information from multiple systems, laws, map layers, municipal documents and service providers. The information may be technically public but fragmented, differently structured, difficult to interpret, and updated on different schedules.
+The initial flagship product is **Ehituspass**.
 
-Krunditark must reduce this fragmentation without creating a false impression of official approval.
+Krunditark is not an authority and does not issue permits, approvals, valuations or legal opinions.
+
+## 2. Product category
+
+Krunditark should be designed as a **decision/workflow product**, not as:
+
+- a cadastral map viewer;
+- a government portal clone;
+- a generic legal-search website;
+- an open-ended AI chatbot;
+- a contractor advertising directory.
+
+The differentiating product interaction is:
+
+```text
+real parcel
++ real user intent
++ exact proposed geometry/scenario
++ versioned official data
++ verified deterministic rules
+= reproducible decision-support result
+```
+
+Then Gemini explains that result.
 
 ## 3. Target market
 
-Initial scope: **Estonia only**.
+Initial geography: **Estonia only**.
 
-Primary MVP user:
+### Primary consumer segments
 
-- private individual evaluating a construction idea on a selected parcel.
+1. homeowner planning a house/sauna/shed/garage;
+2. prospective land buyer;
+3. owner planning an extension/reconstruction later.
 
-Secondary users after core MVP:
+### Professional segments
 
-- property buyer;
-- architect/designer;
-- prefab-house seller;
-- broker;
-- small developer;
-- surveyor/consultant.
+1. architect/designer;
+2. planning/property consultant;
+3. prefab/modular-house seller;
+4. broker;
+5. developer/land investor;
+6. appraiser/lender/due-diligence professional where scope permits.
 
-## 4. Primary jobs to be done
+See `USER_JOURNEYS_AND_PERSONAS.md`.
 
-### JTBD-1 — Understand a parcel
+## 4. Core jobs to be done
 
-When I enter a cadastral identifier, I want Krunditark to find the correct parcel, show it on a map and summarize relevant official facts so I do not have to search several portals manually.
+### JTBD-1 — Find the correct parcel
 
-### JTBD-2 — Test a proposed location
+When I know an address, cadastral ID or location, I want to identify the exact cadastral parcel without learning another portal first.
 
-When I place a proposed building on the parcel, I want to see which supported restrictions or conditions intersect that exact location, not merely generic parcel-level information.
+### JTBD-2 — Understand the parcel
 
-### JTBD-3 — Understand the likely administrative path
+I want one understandable summary of supported planning, restrictions, official facts and data freshness.
 
-When I describe the structure, I want to know which verified permit/notification path is indicated by supported rules and where to verify/apply officially.
+### JTBD-3 — Test my actual building idea
 
-### JTBD-4 — Understand uncertainty
+I want to place a house/sauna/etc. at an exact location and see what changes at that location, not merely generic parcel facts.
 
-When public or machine-readable data is incomplete, I want Krunditark to tell me exactly what it cannot determine and who/what should be checked next.
+### JTBD-4 — Compare alternatives
 
-### JTBD-5 — Keep evidence
+If one location has a conflict, I want to move/rotate the building and compare the result instead of starting over.
 
-When I make a decision based on Krunditark, I want the result to show which official source, rule version and retrieval date supported it.
+### JTBD-5 — Understand administrative path
+
+I want the supported current permit/notice/design-condition path explained as next actions with official links.
+
+### JTBD-6 — Know what is unknown
+
+I want the product to identify missing/private/unsupported/ambiguous data instead of guessing.
+
+### JTBD-7 — Keep evidence
+
+I want the report to remain tied to the exact data/rules/date used when I made the decision.
+
+### JTBD-8 — Buy land more safely
+
+Before buying, I want a supported risk/context screen and a list of questions I still need to resolve.
+
+### JTBD-9 — Continue the project
+
+As data/rules/design variants change, I want to keep history, rerun and see what changed.
+
+### JTBD-10 — Work repeatedly as a professional
+
+I want a faster, denser workflow, reusable templates, many projects, sharing/export and eventually API/batch capabilities.
 
 ## 5. Product principles
 
-1. **Evidence before explanation.**
-2. **Unknown is better than invented certainty.**
-3. **Map-specific analysis beats generic legal text.**
-4. **AI explains; deterministic systems decide supported findings.**
-5. **Every important result has provenance.**
-6. **Official sources are preferred over secondary explanations.**
-7. **The product must remain useful even when AI is unavailable.**
-8. **The user should always know what to do next.**
+1. Evidence before explanation.
+2. User intent before government terminology.
+3. Unknown is better than invented certainty.
+4. Map-specific scenario analysis beats generic legal prose.
+5. AI explains; deterministic systems decide supported findings.
+6. Every important result has provenance/freshness.
+7. Every report ends with next actions.
+8. Historical reports are immutable.
+9. Guest value before registration.
+10. Consumer pricing matches episodic use; subscriptions are for recurrent professional value.
+11. Commercial partners/ads never influence findings.
+12. The product remains useful when Gemini is unavailable.
 
-## 6. MVP functional requirements
+## 6. Entry and discovery requirements
 
-### PR-001 — Cadastral lookup
+### PR-001 — Combined parcel search
 
-The user can enter a valid Estonian cadastral identifier.
+User can start with:
 
-System must:
+- official address;
+- cadastral identifier;
+- map selection.
 
-- validate format;
-- resolve authoritative parcel geometry and supported basic attributes;
-- show source and retrieval timestamp;
-- distinguish not-found from upstream-source failure.
+Address search should use official In-AKS or another approved official address source.
 
-### PR-002 — Parcel map
+System must handle ambiguous addresses/multiple parcel candidates rather than silently selecting one.
 
-System displays:
+### PR-002 — Free parcel overview
 
-- parcel boundary;
-- map base layer;
-- required attribution;
-- key supported parcel facts;
-- proposal layer when created.
+Before signup/payment show:
 
-### PR-003 — Proposed building
+- selected parcel outline;
+- address/cadastral ID;
+- area/basic supported facts;
+- source/freshness;
+- supported analysis categories;
+- current product limitations.
 
-User can specify at least:
+The free overview must not imply a reduced check is a complete “all clear”.
 
-- structure category;
-- footprint geometry;
-- area/dimensions;
+### PR-003 — Intent selection
+
+Ask:
+
+`Mida soovid selle krundiga teha?`
+
+At minimum:
+
+- build something;
+- consider buying;
+- understand restrictions;
+- later modify existing building;
+- professional workflow.
+
+## 7. Proposal/scenario requirements
+
+### PR-010 — Beginner building templates
+
+For supported types, ordinary users can choose a structure and starting dimensions without drawing GIS polygons.
+
+Initial verified candidates may include:
+
+- detached house;
+- sauna;
+- shed/auxiliary building;
+- garage/auxiliary building.
+
+A candidate is not legally supported until the current rule matrix is verified.
+
+### PR-011 — Proposal parameters
+
+Collect only rule-relevant fields initially:
+
+- structure type;
+- footprint/dimensions/area;
 - height;
 - storeys;
-- intended use.
+- intended use;
+- scenario type where relevant.
 
-User can place/edit the footprint on the parcel.
+### PR-012 — Map placement
 
-### PR-004 — Server-side geometry validation
+User can:
 
-The server validates proposal geometry and computes authoritative project geometry metrics used by analysis.
+- drag;
+- rotate;
+- resize numerically;
+- reset;
+- duplicate variant.
 
-### PR-005 — Supported spatial layers
+Advanced mode can provide polygon editing/import.
 
-MVP analysis must be able to consume selected supported layers from:
+### PR-013 — Authoritative geometry validation
 
-- Maa- ja Ruumiamet cadastral/restriction sources;
-- PLANIS;
-- EELIS/Keskkonnaportaal public layers;
-- verified official heritage data source;
-- verified road/access source relevant to state roads.
+Server/PostGIS validates geometry and computes authoritative metrics.
 
-A layer is not considered supported until its adapter, semantics, provenance and tests are documented.
+Browser preview is not legal/spatial authority.
 
-### PR-006 — GIS checks
+### PR-014 — Scenario versions
 
-System supports deterministic checks including:
+Proposal changes create versioned scenarios once tied to analysis history.
 
-- proposal vs parcel containment;
-- proposal vs supported restriction geometry intersection;
-- distances where a verified rule requires them;
-- evidence geometry for user display.
+Do not overwrite geometry underlying a completed report.
 
-### PR-007 — Versioned rules
+### PR-015 — Variant comparison
 
-Rules that convert facts into a project finding must be versioned and source-backed.
+User can compare at least two scenario versions and see exact finding differences.
 
-No production rule may be treated as verified solely because an LLM produced it.
+Do not use an opaque “buildability percentage”.
 
-### PR-008 — Permit-path classification
+## 8. Official-data platform requirements
 
-For explicitly supported structure categories and parameters, system evaluates verified current rules that indicate likely construction-notice/building-permit/project requirements.
+### PR-020 — Versioned data releases
 
-Outside the supported matrix, result must be `unknown`/manual verification rather than extrapolation.
+Normal analysis reads a verified internal data release rather than querying every upstream source.
 
-### PR-009 — Finding states
+Heavy replicated spatial data uses scheduled synchronization; source-specific change watches may be more frequent.
 
-Every check produces one of:
+### PR-021 — Source registry
+
+Every supported source/layer declares:
+
+- authority;
+- endpoint/access method;
+- semantic scope;
+- refresh strategy;
+- freshness limits;
+- replication/retention policy;
+- attribution;
+- failure impact;
+- normalizer version.
+
+### PR-022 — Last-known-good behavior
+
+A failed source update never silently replaces a good production release.
+
+Stale data is labeled and can degrade a category to partial/unknown under policy.
+
+### PR-023 — Legal change detection
+
+Riigi Teataja/current legal sources are monitored for version/hash/effective-date changes without using Gemini.
+
+Detected legal change creates a review candidate; it does not automatically rewrite/promote a production rule.
+
+### PR-024 — Historical data manifest
+
+Each completed analysis identifies exact:
+
+- data release;
+- dataset versions;
+- rule versions;
+- engine/profile version;
+- parcel/proposal snapshot.
+
+See `DATA_REFRESH_AND_CACHE.md` and `DATABASE_SCHEMA.md`.
+
+## 9. Core source coverage
+
+A layer/source becomes production-supported only after technical, semantic, attribution/terms and test review.
+
+Priority sources:
+
+- Maa- ja Ruumiamet cadastral/constraint data;
+- In-AKS address search;
+- PLANIS planning data;
+- EELIS/Keskkonnaportaal selected public layers;
+- Muinsuskaitse authoritative data where machine-readable path is verified;
+- Transpordiamet/official road context;
+- EHR/e-ehitus public API fields as verified;
+- Riigi Teataja current legal sources;
+- later utility/terrain/flood/geology sources.
+
+No scraping shortcut where a suitable official machine-readable source exists.
+
+## 10. GIS requirements
+
+### PR-030 — Parcel containment
+
+- contained;
+- crossing;
+- touching;
+- metric boundary distance.
+
+### PR-031 — Constraint intersection
+
+- correct source/domain-specific spatial predicate;
+- intersection/distance measurement where meaningful;
+- evidence geometry.
+
+### PR-032 — CRS correctness
+
+Authoritative Estonia metric calculations normally use EPSG:3301 or explicitly justified metric CRS.
+
+### PR-033 — Geometry evidence
+
+Every spatial material finding can point to a user-safe evidence geometry/measurement and source object/version.
+
+### PR-034 — Boundary regression tests
+
+Touching/near-threshold/invalid/multipolygon/hole cases are tested deterministically.
+
+## 11. Rules engine requirements
+
+### PR-040 — Versioned deterministic rules
+
+Rules have:
+
+- stable code;
+- immutable version;
+- effective dates;
+- status draft/verified/retired;
+- official source reference;
+- deterministic evaluator;
+- tests;
+- verification metadata.
+
+### PR-041 — No LLM authority
+
+No production legal/spatial status may rely on Gemini/model memory.
+
+### PR-042 — Permit/process path
+
+For supported structure/scenario matrix, derive supported current process implications.
+
+Outside supported scope, return unknown/manual verification.
+
+### PR-043 — Protection-zone semantics
+
+Intersection is a fact; whether it means prohibition, condition, consent/coordination or manual review is determined by verified rule semantics.
+
+Do not turn every protection zone into “cannot build”.
+
+### PR-044 — Planning completeness
+
+Plan polygon presence does not mean all plan textual conditions have been interpreted.
+
+The report explicitly identifies textual/local planning gaps.
+
+## 12. Finding/Ehituspass requirements
+
+### PR-050 — Finding states
 
 - `clear`;
 - `condition`;
 - `conflict`;
 - `unknown`.
 
-State meaning must be consistent across UI/API.
+Severity/priority is separate.
 
-### PR-010 — Ehituspass
+### PR-051 — Overall summary
 
-An Ehituspass includes:
+Use scope-aware labels:
 
-- selected parcel identity;
-- proposal summary;
-- analysis timestamp;
-- source freshness summary;
-- overall deterministic summary;
-- findings grouped by category;
-- critical unknowns;
-- evidence/source links;
-- next-step checklist;
-- disclaimer.
+- Conflict detected;
+- Needs further checking;
+- No conflict detected within checked scope;
+- Analysis incomplete.
 
-### PR-011 — AI explanation
+No fake probability.
 
-AI may turn structured findings into plain Estonian text.
+### PR-052 — Finding anatomy
 
-Requirements:
+Every material finding exposes:
 
-- server-side only;
-- provider-neutral interface;
-- schema-validated response;
-- cannot change finding state;
-- can reference only supplied finding/source identifiers;
-- deterministic fallback when AI fails.
+- title/state;
+- factual summary;
+- trigger/measurement;
+- next action;
+- official source;
+- source/data date;
+- legal/rule reference where relevant;
+- map evidence where spatial.
 
-### PR-012 — Saved projects
+### PR-053 — Next-step plan
 
-Authenticated user can save a project and create multiple immutable analysis snapshots over time.
+Actions are ordered by blocker/dependency and labeled as:
 
-### PR-013 — Analysis history
+- necessary check;
+- likely process step;
+- recommendation;
+- optional preparation.
 
-Past analysis remains reproducible with the rule/source snapshot metadata used at the time.
+### PR-054 — Printable/exportable report
 
-### PR-014 — Official-source navigation
+Report retains:
 
-Material findings provide direct official verification links where a stable link exists.
+- report ID/date;
+- parcel/proposal;
+- data/rule basis;
+- findings/unknowns;
+- sources;
+- disclaimer;
+- map attribution.
 
-### PR-015 — Responsive and accessible UI
+## 13. AI requirements
 
-Core flow works on desktop and mobile.
+### PR-060 — Google Gemini provider
 
-State communication must not rely solely on color.
+Initial production AI provider is Google Gemini API via server-side adapter.
 
-## 7. Non-functional requirements
+Model ID remains server configuration because provider model lifecycles change.
 
-### Reliability
+### PR-061 — Explanation-only
 
-- Failure of one independent provider must not turn its category into “clear”.
-- Partial results may be returned when safely separable.
-- Provider timeouts are classified explicitly.
+Gemini may:
 
-### Security
+- explain finding;
+- summarize approved evidence;
+- answer scoped follow-up;
+- produce selected-locale plain language.
 
-- No elevated key in browser bundle.
-- RLS on all client-accessible user tables.
-- privileged operations server-side.
-- least privilege and validated inputs.
+It cannot:
 
-### Privacy
+- change state;
+- invent source;
+- invent current price/capacity/permit;
+- replace missing evidence.
 
-- Do not collect parcel-owner identity for ordinary analysis.
-- Minimize account data.
-- Store only necessary AI prompts/responses, according to retention policy.
+### PR-062 — Structured validation
 
-### Reproducibility
+AI output schema validated; references restricted to supplied finding/source IDs.
 
-A completed structured analysis must be reconstructable from persisted identifiers/snapshots and rule versions without relying on the current mutable state of an LLM.
+### PR-063 — AI fallback/cache
 
-### Performance targets
+- factual report works without AI;
+- deterministic template fallback;
+- explanation cached by result/locale/model/prompt version;
+- sync jobs use zero Gemini tokens by default.
 
-Initial goals, subject to measurement:
+## 14. Authentication/onboarding requirements
 
-- parcel lookup should normally feel interactive;
-- map interactions remain responsive on mid-range mobile devices;
-- expensive provider work must use timeout/caching controls;
-- frontend map bundles should be lazy-loaded where practical.
+### PR-070 — Guest-first
 
-Do not create fake progress percentages.
+No mandatory account before meaningful parcel/proposal value.
 
-## 8. User-visible terminology
+Use Supabase anonymous Auth when stateful guest ownership is needed.
 
-Preferred Estonian terms:
+### PR-071 — Permanent identity
 
-- Krunditark
-- Ehituspass
-- Katastritunnus
-- Valitud kinnistu / valitud katastriüksus
-- Kavandatav ehitis
-- Piirang / kitsendus
-- Planeering
-- Vajab kontrolli
-- Võimalik konflikt
-- Ametlik allikas
-- Andmete seis / kontrollitud
-- Järgmine samm
+Primary consumer methods:
 
-Avoid claiming “lubatud” when system only knows that supported checks found no conflict.
+- email OTP;
+- Google OAuth.
 
-## 9. Overall result semantics
+No password required by default.
 
-The overall summary must not be a percentage.
+### PR-072 — Preserve guest work
 
-Suggested user-facing levels:
+Anonymous -> permanent conversion retains same project/proposal.
 
-- **Konflikt tuvastatud** — at least one supported verified blocking/conflict finding exists.
-- **Tingimustega / vajab kontrolli** — no blocking conflict from supported checks, but one or more conditions/manual checks/critical unknowns remain.
-- **Kontrollitud ulatuses konflikti ei tuvastatud** — supported required checks completed without conflict or critical unknown; wording must still state scope limitations.
-- **Analüüs puudulik** — required source(s) unavailable or proposal outside supported scope.
+### PR-073 — Production email
 
-## 10. Analytics and metrics
+Custom SMTP required before public OTP/email auth.
 
-Before adding tracking, document privacy/legal basis.
+### PR-074 — Account privacy
 
-Useful product metrics once approved:
+Projects private by default; share is opt-in/revocable.
 
-- parcel lookup success rate;
-- proposal creation completion;
-- analysis completion rate;
-- provider failure rate;
-- number of `unknown` findings by source/category;
-- source freshness age;
-- official-link click-through;
-- saved-project conversion;
-- reanalysis usage.
+See `AUTH_AND_ONBOARDING.md`.
 
-Never optimize UX toward hiding uncertainty merely to improve conversion.
+## 15. Localization requirements
 
-## 11. Explicit exclusions from product claims
+### PR-080 — i18n architecture from first UI
 
-Krunditark must not claim that it:
+No scattered hard-coded user strings.
 
-- grants a building permit;
-- guarantees a building permit will be granted;
-- replaces a local government decision;
-- verifies legal ownership of the parcel by cadastral number alone;
-- guarantees utility connection capacity/price;
-- detects non-public protected data that it cannot legally access;
-- replaces required professional design/survey/expert work.
+### PR-081 — Locale priority
 
-See `MVP_SCOPE.md`, `LEGAL_AND_COMPLIANCE.md` and `AI_SAFETY_AND_EXPLANATIONS.md`.
+- ET canonical/default;
+- RU full consumer target;
+- EN full consumer/pro target.
+
+Only fully complete critical locales are selectable in production.
+
+### PR-082 — Canonical legal source
+
+Official Estonian legal source remains traceable in every locale.
+
+### PR-083 — Reviewed glossary
+
+Critical legal/state/payment/privacy vocabulary is human controlled/reviewed.
+
+See `LOCALIZATION_AND_LANGUAGE.md`.
+
+## 16. Commerce requirements
+
+### PR-090 — Hybrid product model
+
+Recommended product architecture supports:
+
+- free parcel overview;
+- one-time Ostukontroll;
+- one-time Ehituspass;
+- limited-duration Project Pass;
+- professional subscription/usage plan later;
+- B2B/API later.
+
+Pricing values are configuration/catalog data, not hard-coded legal/business rules.
+
+### PR-091 — Provider-neutral payment domain
+
+Order/payment/entitlement model is independent from Stripe/Montonio/etc.
+
+### PR-092 — Verified payment state
+
+External payment webhook/server verification grants entitlement; client redirect alone does not.
+
+### PR-093 — Idempotent recovery
+
+- duplicate webhook safe;
+- retry safe;
+- payment succeeds/browser closes -> recoverable;
+- report generation failure does not require second payment.
+
+### PR-094 — No trust-conflicting ads
+
+No programmatic/banner advertising inside report/analysis workspace.
+
+Future sponsored/referral provider content is separate, labeled and cannot affect findings/ranking.
+
+See `BUSINESS_MODEL_AND_PRICING.md`.
+
+## 17. Ostukontroll requirements
+
+Post-core consumer product.
+
+### PR-100 — No exact proposal required
+
+Buyer can analyze supported parcel-level context before selecting a final house.
+
+### PR-101 — Buyer report
+
+Includes:
+
+- planning;
+- restrictions;
+- environment/heritage/road;
+- existing buildings where supported;
+- important unknowns;
+- questions for seller/KOV;
+- source dates;
+- `Testi siia maja` upgrade.
+
+### PR-102 — Ownership wording
+
+Never call searched parcel “your property” merely because user analyzed it.
+
+## 18. Project lifecycle/change monitoring requirements
+
+### PR-110 — Persistent project
+
+Project contains proposal versions, analyses, next actions and later files/collaborators.
+
+### PR-111 — New-data signal
+
+When new verified release/rules exist, mark `newer_data_available` without mutating old report.
+
+### PR-112 — Analysis diff
+
+Later compare factual state/source/rule/measurement changes separately from AI wording changes.
+
+### PR-113 — Notifications
+
+Only send useful project/account/payment/security/change notifications; preferences required for non-mandatory types.
+
+## 19. EHR/existing-building requirements
+
+### PR-120 — Official API only
+
+Use documented EHR/e-ehitus APIs; do not scrape UI.
+
+### PR-121 — Public-data limitations
+
+Do not assume document attachments are always public/replicable; access/privacy rules can change.
+
+### PR-122 — Incremental sync
+
+Use source change endpoints such as changed-after where suitable rather than full refetch.
+
+### PR-123 — Separate scenario profiles
+
+Extension/reconstruction/demolition/use-change logic uses explicitly verified rule profiles, not new-building rules by default.
+
+## 20. Utility/site intelligence requirements
+
+Post-core.
+
+### PR-130 — Utility semantics
+
+Always separate:
+
+- infrastructure/proximity;
+- service area;
+- capacity;
+- connection eligibility;
+- final quote.
+
+Only supported evidence can populate each.
+
+### PR-131 — Cost estimates
+
+Every price/range has source/date/region/method/assumptions.
+
+### PR-132 — Terrain/flood/geology
+
+Treat as source-backed risk/site context with correct limitations, not engineering certification.
+
+## 21. Professional requirements
+
+### PR-140 — Pro mode
+
+Same truth engine, denser workflow.
+
+### PR-141 — Organizations
+
+Team projects/roles/entitlements/audit later.
+
+### PR-142 — Templates/exports
+
+Reusable building/client templates and client-ready reports.
+
+### PR-143 — Batch/API
+
+Versioned, metered, tenant-isolated and source-attributed.
+
+## 22. Professional-review/marketplace requirements
+
+### PR-150 — User-controlled escalation
+
+User can intentionally share structured report with a professional.
+
+### PR-151 — Separate opinions
+
+Professional review/opinion is stored and labeled separately from automated findings.
+
+### PR-152 — Commercial neutrality
+
+Paid relationship/lead commission never changes automated result or hides an organic next action.
+
+## 23. Accessibility/responsiveness
+
+### PR-160
+
+Target WCAG 2.2 AA.
+
+Core consumer journey works mobile and desktop.
+
+Every map result has a textual equivalent.
+
+## 24. Performance/reliability
+
+### PR-170
+
+- heavy map code lazy-loaded where practical;
+- normal analysis uses local data releases;
+- source failure never becomes clear/no-result silently;
+- source/analysis/cache behavior observable;
+- no fake progress;
+- Gemini failure isolated.
+
+## 25. Security/privacy
+
+### PR-180
+
+- RLS ownership isolation;
+- no secrets browser-side;
+- admin server-side;
+- input/resource limits;
+- SSRF-safe source adapters;
+- privacy minimization;
+- no parcel-owner identity collection for ordinary analysis;
+- deletion/export/retention documented;
+- payments/webhooks verified;
+- share links high entropy/revocable.
+
+## 26. Analytics/product-quality requirements
+
+### PR-190
+
+Product analytics is data-minimizing and does not send full address/cadastral geometry/project notes to third-party analytics by default.
+
+### PR-191
+
+Measure trust/quality alongside conversion:
+
+- source freshness;
+- unknown rate/reason;
+- data-error reports;
+- user helpfulness;
+- refunds/report failures.
+
+### PR-192
+
+A/B tests may not vary factual findings/source/critical-warning visibility.
+
+See `PRODUCT_ANALYTICS_AND_GROWTH.md`.
+
+## 27. Explicit product exclusions/claims
+
+Krunditark must not claim it:
+
+- issues a building permit;
+- guarantees authority approval;
+- proves parcel ownership;
+- replaces required professional design/survey/legal work;
+- detects intentionally non-public protected data;
+- guarantees utility capacity/connection price;
+- provides certified property valuation unless a separate qualified product exists;
+- turns AI output into official source text.
+
+## 28. Public paid-launch completion gate
+
+Before charging ordinary users for Ehituspass:
+
+- address/parcel discovery works;
+- core supported source data current/versioned;
+- legal rule matrix reviewed/current;
+- data freshness visible;
+- guest->account transition works;
+- paid report recoverable;
+- RLS/security checks pass;
+- no AI dependency for factual result;
+- source/unknown limitations clear;
+- sample report exists;
+- ET production copy complete;
+- enabled RU/EN critical flows fully localized;
+- commerce/privacy/terms/refund behavior reviewed;
+- support can trace a report/order safely;
+- accessibility/E2E core journey passes.
+
+## 29. Long-term success definition
+
+Krunditark succeeds when a user can make materially better early property/construction decisions faster, while professionals can reuse the same trustworthy data/analysis engine at scale.
+
+The moat is not that the product can answer a construction question in natural language. It is that it can preserve and compare **exact spatial scenarios with reproducible evidence and current verified rules** throughout a real project lifecycle.

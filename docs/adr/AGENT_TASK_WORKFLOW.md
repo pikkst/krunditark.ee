@@ -165,12 +165,14 @@ Before committing, perform a full self-review of the diff.
 Review specifically for:
 
 CORRECTNESS
+
 - Does the implementation actually satisfy every acceptance criterion?
 - Are edge cases handled?
 - Are failure states explicit?
 - Are concurrency/idempotency concerns handled where relevant?
 
 SECURITY
+
 - Any secret exposed?
 - RLS bypass?
 - Authorization based on client-controlled data?
@@ -181,6 +183,7 @@ SECURITY
 - Excessive data exposure?
 
 DATABASE
+
 - Are migrations forward-only?
 - Can they apply to a clean database?
 - Are constraints, foreign keys and indexes correct?
@@ -188,6 +191,7 @@ DATABASE
 - Are previously applied migrations left unchanged?
 
 GIS
+
 - Correct CRS?
 - Correct PostGIS predicate?
 - Boundary/touching cases?
@@ -196,12 +200,14 @@ GIS
 - Spatial indexes?
 
 OFFICIAL DATA
+
 - Is source provenance preserved?
 - Are stale/unavailable/empty states distinguished?
 - Is cached/versioned data handled according to the documented refresh policy?
 - Could a source failure accidentally become an “all clear”?
 
 RULES
+
 - Is legal logic deterministic?
 - Is the rule versioned?
 - Does it have an official source?
@@ -209,6 +215,7 @@ RULES
 - Is `unknown` returned outside supported scope?
 
 AI
+
 - Can Gemini alter a deterministic finding?
 - Is Gemini optional?
 - Is output validated?
@@ -216,6 +223,7 @@ AI
 - Are secrets server-side only?
 
 UX
+
 - Is the flow understandable to a normal Estonian user?
 - Are loading, empty, error and unknown states implemented?
 - Is important information hidden behind the map only?
@@ -223,11 +231,13 @@ UX
 - Is accessibility preserved?
 
 LOCALIZATION
+
 - Are user-facing strings translated through the localization system?
 - Are ET/RU/EN structures preserved?
 - Are legal/technical terms translated consistently?
 
 PERFORMANCE
+
 - Unnecessary API calls?
 - Unnecessary Gemini calls?
 - Missing caching?
@@ -236,6 +246,7 @@ PERFORMANCE
 - Unbounded GIS/source query?
 
 CODE QUALITY
+
 - Duplicate logic?
 - God components/services?
 - Provider-specific types leaking into domain code?
@@ -322,33 +333,43 @@ KT-031: Implement MaRu cadastral parcel adapter
 PR description must include:
 
 ## Summary
+
 What was implemented.
 
 ## Task
+
 Reference the exact task ID and title.
 
 ## Implementation
+
 Important technical decisions and affected components.
 
 ## Security
+
 Any auth/RLS/secrets/security implications.
 
 ## Database / Migrations
+
 List migrations or state “None”.
 
 ## Data Sources / Rules
+
 List affected official sources, rules, rule versions, or state “None”.
 
 ## Tests
+
 List the exact checks/tests that were run and their result.
 
 ## Documentation
+
 List documentation files updated.
 
 ## Known Limitations
+
 Anything intentionally outside this task.
 
 ## Acceptance Criteria
+
 Copy the task acceptance criteria as a checklist and mark only verified items complete.
 
 14. FINAL RESPONSE

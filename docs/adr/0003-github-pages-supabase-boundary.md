@@ -1,13 +1,13 @@
-# ADR 0003 — GitHub Pages Frontend / Supabase Server Boundary
+# ADR 0003 — Frontend Hosting / Supabase Server Boundary
 
 - Status: Accepted
 - Date: 2026-08-15
 
 ## Context
 
-The project owner wants current development/preview delivery through GitHub Pages while using Supabase Cloud as backend.
+The project owner wants development/preview delivery through GitHub Pages while using Supabase Cloud as backend. Production hosting has moved to Cloudflare Pages.
 
-GitHub Pages serves static files and cannot safely hold server secrets.
+GitHub Pages serves static files and cannot safely hold server secrets. Cloudflare Pages supports SPA history routing with a fallback rewrite.
 
 ## Decision
 
@@ -43,9 +43,9 @@ PostgreSQL/PostGIS owns authoritative spatial calculations and persisted rule/ev
 
 ## Routing decision
 
-Use a GitHub-Pages-safe SPA route strategy during preview, with HashRouter preferred unless implementation demonstrates an equally robust static-host solution.
+Production uses BrowserRouter with clean paths, served from Cloudflare Pages with SPA fallback routing. GitHub Pages preview uses repository-path base with clean routes.
 
-Clean browser routes may be adopted when hosting changes, without changing domain/API IDs.
+Route format is not part of core domain IDs/API and may change with hosting environment.
 
 ## Consequences
 

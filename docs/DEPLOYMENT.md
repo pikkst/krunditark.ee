@@ -4,22 +4,19 @@
 
 Krunditark intentionally separates frontend hosting from backend infrastructure.
 
-### Current development/preview target
+### Current production target
 
 - Repository: GitHub
-- Static frontend: GitHub Pages
+- Static frontend: Cloudflare Pages
 - Backend: Supabase Cloud
 - Domain registration: Zone
-- Primary production domain reserved: `krunditark.ee`
+- Primary production domain: `krunditark.ee`
 
-### Later production edge target
+### Preview target
 
-Potential:
-
-- Cloudflare authoritative DNS;
-- Cloudflare CDN/WAF;
-- Cloudflare Pages for frontend if chosen;
-- Supabase remains backend unless a separate ADR changes it.
+- Repository: GitHub
+- Static frontend: GitHub Pages (repository path)
+- Backend: Supabase Cloud
 
 ## 2. GitHub Pages architecture
 
@@ -65,19 +62,20 @@ Do not hardcode production `krunditark.ee` paths into application source. The ba
 
 The custom domain `krunditark.ee` is reserved for production and is not attached to the preview deployment.
 
-## 4. Routing on GitHub Pages
+## 4. Routing
 
-GitHub Pages does not provide an application server that rewrites arbitrary SPA paths to `index.html`.
-
-For the preview stage, Krunditark uses **HashRouter** for static-host-safe routing. Deep links work on refresh because the hash fragment is never sent to the server:
+Production frontend is served from Cloudflare Pages with clean BrowserRouter paths. Deep links work on refresh because the SPA fallback rewrites unknown paths to `index.html`:
 
 ```text
-/#/kaart
-/#/projekt/<id>
-/#/ehituspass/<id>
+/et/landing
+/ru/landing
+/en/landing
+/et/projekt/:projectId
 ```
 
-If production later moves to Cloudflare Pages with SPA routing support, an ADR may switch to clean BrowserRouter paths.
+Static assets (JS, CSS, images) are served directly and are not rewritten.
+
+For the preview stage on GitHub Pages, the repository-path base (`VITE_BASE_PATH=/krunditark.ee/`) is used with clean routes. GitHub Pages deep links may require the repository-path prefix.
 
 Do not make route format part of core domain IDs/API.
 

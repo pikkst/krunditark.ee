@@ -103,7 +103,7 @@ Recommended route strategy for production:
 
 The root `/` can detect browser preference for the initial presentation, but should use an explicit deterministic redirect/fallback and allow immediate manual switching.
 
-During GitHub Pages/hash-router preview, equivalent locale state may be represented inside the hash route, but components and translation keys must not depend on the preview URL design.
+During preview on GitHub Pages, equivalent locale state is represented in clean path routes, but components and translation keys must not depend on the preview URL design.
 
 Recommended application representation:
 

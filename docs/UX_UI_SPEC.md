@@ -149,7 +149,7 @@ Production target:
 /{locale}/pro/...        later
 ```
 
-GitHub Pages preview may temporarily use hash routing, but component/domain design must target clean production routing.
+GitHub Pages preview uses repository-path base, but component/domain design must target clean production routing.
 
 ## 5. Global navigation
 

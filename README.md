@@ -171,13 +171,14 @@ Current direction:
 
 ### Hosting
 
-- development/public preview: GitHub Pages (repository path)
+- development/preview: GitHub Pages (repository path)
   - deploy workflow: `.github/workflows/deploy-pages.yml`
   - `VITE_BASE_PATH` configures repository-path asset loading
+- production: Cloudflare Pages
+  - custom domain: `krunditark.ee`
+  - SPA fallback routing via `public/_redirects`
 - domain registration: Zone
-- primary production domain reserved: `krunditark.ee` (not yet attached)
-- later Cloudflare DNS/edge/possibly static frontend hosting
-- backend remains Supabase unless an ADR changes it
+- backend: Supabase unless an ADR changes it
 
 ## Data refresh architecture
 
@@ -354,7 +355,7 @@ Implemented:
 
 - React 18 + TypeScript strict + Vite 6 at repository root.
 - `src/` directory structure aligned with `ARCHITECTURE.md`.
-- Minimal Estonian application shell with `HashRouter` for GitHub Pages compatibility.
+- Minimal Estonian application shell with BrowserRouter for clean production URLs.
 - ESLint 9 (flat config), Prettier, Vitest 4, and Testing Library configured.
 - `npm run format:check`, `lint`, `typecheck`, `test`, and `build` scripts verified.
 - i18next + react-i18next with ET/RU/EN locale support.

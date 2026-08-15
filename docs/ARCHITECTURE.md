@@ -476,7 +476,7 @@ Rerun creates a new analysis.
 A practical initial evaluator:
 
 ```ts
-type RuleEvaluator = (context: RuleContext) => RuleResult
+type RuleEvaluator = (context: RuleContext) => RuleResult;
 ```
 
 Code owns deterministic semantics; database owns rule/source/version/activation metadata.

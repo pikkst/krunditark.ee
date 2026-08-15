@@ -117,19 +117,19 @@ Where terms, privacy or source policy do not permit replication:
 
 These are architecture defaults and must be reviewed during each adapter implementation.
 
-| Source/category | Retrieval strategy | Change watch | Full/incremental sync | Gemini |
-|---|---|---|---|---|
-| In-AKS address search | live/short cache | service-driven | no national monthly mirror required for search | never |
-| MaRu cadastral parcel facts | source-specific snapshot/object cache | weekly/daily metadata if available | monthly/incremental as practical | never |
-| MaRu restrictions | replicated PostGIS | optional weekly metadata/schema | monthly full/incremental | never |
-| PLANIS planning | replicated/indexed | weekly metadata/change where practical | monthly + emergency | never |
-| EELIS selected layers | replicated/indexed | weekly source health | monthly + emergency | never |
-| Heritage | source-specific after endpoint verified | source health | monthly/incremental if permitted | never |
-| State roads | source-specific | source health | monthly/incremental | never |
-| EHR actual building data | object/index cache | **daily changed-after cursor** where approved | fetch changed building data incrementally; periodic reconciliation | never |
-| Riigi Teataja legal sources | retained version metadata/content hash as permitted | **daily version/hash/effective check** | fetch changed acts only; periodic reconciliation | never |
-| Krunditark rule set | internal versioned | triggered by legal candidate/review | manual verified promotion | never required |
-| Gemini explanation | analysis-result cache | n/a | generate on cache miss | yes, explanation only |
+| Source/category             | Retrieval strategy                                  | Change watch                                  | Full/incremental sync                                              | Gemini                |
+| --------------------------- | --------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------ | --------------------- |
+| In-AKS address search       | live/short cache                                    | service-driven                                | no national monthly mirror required for search                     | never                 |
+| MaRu cadastral parcel facts | source-specific snapshot/object cache               | weekly/daily metadata if available            | monthly/incremental as practical                                   | never                 |
+| MaRu restrictions           | replicated PostGIS                                  | optional weekly metadata/schema               | monthly full/incremental                                           | never                 |
+| PLANIS planning             | replicated/indexed                                  | weekly metadata/change where practical        | monthly + emergency                                                | never                 |
+| EELIS selected layers       | replicated/indexed                                  | weekly source health                          | monthly + emergency                                                | never                 |
+| Heritage                    | source-specific after endpoint verified             | source health                                 | monthly/incremental if permitted                                   | never                 |
+| State roads                 | source-specific                                     | source health                                 | monthly/incremental                                                | never                 |
+| EHR actual building data    | object/index cache                                  | **daily changed-after cursor** where approved | fetch changed building data incrementally; periodic reconciliation | never                 |
+| Riigi Teataja legal sources | retained version metadata/content hash as permitted | **daily version/hash/effective check**        | fetch changed acts only; periodic reconciliation                   | never                 |
+| Krunditark rule set         | internal versioned                                  | triggered by legal candidate/review           | manual verified promotion                                          | never required        |
+| Gemini explanation          | analysis-result cache                               | n/a                                           | generate on cache miss                                             | yes, explanation only |
 
 Do not treat cadence values as legal guarantees. `source_definitions` owns final configuration.
 

@@ -139,14 +139,14 @@ verification metadata
 const evaluateProposalOutsideParcel: RuleEvaluator = (ctx) => {
   if (ctx.proposalSpatialFacts.proposalOutsideParcelAreaM2 > 0) {
     return {
-      state: 'conflict',
-      code: 'PROPOSAL_OUTSIDE_SELECTED_PARCEL'
+      state: "conflict",
+      code: "PROPOSAL_OUTSIDE_SELECTED_PARCEL",
     };
   }
 
   return {
-    state: 'clear',
-    code: 'PROPOSAL_INSIDE_SELECTED_PARCEL'
+    state: "clear",
+    code: "PROPOSAL_INSIDE_SELECTED_PARCEL",
   };
 };
 ```

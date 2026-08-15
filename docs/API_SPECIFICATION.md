@@ -227,7 +227,7 @@ Response may contain one or several candidates:
       }
     ]
   },
-  "meta": {"requestId": "uuid"}
+  "meta": { "requestId": "uuid" }
 }
 ```
 
@@ -261,7 +261,7 @@ Example:
       "officialUrl": "https://..."
     }
   },
-  "meta": {"requestId": "uuid"}
+  "meta": { "requestId": "uuid" }
 }
 ```
 
@@ -445,7 +445,7 @@ Response:
     "status": "preparing",
     "dataReleaseId": "uuid"
   },
-  "meta": {"requestId": "uuid"}
+  "meta": { "requestId": "uuid" }
 }
 ```
 
@@ -488,7 +488,7 @@ Example:
     "findings": [],
     "nextActions": []
   },
-  "meta": {"requestId": "uuid"}
+  "meta": { "requestId": "uuid" }
 }
 ```
 

@@ -108,7 +108,7 @@ During GitHub Pages/hash-router preview, equivalent locale state may be represen
 Recommended application representation:
 
 ```ts
-type AppLocale = 'et' | 'ru' | 'en'
+type AppLocale = "et" | "ru" | "en";
 ```
 
 Use a mature i18n library compatible with React/TypeScript and lazy-loaded namespaces. Exact package can be chosen during implementation.

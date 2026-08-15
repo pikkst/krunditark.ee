@@ -90,11 +90,11 @@ Do not expose a generic environment variable that permits a user request to choo
 
 ## 6. Environment matrix
 
-| Environment | Frontend | Backend | AI | Purpose |
-|---|---|---|---|---|
-| local | Vite localhost | local Supabase | fake by default / Gemini opt-in | development/tests |
-| preview | GitHub Pages | non-production Supabase | Gemini server-side if enabled | integration/demo |
-| production | final host/domain | production Supabase | Gemini server-side | public users |
+| Environment | Frontend          | Backend                 | AI                              | Purpose           |
+| ----------- | ----------------- | ----------------------- | ------------------------------- | ----------------- |
+| local       | Vite localhost    | local Supabase          | fake by default / Gemini opt-in | development/tests |
+| preview     | GitHub Pages      | non-production Supabase | Gemini server-side if enabled   | integration/demo  |
+| production  | final host/domain | production Supabase     | Gemini server-side              | public users      |
 
 Use separate Supabase projects for preview and production once real user testing begins.
 

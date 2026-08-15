@@ -45,10 +45,10 @@ Assumptions for illustration:
 ### Ehituspass candidate prices
 
 | Gross customer price | Net after 24% VAT | Example payment fee | After payment | After €1 tech + €2 support reserve | Planning contribution |
-|---:|---:|---:|---:|---:|---:|
-| €19.90 | ~€16.05 | ~€0.55 | ~€15.50 | ~€12.50 | **~€12.50** |
-| €24.90 | ~€20.08 | ~€0.62 | ~€19.46 | ~€16.46 | **~€16.46** |
-| €29.90 | ~€24.11 | ~€0.70 | ~€23.41 | ~€20.41 | **~€20.41** |
+| -------------------: | ----------------: | ------------------: | ------------: | ---------------------------------: | --------------------: |
+|               €19.90 |           ~€16.05 |              ~€0.55 |       ~€15.50 |                            ~€12.50 |           **~€12.50** |
+|               €24.90 |           ~€20.08 |              ~€0.62 |       ~€19.46 |                            ~€16.46 |           **~€16.46** |
+|               €29.90 |           ~€24.11 |              ~€0.70 |       ~€23.41 |                            ~€20.41 |           **~€20.41** |
 
 These are not forecasts. They show why a seemingly small consumer-price change can materially change contribution after VAT and fixed payment fees.
 
@@ -62,12 +62,12 @@ reports_to_cover_fixed_cost
 ```
 
 | Monthly fixed operating cost | Approx. paid reports/month to cover it | Approx. reports/day (30d) |
-|---:|---:|---:|
-| €500 | 31 | 1.0 |
-| €1,000 | 61 | 2.0 |
-| €3,000 | 183 | 6.1 |
-| €6,000 | 365 | 12.2 |
-| €10,000 | 608 | 20.3 |
+| ---------------------------: | -------------------------------------: | ------------------------: |
+|                         €500 |                                     31 |                       1.0 |
+|                       €1,000 |                                     61 |                       2.0 |
+|                       €3,000 |                                    183 |                       6.1 |
+|                       €6,000 |                                    365 |                      12.2 |
+|                      €10,000 |                                    608 |                      20.3 |
 
 This is **contribution break-even before customer-acquisition cost and founder/team compensation assumptions unless they are included in fixed cost**.
 

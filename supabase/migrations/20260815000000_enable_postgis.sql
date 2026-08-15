@@ -110,7 +110,7 @@ CREATE INDEX idx_postgis_smoke_test_geom
 INSERT INTO geo._postgis_smoke_test (name, geom)
 VALUES
     ('smoke_polygon_a', extensions.ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301)),
-    ('smoke_polygon_b', extensions.ST_SetSRID('POLYGON((11 11, 21 11, 21 21, 11 21, 11 11))'::extensions.geometry, 3301)),
+    ('smoke_polygon_b', extensions.ST_SetSRID('POLYGON((30 30, 40 30, 40 40, 30 40, 30 30))'::extensions.geometry, 3301)),
     ('smoke_point_c', extensions.ST_SetSRID('POINT(20 20)'::extensions.geometry, 3301));
 
 -- Verify core PostGIS operations return expected results.

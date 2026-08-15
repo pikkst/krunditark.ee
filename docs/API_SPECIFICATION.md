@@ -1,27 +1,33 @@
 # API Specification — Krunditark
 
-This document defines the client-facing contract. The physical implementation may use one or more Supabase Edge Functions, but the frontend must consume stable Krunditark domain contracts rather than provider-specific payloads.
+Last contract review: **2026-08-15**
 
-## 1. General API rules
+This document defines Krunditark-owned client/server contracts. Physical deployment may use multiple Supabase Edge Functions and RLS-protected Data API calls, but the frontend must not consume provider-specific WFS/EHR/Gemini/payment payloads as product contracts.
 
-- JSON over HTTPS.
+## 1. General rules
+
+- JSON over HTTPS for Krunditark application APIs.
 - UTF-8.
-- Validate every external request.
-- Use typed error codes.
-- Do not leak upstream response bodies, stack traces or secrets.
-- Authenticated endpoints accept Supabase Auth bearer session according to approved SDK flow.
-- Expensive analysis creation supports idempotency.
-- Geometry sent to browser uses GeoJSON in EPSG:4326 unless explicitly documented otherwise.
-- Authoritative persisted geometry uses the server/database CRS policy.
-- Normal user requests read promoted internal source/data releases; they do not trigger bulk national-source refresh.
+- external input schema-validated.
+- stable typed error codes.
+- no stack traces/provider bodies/secrets returned.
+- authoritative geometry calculations server/PostGIS-side.
+- browser geometry interchange is GeoJSON EPSG:4326 unless explicitly documented.
+- persistent authoritative geometry follows EPSG:3301 policy.
+- source/data/rule freshness is explicit.
+- no ordinary request may trigger national source synchronization.
+- expensive state-changing calls support idempotency.
+- ownership and entitlements are checked server-side.
+- locale changes presentation, not deterministic result.
 
-Example response envelope:
+Example envelope:
 
 ```json
 {
   "data": {},
   "meta": {
-    "requestId": "uuid"
+    "requestId": "uuid",
+    "locale": "et"
   }
 }
 ```
@@ -31,8 +37,8 @@ Example error:
 ```json
 {
   "error": {
-    "code": "DATA_RELEASE_UNAVAILABLE",
-    "message": "Kontrollitud andmeversioon ei ole hetkel analüüsiks saadaval.",
+    "code": "SOURCE_UNAVAILABLE",
+    "message": "Ametlik andmeallikas ei ole hetkel kättesaadav.",
     "retryable": true
   },
   "meta": {
@@ -41,121 +47,320 @@ Example error:
 }
 ```
 
-## 2. Error codes
+User-facing error text may be localized client-side by code; do not make changing server prose part of the permanent contract where a stable code is sufficient.
 
-Required base codes:
+## 2. Authentication classes
+
+### Public
+
+No Auth required for static marketing/help/sample-report content.
+
+### Anonymous authenticated user
+
+Supabase anonymous Auth session. Owns temporary project state under RLS.
+
+Server can detect the anonymous identity through verified Auth/JWT claims; do not trust a client boolean.
+
+### Permanent authenticated user
+
+Email OTP/Google-linked account.
+
+Required for:
+
+- durable cross-device saved work;
+- purchases/orders;
+- monitoring/notifications;
+- professional/organization features.
+
+### Admin/server
+
+Explicit server-side role/credential path only.
+
+## 3. Core error codes
+
+### Input/search
 
 - `VALIDATION_ERROR`
 - `INVALID_CADASTRAL_ID`
+- `ADDRESS_QUERY_INVALID`
+- `ADDRESS_NOT_FOUND`
+- `ADDRESS_SEARCH_UNAVAILABLE`
 - `PARCEL_NOT_FOUND`
+- `PARCEL_SELECTION_AMBIGUOUS`
+
+### Source/data
+
 - `SOURCE_TIMEOUT`
 - `SOURCE_UNAVAILABLE`
 - `SOURCE_RESPONSE_INVALID`
 - `SOURCE_STALE`
-- `SOURCE_SYNC_FAILED`
 - `DATA_RELEASE_UNAVAILABLE`
 - `DATA_RELEASE_INCOMPLETE`
+
+### Proposal/analysis
+
 - `PROPOSAL_GEOMETRY_INVALID`
 - `PROPOSAL_OUTSIDE_SUPPORTED_AREA`
 - `ANALYSIS_SCOPE_UNSUPPORTED`
 - `ANALYSIS_IN_PROGRESS`
 - `ANALYSIS_FAILED`
 - `RULESET_UNAVAILABLE`
-- `AI_UNAVAILABLE`
-- `RATE_LIMITED`
+
+### Auth/access
+
 - `UNAUTHORIZED`
 - `FORBIDDEN`
+- `PERMANENT_ACCOUNT_REQUIRED`
+- `AUTH_IDENTITY_LINK_FAILED`
 - `NOT_FOUND`
-- `CONFLICT`
-- `INTERNAL_ERROR`
 
-Do not use `PARCEL_NOT_FOUND` when the active data release/source state cannot establish a reliable not-found result.
+### AI
 
-## 3. Parcel lookup
+- `AI_UNAVAILABLE`
+- `AI_OUTPUT_INVALID`
 
-### `GET /parcel/:cadastralId`
+### Commerce — when enabled
 
-Purpose: resolve one cadastral parcel into a stable Krunditark representation from the latest eligible promoted data release, unless the cadastral source is explicitly configured as a justified live lookup during a transitional implementation phase.
+- `ORDER_NOT_PAYABLE`
+- `PAYMENT_PENDING`
+- `PAYMENT_FAILED`
+- `PAYMENT_EVENT_INVALID`
+- `ENTITLEMENT_REQUIRED`
+- `ENTITLEMENT_EXPIRED`
+- `USAGE_LIMIT_REACHED`
+- `FULFILLMENT_FAILED`
 
-Example response:
+Do not return `*_NOT_FOUND` when the relevant source request actually failed.
+
+## 4. Address search
+
+### `GET /addresses/search?q=<query>&limit=<n>`
+
+Public or anonymous-safe endpoint according to final In-AKS integration architecture.
+
+Purpose: normalized official address/place/object autocomplete.
+
+Example:
 
 ```json
 {
-  "data": {
-    "cadastralId": "12345:678:9012",
-    "address": "Example address",
-    "geometry": {
-      "type": "MultiPolygon",
-      "coordinates": []
-    },
-    "areaM2": 12000,
-    "facts": {},
-    "dataRelease": {
-      "id": "uuid",
-      "key": "2026-09-01.1",
-      "promotedAt": "2026-09-01T05:00:00Z"
-    },
-    "source": {
-      "id": "maru.cadastre.parcels",
-      "datasetVersionId": "uuid",
-      "authority": "Maa- ja Ruumiamet",
-      "retrievedAt": "2026-09-01T03:20:00Z",
-      "sourceUpdatedAt": null,
-      "freshnessState": "fresh",
-      "carriedForward": false,
-      "officialUrl": "https://..."
+  "data": [
+    {
+      "id": "source-scoped-id",
+      "label": "Pärnu mnt 10, Tallinn",
+      "objectType": "address",
+      "coordinates": {
+        "lat": 59.0,
+        "lon": 24.0
+      },
+      "source": {
+        "id": "maru.inaks",
+        "authority": "Maa- ja Ruumiamet"
+      }
     }
-  },
+  ],
   "meta": {
     "requestId": "uuid"
   }
 }
 ```
 
-Requirements:
+Rules:
 
-- cadastral ID normalized server-side;
-- source payload not exposed directly;
-- geometry valid GeoJSON;
-- source dataset version and freshness metadata required;
-- a lookup today must not claim the source was “checked today” if the promoted dataset was retrieved earlier.
+- normalized bounded query length;
+- debounce on client;
+- short-cache per source policy;
+- unavailable != no matches;
+- raw In-AKS provider response not exposed as stable UI contract.
 
-## 4. Projects
+## 5. Parcel candidate resolution
 
-### `GET /projects`
+### `POST /parcels/resolve`
 
-Authenticated.
+Request may contain exactly one supported selector:
 
-Returns current user's saved projects.
+```json
+{
+  "cadastralId": "12345:678:9012"
+}
+```
+
+or
+
+```json
+{
+  "addressResultId": "source-scoped-id"
+}
+```
+
+or map selection:
+
+```json
+{
+  "point": {
+    "type": "Point",
+    "coordinates": [24.75, 59.43]
+  }
+}
+```
+
+Response may contain one or several candidates:
+
+```json
+{
+  "data": {
+    "status": "ambiguous",
+    "candidates": [
+      {
+        "cadastralId": "12345:678:9012",
+        "address": "...",
+        "areaM2": 12000,
+        "geometry": {
+          "type": "MultiPolygon",
+          "coordinates": []
+        },
+        "source": {
+          "id": "maru.cadastre",
+          "datasetVersionId": "uuid",
+          "retrievedAt": "..."
+        }
+      }
+    ]
+  },
+  "meta": {"requestId": "uuid"}
+}
+```
+
+The client must ask user to choose when `status=ambiguous`.
+
+## 6. Parcel lookup
+
+### `GET /parcels/:cadastralId`
+
+Purpose: stable normalized parcel representation.
+
+Example:
+
+```json
+{
+  "data": {
+    "cadastralId": "12345:678:9012",
+    "address": "...",
+    "geometry": {
+      "type": "MultiPolygon",
+      "coordinates": []
+    },
+    "areaM2": 12000,
+    "facts": {},
+    "source": {
+      "id": "maru.cadastre",
+      "authority": "Maa- ja Ruumiamet",
+      "datasetVersionId": "uuid",
+      "retrievedAt": "2026-08-01T...Z",
+      "sourceUpdatedAt": null,
+      "officialUrl": "https://..."
+    }
+  },
+  "meta": {"requestId": "uuid"}
+}
+```
+
+This endpoint does not prove ownership.
+
+## 7. Free parcel overview
+
+### `GET /parcels/:cadastralId/overview`
+
+Purpose: bounded free/guest-safe product view.
+
+May return:
+
+- parcel facts;
+- existing supported building summary when available;
+- data freshness;
+- supported analysis categories;
+- explicitly unsupported categories;
+- no final full Ehituspass conclusion unless the product deliberately grants that analysis.
+
+Example:
+
+```json
+{
+  "data": {
+    "parcel": {},
+    "coverage": [
+      {
+        "category": "planning",
+        "status": "supported",
+        "dataDate": "2026-08-01"
+      },
+      {
+        "category": "utility_capacity",
+        "status": "not_supported"
+      }
+    ]
+  }
+}
+```
+
+Do not construct a misleading free “all clear” from a deliberately reduced subset.
+
+## 8. Projects
 
 ### `POST /projects`
 
-Authenticated.
+Anonymous or permanent authenticated user.
 
 Request:
 
 ```json
 {
   "name": "Saunaprojekt",
-  "cadastralId": "12345:678:9012"
+  "cadastralId": "12345:678:9012",
+  "intent": "build"
 }
 ```
 
-Server resolves/attaches a parcel snapshot through the latest eligible promoted data release.
+Server:
+
+- validates ownership of Auth session, not parcel ownership;
+- resolves/attaches current eligible parcel snapshot;
+- stores owner as current `auth.uid()`;
+- applies guest limits if `is_anonymous=true`.
+
+### `GET /projects`
+
+Permanent user by default; guest current-project retrieval may use a separate bounded path.
 
 ### `GET /projects/:projectId`
 
-Authenticated owner only.
+Owner only.
 
 ### `PATCH /projects/:projectId`
 
-Only editable metadata such as name/archive state. Do not mutate historical analysis facts.
+Editable project metadata only.
+
+Do not mutate historical analysis/proposal facts.
 
 ### `DELETE /projects/:projectId`
 
-Owner only, subject to documented deletion/retention behavior.
+Owner only, subject to documented retention/accounting constraints.
 
-## 5. Proposals
+## 9. Intent codes
+
+Stable domain values may include:
+
+```text
+build
+purchase_check
+understand_parcel
+modify_existing_building
+professional
+```
+
+Support status is separate from the code. A known intent can return `ANALYSIS_SCOPE_UNSUPPORTED` for a not-yet-implemented workflow.
+
+## 10. Proposals
 
 ### `POST /projects/:projectId/proposals`
 
@@ -174,37 +379,39 @@ Request:
   "heightM": 4.8,
   "storeys": 1,
   "widthM": 6,
-  "lengthM": 8
+  "lengthM": 8,
+  "sourceTemplateId": "sauna-6x8"
 }
 ```
 
-Input footprint GeoJSON is EPSG:4326.
+Input geometry EPSG:4326.
 
 Server:
 
-1. validates GeoJSON;
+1. validates schema;
 2. transforms to canonical CRS;
-3. validates geometry/topology;
-4. computes authoritative area/perimeter;
-5. applies resource limits;
-6. persists proposal version.
+3. validates topology/bounds/resource limits;
+4. computes authoritative metrics;
+5. creates immutable proposal version.
 
-Response includes computed metrics and proposal version.
+### `POST /projects/:projectId/proposals/:proposalId/duplicate`
 
-### `POST /projects/:projectId/proposals/:proposalId/supersede`
+Creates a new version/scenario from exact prior proposal for variant testing.
 
-Optional implementation pattern for explicit new version creation. Prefer new immutable proposal version over mutating a proposal referenced by completed analyses.
+Optional request modifications may be accepted if server revalidates them.
 
-## 6. Analysis creation
+Do not update proposal geometry in-place if referenced by a completed analysis.
+
+## 11. Analysis creation
 
 ### `POST /analyses`
 
-Authenticated for saved MVP flow.
+Anonymous or permanent authenticated depending current product/entitlement policy.
 
-Headers:
+Header:
 
 ```text
-Idempotency-Key: <uuid-or-high-entropy-client-key>
+Idempotency-Key: <high-entropy-key>
 ```
 
 Request:
@@ -213,63 +420,55 @@ Request:
 {
   "projectId": "uuid",
   "proposalId": "uuid",
-  "analysisProfile": "mvp-v1"
+  "analysisProfile": "consumer-build-v1"
 }
 ```
 
-The ordinary client does **not** choose `refreshPolicy`, source URLs or source versions.
+**There is no user-controlled `refreshPolicy`.** Normal analysis uses the current eligible promoted Krunditark data/rule release.
 
-Server selects:
+Server:
 
-- latest eligible promoted `data_release_id`;
-- exact source dataset versions belonging to that release;
-- exact verified rule versions effective for the analysis.
+1. verifies owner/auth;
+2. verifies free/paid entitlement if applicable;
+3. validates proposal;
+4. selects exact eligible `dataReleaseId` and rule-set manifest;
+5. tries safe compatible analysis cache;
+6. otherwise runs PostGIS/rules;
+7. persists immutable result.
 
-Response may be synchronous for a fast MVP or return accepted state for multi-step orchestration:
+Response:
 
 ```json
 {
   "data": {
     "analysisId": "uuid",
     "status": "preparing",
-    "dataRelease": {
-      "id": "uuid",
-      "key": "2026-09-01.1"
-    }
+    "dataReleaseId": "uuid"
   },
-  "meta": {
-    "requestId": "uuid"
-  }
+  "meta": {"requestId": "uuid"}
 }
 ```
 
-Idempotency requirements:
-
-- key scoped to authenticated user/endpoint;
-- same key + same request returns same analysis/result;
-- same key + different request returns `CONFLICT`;
-- analysis remains pinned to the originally selected data release even if a newer release is promoted while it runs.
-
-## 7. Analysis status/result
+## 12. Analysis result
 
 ### `GET /analyses/:analysisId`
 
-Owner only.
+Owner or explicitly authorized share context only.
 
-Example conceptual response:
+Example:
 
 ```json
 {
   "data": {
     "id": "uuid",
     "status": "completed",
-    "analysisProfileVersion": "mvp-v1",
-    "engineVersion": "2026.09.1",
+    "analysisProfileVersion": "consumer-build-v1",
+    "engineVersion": "2026.08.1",
     "dataRelease": {
       "id": "uuid",
-      "key": "2026-09-01.1",
-      "promotedAt": "2026-09-01T05:00:00Z"
+      "releasedAt": "2026-08-01T03:30:00Z"
     },
+    "ruleSetManifestId": "uuid",
     "createdAt": "...",
     "completedAt": "...",
     "parcel": {
@@ -278,40 +477,26 @@ Example conceptual response:
     },
     "proposal": {
       "id": "uuid",
-      "version": 1,
+      "version": 2,
       "structureType": "sauna",
       "areaM2": 48
     },
     "overall": {
-      "state": "condition",
-      "title": "Vajab täiendavat kontrolli"
+      "state": "condition"
     },
-    "sourceCompleteness": [
-      {
-        "category": "cadastre",
-        "status": "complete_for_supported_scope",
-        "sourceDatasetVersionId": "uuid",
-        "retrievedAt": "...",
-        "freshnessState": "fresh",
-        "carriedForward": false
-      },
-      {
-        "category": "planning_text",
-        "status": "not_supported",
-        "reason": "Detailed plan textual conditions are not yet automatically interpreted."
-      }
-    ],
-    "findings": []
+    "sourceCompleteness": [],
+    "findings": [],
+    "nextActions": []
   },
-  "meta": {
-    "requestId": "uuid"
-  }
+  "meta": {"requestId": "uuid"}
 }
 ```
 
-## 8. Finding contract
+Rendered localized labels are preferably generated from stable codes/client translation catalogs, while dynamic Gemini explanation is a separate resource.
 
-Each material finding:
+## 13. Finding contract
+
+Conceptual:
 
 ```json
 {
@@ -320,20 +505,20 @@ Each material finding:
   "category": "road",
   "state": "condition",
   "severity": "high",
-  "title": "Kavandatav ehitis puudutab tee kaitsevööndit",
-  "summary": "...",
+  "titleKey": "finding.road.protectionZoneIntersection.title",
+  "structuredDetails": {
+    "intersectionAreaM2": 3.2
+  },
   "nextAction": {
     "code": "VERIFY_WITH_TRANSPORT_AUTHORITY",
-    "label": "Kontrolli tingimusi Transpordiametist"
+    "labelKey": "nextAction.verifyWithTransportAuthority"
   },
   "evidence": [
     {
       "type": "geometry",
-      "sourceId": "...",
+      "sourceId": "transport.road-zones",
       "sourceDatasetVersionId": "uuid",
       "sourceObjectId": "...",
-      "retrievedAt": "...",
-      "freshnessState": "fresh",
       "officialUrl": "https://...",
       "measurement": {
         "intersectionAreaM2": 3.2
@@ -347,52 +532,104 @@ Each material finding:
   "rule": {
     "code": "...",
     "version": 2,
-    "effectiveFrom": "2026-07-01",
-    "legalSources": [
+    "effectiveFrom": "2026-08-01",
+    "legalSources": []
+  }
+}
+```
+
+No material factual relationship may exist only in translated prose.
+
+## 14. Completeness/freshness
+
+Category completeness:
+
+```text
+complete_for_supported_scope
+partial
+unavailable
+not_supported
+```
+
+Source health/result separately:
+
+```text
+current
+stale_warning
+stale_critical
+carried_forward
+unavailable
+```
+
+A report date is not the same as underlying data date.
+
+## 15. Analysis variants comparison
+
+### `GET /projects/:projectId/analysis-comparison?analysisIds=a,b`
+
+Owner only.
+
+Response is deterministic factual diff:
+
+```json
+{
+  "data": {
+    "analyses": ["a", "b"],
+    "summary": {
+      "conflictCount": [1, 0],
+      "conditionCount": [2, 1],
+      "unknownCount": [1, 1]
+    },
+    "changes": [
       {
-        "title": "...",
-        "section": "...",
-        "officialUrl": "https://..."
+        "findingCode": "POWER_ZONE_INTERSECTION",
+        "fromState": "conflict",
+        "toState": null,
+        "reason": "geometry_no_longer_intersects"
       }
     ]
   }
 }
 ```
 
-A `clear` finding may omit evidence geometry if the source/check summary is still traceable.
+Do not return an opaque AI-generated ranking score.
 
-## 9. Analysis categories and completeness
+## 16. Analysis history / newer data
 
-Completeness states:
+### `GET /projects/:projectId/analyses`
 
-- `complete_for_supported_scope`
-- `partial`
-- `unavailable`
-- `not_supported`
+Cursor-paginated immutable history.
 
-Freshness states:
+### `GET /projects/:projectId/freshness`
 
-- `fresh`
-- `warning`
-- `stale`
-- `unknown`
+May return:
 
-A source dataset version may also expose `carriedForward: true` when a newer monthly candidate was unavailable/rejected and the previous verified version remains active.
+```json
+{
+  "data": {
+    "latestAnalysisId": "uuid",
+    "latestAnalysisDataReleaseId": "uuid-old",
+    "currentDataReleaseId": "uuid-new",
+    "newerDataAvailable": true,
+    "currentVerifiedRuleSetChanged": true
+  }
+}
+```
 
-Do not collapse completeness, freshness and source-sync status into one flag.
+This does not mutate/rerun old report automatically.
 
-## 10. AI explanation
+## 17. Gemini explanations
 
-### `POST /analyses/:analysisId/explain`
+### `POST /analyses/:analysisId/explanations`
 
-Authenticated owner.
+Authenticated/authorized report user.
 
 Request:
 
 ```json
 {
   "mode": "summary",
-  "language": "et"
+  "locale": "et"
 }
 ```
 
@@ -402,9 +639,18 @@ or finding-specific:
 {
   "mode": "finding",
   "findingId": "uuid",
-  "language": "et"
+  "locale": "ru"
 }
 ```
+
+Server:
+
+- verifies access;
+- resolves deterministic analysis;
+- checks explanation cache by result/locale/model/prompt/schema;
+- calls Gemini only on miss;
+- validates output;
+- falls back to deterministic localized template.
 
 Response:
 
@@ -414,139 +660,287 @@ Response:
     "status": "generated",
     "text": "...",
     "findingIds": ["uuid"],
-    "sourceIds": ["uuid"],
-    "generatedAt": "...",
-    "reused": false
+    "sourceIds": ["..."],
+    "generatedAt": "..."
   }
 }
 ```
 
-If a validated explanation already exists for the same immutable analysis/language/prompt-template policy, the server may return it with `reused: true` instead of calling Gemini again.
-
-If provider fails:
-
-- return deterministic fallback where available;
-- optionally include `meta.aiStatus = "unavailable"`;
-- do not mark factual analysis failed.
-
-## 11. Follow-up questions
+## 18. Ask Krunditark
 
 ### `POST /analyses/:analysisId/questions`
 
-Post-MVP or late MVP.
+Late-core/post-core.
 
 Request:
 
 ```json
 {
-  "question": "Miks see piirang minu sauna puudutab?"
+  "question": "Miks see piirang minu sauna puudutab?",
+  "locale": "et"
 }
 ```
 
-Response must be grounded only in approved analysis evidence/source context and identify the finding/source references used.
+Answer must reference only approved analysis/source evidence and identify limitations.
 
-A follow-up question does not trigger a source-data refresh.
-
-## 12. Source details
+## 19. User-safe source details
 
 ### `GET /analyses/:analysisId/sources`
 
-Owner only.
+Returns:
 
-Returns user-safe provenance:
-
-- data release ID/key;
 - authority;
-- source title;
-- source dataset version ID;
+- source/layer title;
 - official URL;
-- retrieval timestamp;
-- source update/effective metadata;
-- freshness state;
-- carried-forward flag;
-- categories informed;
-- completeness status.
+- dataset/version;
+- source effective/update metadata;
+- Krunditark sync/release date;
+- health/freshness state;
+- categories informed.
 
-Must not expose internal credentials, raw headers or unsafe payloads.
+Never return provider auth headers/internal credentials/raw unrestricted payloads.
 
-## 13. Geometry evidence endpoint
-
-If large evidence geometry should be lazy-loaded:
+## 20. Large evidence geometry
 
 ### `GET /analyses/:analysisId/findings/:findingId/evidence`
 
-Return simplified browser geometry and measurements authorized through analysis ownership.
+Owner/share authorized.
 
-Do not expose arbitrary server-side spatial query parameters in MVP.
+Return simplified/appropriate browser geometry and measurements.
 
-## 14. Admin/source synchronization API
+No arbitrary spatial query parameters in consumer API.
 
-Admin/source-sync behavior is server-side and not part of the ordinary public client contract.
+## 21. Ostukontroll — future
 
-Potential internal/admin endpoints:
+### `POST /purchase-checks`
 
-- `GET /admin/sources/health`;
-- `GET /admin/data-releases`;
-- `POST /admin/sources/:sourceId/sync` for explicit manual/emergency refresh;
-- `POST /admin/data-releases/:releaseId/promote` where manual promotion is required;
-- legal change candidate review endpoints;
-- rule draft/verification lifecycle;
-- analysis invalidation annotation;
-- adapter configuration status.
+Permanent/anonymous according to product entitlement design.
 
-All require:
-
-- explicit verified admin/server authorization;
-- audit logging;
-- idempotency where applicable;
-- no arbitrary caller-supplied upstream URL;
-- same validation/promotion gates as scheduled synchronization.
-
-The production monthly cron path may call dedicated internal Edge Functions rather than these human-facing admin routes.
-
-No client-supplied role flag may authorize admin behavior.
-
-## 15. Pagination
-
-Use cursor pagination for growing histories where practical.
-
-Example:
+Request:
 
 ```json
 {
-  "data": [...],
+  "projectId": "uuid",
+  "analysisProfile": "purchase-check-v1"
+}
+```
+
+No proposal ID required.
+
+Same data-release/provenance principles apply.
+
+## 22. Existing building — future
+
+### `GET /projects/:projectId/buildings`
+
+Returns supported normalized EHR current-building summaries for project parcel.
+
+Raw EHR payload/document access is not exposed by default.
+
+### `POST /projects/:projectId/existing-building-scenarios`
+
+Requires a separately supported scenario profile; do not route silently through new-building rules.
+
+## 23. Account
+
+Supabase handles Auth transport/session.
+
+Krunditark application endpoints may include:
+
+### `GET /account`
+
+Safe profile/preferences/account state.
+
+### `PATCH /account`
+
+Only user-editable fields such as display name/language/notification preferences.
+
+No role/entitlement elevation.
+
+### `DELETE /account`
+
+Starts controlled deletion workflow rather than blindly deleting records that may have justified accounting/security retention.
+
+## 24. Commerce — future paid launch
+
+See `COMMERCE_AND_ENTITLEMENTS.md`.
+
+### `GET /products`
+
+Returns current user-safe product/pricing catalog for locale/currency context.
+
+### `POST /orders`
+
+Permanent account required.
+
+Request:
+
+```json
+{
+  "productCode": "EHITUSPASS_SINGLE",
+  "projectId": "uuid",
+  "proposalId": "uuid"
+}
+```
+
+Client does **not** send authoritative amount.
+
+Server resolves current price and returns order.
+
+### `POST /orders/:orderId/checkout`
+
+Header `Idempotency-Key`.
+
+Creates checkout with selected provider server-side.
+
+### `GET /orders/:orderId`
+
+Owner only; returns Krunditark domain payment/fulfillment state.
+
+### Provider webhook
+
+Provider-specific path such as:
+
+```text
+POST /webhooks/payments/<provider>
+```
+
+Not authenticated by Supabase user session; authenticated by exact provider webhook signature/auth scheme.
+
+Webhook:
+
+- verifies raw request/signature;
+- dedupes provider event ID;
+- validates order/amount/currency;
+- transactionally updates payment/order/entitlement;
+- never trusts browser redirect.
+
+### `POST /orders/:orderId/refund-request`
+
+Optional user support request, not automatically provider refund.
+
+Admin/provider refund path remains server controlled/audited.
+
+## 25. Entitlement checks
+
+Analysis endpoint may return:
+
+```json
+{
+  "error": {
+    "code": "ENTITLEMENT_REQUIRED",
+    "requiredProducts": ["EHITUSPASS_SINGLE", "PROJECT_PASS_90D"]
+  }
+}
+```
+
+Frontend may use this to show product/paywall.
+
+Server remains authority.
+
+## 26. Project Pass — future
+
+Entitlement server checks:
+
+- scope matches project;
+- time active;
+- usage/variant/analysis limits;
+- retries/technical failures do not double-consume;
+- expired pass still permits historical report reading.
+
+## 27. Sharing — future
+
+### `POST /analyses/:analysisId/share-links`
+
+Owner, permanent account.
+
+Creates high-entropy revocable link with scope/expiry.
+
+### `DELETE /share-links/:id`
+
+Revokes.
+
+### Public shared report route
+
+Uses share token, not predictable report ID alone.
+
+Must exclude private notes/files by default and be `noindex` at web layer.
+
+## 28. Notifications — future
+
+### `GET/PATCH /account/notification-preferences`
+
+Non-mandatory notifications configurable.
+
+Mandatory security/payment service notices follow legal/product rules.
+
+Project change notification is only strong/material after deterministic impact is computed.
+
+## 29. Professional/B2B API — future
+
+Do not expose current internal consumer routes as a permanent external contract accidentally.
+
+Before external B2B consumers:
+
+- ADR;
+- explicit `/v1` namespace;
+- organization/API credentials;
+- usage metering;
+- quotas;
+- batch jobs;
+- signed webhooks;
+- source attribution/terms.
+
+## 30. Pagination
+
+Cursor pagination for growing collections:
+
+```json
+{
+  "data": [],
   "meta": {
     "nextCursor": "opaque-or-null"
   }
 }
 ```
 
-Do not expose raw database offset assumptions as permanent API contract unless intentionally chosen.
+Do not make database offsets part of permanent contract unless intentionally approved.
 
-## 16. Rate limits
+## 31. Rate limits
 
-Apply especially to:
+Especially:
 
+- address autocomplete/parcel lookup;
+- anonymous project creation;
 - analysis creation;
-- AI explanations/questions;
-- explicitly approved live-source lookups;
-- admin manual refresh operations;
-- future document uploads/parsing.
+- AI explanation/questions;
+- checkout creation;
+- uploads;
+- future batch/API.
 
-Normal parcel/analysis reads from promoted internal data should not depend on public-provider request quotas.
+Return `429` + typed error/safe retry info.
 
-Return `429` + `RATE_LIMITED` and safe retry information where appropriate.
+Rate limit state does not become source “not found”.
 
-## 17. API versioning
+## 32. API versioning
 
-For MVP, version contracts through:
+Internal MVP contracts use:
 
-- stable endpoint semantics;
+- typed schema versions;
 - `analysisProfileVersion`;
 - `engineVersion`;
-- `dataRelease`;
-- exact source dataset versions;
-- rule versions;
-- typed schema changes.
+- data/rule versions.
 
-Before introducing breaking public/B2B API consumers, add explicit `/v1` versioning or equivalent via ADR.
+External B2B consumers require explicit `/v1` or equivalent before launch.
+
+## 33. API security acceptance
+
+- anonymous user cannot access another guest's project;
+- permanent user cannot access another user's project/report/order;
+- client cannot set admin role;
+- client cannot force source refresh;
+- client cannot select arbitrary source URL;
+- client cannot set paid amount or grant entitlement;
+- invalid payment webhook rejected;
+- share token is only valid for explicit shared scope;
+- raw source/Gemini/payment secrets are never returned.

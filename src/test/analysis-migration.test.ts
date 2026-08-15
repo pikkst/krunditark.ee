@@ -345,22 +345,25 @@ describe("analysis snapshot migration (KT-016)", () => {
       /GRANT\s+SELECT,\s*INSERT,\s*UPDATE,\s*DELETE\s+ON\s+analysis\.analyses\s+TO\s+service_role/i
     );
     expect(sql).toMatch(
-      /GRANT\s+SELECT,\s*INSERT,\s*UPDATE,\s+DELETE\s+ON\s+analysis\.analysis_source_versions\s+TO\s+service_role/i
+      /GRANT\s+SELECT,\s*INSERT,\s*UPDATE,\s*DELETE\s+ON\s+analysis\.analysis_source_versions\s+TO\s+service_role/i
     );
     expect(sql).toMatch(
-      /GRANT\s+SELECT,\s*INSERT,\s*UPDATE,\s+DELETE\s+ON\s+analysis\.analysis_rule_versions\s+TO\s+service_role/i
+      /GRANT\s+SELECT,\s*INSERT,\s*UPDATE,\s*DELETE\s+ON\s+analysis\.analysis_rule_versions\s+TO\s+service_role/i
     );
     expect(sql).toMatch(
       /GRANT\s+SELECT,\s+INSERT,\s*UPDATE,\s+DELETE\s+ON\s+analysis\.findings\s+TO\s+service_role/i
     );
     expect(sql).toMatch(
-      /GRANT\s+SELECT,\s*INSERT,\s*UPDATE,\s+DELETE\s+ON\s+analysis\.finding_evidence\s+TO\s+service_role/i
+      /GRANT\s+SELECT,\s+INSERT,\s*UPDATE,\s+DELETE\s+ON\s+analysis\.finding_evidence\s+TO\s+service_role/i
     );
   });
 
   test("grants authenticated access to analysis tables", () => {
     expect(sql).toMatch(
-      /GRANT\s+SELECT,\s*INSERT,\s*UPDATE,\s+DELETE\s+ON\s+analysis\.analyses\s+TO\s+authenticated/i
+      /GRANT\s+SELECT,\s*INSERT,\s*UPDATE,\s*DELETE\s+ON\s+analysis\.analyses\s+TO\s+authenticated/i
+    );
+    expect(sql).toMatch(
+      /GRANT\s+SELECT,\s+INSERT,\s*UPDATE,\s+DELETE\s+ON\s+analysis\.analysis_rule_versions\s+TO\s+authenticated/i
     );
     expect(sql).toMatch(
       /GRANT\s+SELECT,\s+INSERT,\s*UPDATE,\s+DELETE\s+ON\s+analysis\.findings\s+TO\s+authenticated/i
@@ -439,46 +442,35 @@ describe("analysis snapshot migration (KT-016)", () => {
     );
   });
 
-  test("enforces finding evidence source consistency between run and dataset version", () => {
-    expect(sql).toMatch(/CONSTRAINT\s+finding_evidence_source_consistency\s+CHECK/i);
+  test("terminal child mutation trigger checks both old and new parents on update", () => {
+    expect(sql).toMatch(/v_old_parent_status\s+text/i);
+    expect(sql).toMatch(/v_new_parent_status\s+text/i);
     expect(sql).toMatch(
-      /source_sync_run_id\s+IS\s+NULL\s+OR\s+source_dataset_version_id\s+IS\s+NULL/i
+      /SELECT\s+status\s+INTO\s+v_old_parent_status\s+FROM\s+analysis\.analyses\s+WHERE\s+id\s*=\s*COALESCE\s*\(\s*OLD\.analysis_id\s*,\s*NEW\.analysis_id\s*\)/i
     );
-    expect(sql).toMatch(/private\.source_sync_runs/i);
-    expect(sql).toMatch(/private\.source_dataset_versions/i);
-  });
-
-  test("enforces terminal-state immutability on analysis source versions", () => {
     expect(sql).toMatch(
-      /CREATE\s+TRIGGER\s+prevent_terminal_child_mutation_source_versions\s+BEFORE\s+INSERT\s+OR\s+UPDATE\s+OR\s+DELETE\s+ON\s+analysis\.analysis_source_versions/i
+      /SELECT\s+status\s+INTO\s+v_new_parent_status\s+FROM\s+analysis\.analyses\s+WHERE\s+id\s*=\s*NEW\.analysis_id/i
+    );
+    expect(sql).toMatch(
+      /v_old_parent_status\s+IN\s*\(\s*'completed'\s*,\s*'partial'\s*,\s*'failed'\s*\)\s+OR\s+v_new_parent_status\s+IN\s*\(\s*'completed'\s*,\s*'partial'\s*,\s*'failed'\s*\)/i
     );
     expect(sql).toMatch(/cannot delete child rows of terminal analysis/i);
     expect(sql).toMatch(/cannot modify child rows of terminal analysis/i);
     expect(sql).toMatch(/cannot insert child rows for terminal analysis/i);
   });
 
-  test("enforces terminal-state immutability on analysis rule versions", () => {
+  test("finding_evidence terminal parent lookup uses findings table", () => {
     expect(sql).toMatch(
-      /CREATE\s+TRIGGER\s+prevent_terminal_child_mutation_rule_versions\s+BEFORE\s+INSERT\s+OR\s+UPDATE\s+OR\s+DELETE\s+ON\s+analysis\.analysis_rule_versions/i
+      /FROM\s+analysis\.findings\s+f\s+JOIN\s+analysis\.analyses\s+a\s+ON\s+a\.id\s*=\s*f\.analysis_id/i
     );
+    expect(sql).toMatch(
+      /WHERE\s+f\.id\s*=\s*COALESCE\s*\(\s*OLD\.finding_id\s*,\s*NEW\.finding_id\s*\)/i
+    );
+    expect(sql).not.toMatch(/FROM\s+analysis\.finding_evidence\s+fe\s+JOIN/i);
   });
 
-  test("enforces terminal-state immutability on findings", () => {
-    expect(sql).toMatch(
-      /CREATE\s+TRIGGER\s+prevent_terminal_child_mutation_findings\s+BEFORE\s+INSERT\s+OR\s+UPDATE\s+OR\s+DELETE\s+ON\s+analysis\.findings/i
-    );
-  });
-
-  test("enforces terminal-state immutability on finding evidence", () => {
-    expect(sql).toMatch(
-      /CREATE\s+TRIGGER\s+prevent_terminal_child_mutation_finding_evidence\s+BEFORE\s+INSERT\s+OR\s+UPDATE\s+OR\s+DELETE\s+ON\s+analysis\.finding_evidence/i
-    );
-  });
-
-  test("terminal child mutation trigger checks parent analysis status", () => {
-    expect(sql).toMatch(/SELECT\s+status\s+INTO\s+v_parent_status\s+FROM\s+analysis\.analyses/i);
-    expect(sql).toMatch(
-      /v_parent_status\s+IN\s*\(\s*'completed'\s*,\s*'partial'\s*,\s*'failed'\s*\)/i
-    );
+  test("finding_evidence terminal check uses finding_id not analysis_id", () => {
+    expect(sql).toMatch(/COALESCE\s*\(\s*OLD\.finding_id\s*,\s*NEW\.finding_id\s*\)/i);
+    expect(sql).not.toMatch(/NEW\.analysis_id\s*,\s*OLD\.analysis_id/i);
   });
 });

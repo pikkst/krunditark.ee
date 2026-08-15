@@ -238,8 +238,8 @@ The repository includes `wrangler.jsonc`:
   "compatibility_date": "2026-08-15",
   "assets": {
     "directory": "./dist",
-    "not_found_handling": "single-page-application"
-  }
+    "not_found_handling": "single-page-application",
+  },
 }
 ```
 

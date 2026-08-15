@@ -24,12 +24,13 @@ Optional future public variables may include approved map-style URLs or public f
 
 - only public values use `VITE_` prefix;
 - never place secret/elevated keys in a Vite variable;
+- never create `VITE_GEMINI_API_KEY` or equivalent;
 - `.env.example` contains placeholders only;
 - `.env.local` and real environment files remain ignored.
 
-## 3. Supabase Edge Function secrets
+## 3. Supabase Edge Function secrets and server configuration
 
-Potential server-side configuration:
+Planned server-side configuration:
 
 ```text
 KRUNDITARK_ALLOWED_ORIGINS
@@ -38,16 +39,46 @@ KRUNDITARK_MARU_WFS_URL
 KRUNDITARK_PLANIS_WFS_URL
 KRUNDITARK_EELIS_WFS_URL
 KRUNDITARK_EHR_API_BASE_URL
-KRUNDITARK_LLM_PROVIDER
-KRUNDITARK_LLM_API_KEY
-KRUNDITARK_LLM_MODEL
+
+GEMINI_API_KEY
+KRUNDITARK_GEMINI_MODEL
+KRUNDITARK_GEMINI_TIMEOUT_MS
+KRUNDITARK_GEMINI_MAX_OUTPUT_TOKENS
 ```
 
-Exact provider/layer configuration should be explicit rather than arbitrary user-controlled URLs.
+`GEMINI_API_KEY` is the production AI credential and must exist only in the Supabase Edge Function/server secret environment.
+
+The Gemini model is deliberately configured through `KRUNDITARK_GEMINI_MODEL` instead of being duplicated across source files. Model selection can change independently from deterministic GIS/rules behavior.
+
+Google's current Gemini JavaScript documentation uses the Google GenAI SDK and supports `GEMINI_API_KEY` as the API-key environment variable. Implementation must verify the current official Google documentation before SDK/model upgrades:
+
+- https://ai.google.dev/api/generate-content
+- https://ai.google.dev/gemini-api/docs/migrate
+
+Exact government-provider layer configuration should be explicit rather than arbitrary user-controlled URLs.
 
 Supabase automatically provides platform environment values/credentials to Edge Functions; use the current Supabase-supported key mechanism and avoid manually copying elevated credentials into frontend config.
 
-## 4. Source configuration
+## 4. Gemini local development
+
+For local Edge Function development, a developer may provide:
+
+```dotenv
+GEMINI_API_KEY=<local-development-key>
+KRUNDITARK_GEMINI_MODEL=<approved-current-model-id>
+KRUNDITARK_GEMINI_TIMEOUT_MS=15000
+KRUNDITARK_GEMINI_MAX_OUTPUT_TOKENS=<approved-limit>
+```
+
+Rules:
+
+- the real key never belongs in `.env.example`;
+- tests use `FakeExplanationProvider` by default and do not require this key;
+- live Gemini tests are opt-in integration tests only;
+- CI must not call Gemini for ordinary unit/build validation;
+- never print `GEMINI_API_KEY` in test/debug output.
+
+## 5. Source configuration
 
 Prefer configuration like:
 
@@ -57,17 +88,19 @@ source ID -> approved base URL -> approved layer(s) -> timeout -> max features -
 
 Do not expose a generic environment variable that permits a user request to choose any fetch URL.
 
-## 5. Environment matrix
+## 6. Environment matrix
 
-| Environment | Frontend | Backend | Purpose |
-|---|---|---|---|
-| local | Vite localhost | local Supabase | development/tests |
-| preview | GitHub Pages | non-production Supabase | integration/demo |
-| production | final host/domain | production Supabase | public users |
+| Environment | Frontend | Backend | AI | Purpose |
+|---|---|---|---|---|
+| local | Vite localhost | local Supabase | fake by default / Gemini opt-in | development/tests |
+| preview | GitHub Pages | non-production Supabase | Gemini server-side if enabled | integration/demo |
+| production | final host/domain | production Supabase | Gemini server-side | public users |
 
 Use separate Supabase projects for preview and production once real user testing begins.
 
-## 6. Local prerequisites
+Use separately manageable Gemini credentials for non-production and production when the Google account/project setup permits it, so a development leak does not automatically compromise production.
+
+## 7. Local prerequisites
 
 Expected:
 
@@ -79,7 +112,7 @@ Expected:
 
 Add `.nvmrc`, `.node-version` or `engines` when the frontend scaffold chooses a Node version.
 
-## 7. `.gitignore` requirements
+## 8. `.gitignore` requirements
 
 Must ignore at least, according to generated tool layout:
 
@@ -96,7 +129,7 @@ Playwright local artifacts where appropriate
 
 Do not ignore `.env.example`.
 
-## 8. GitHub Actions configuration
+## 9. GitHub Actions configuration
 
 CI should not need production secrets for:
 
@@ -108,9 +141,11 @@ CI should not need production secrets for:
 
 Deployment variables/secrets should be scoped to the workflow/environment that needs them.
 
+Gemini live integration tests, if ever added, must be explicitly separated from ordinary PR CI and use a non-production restricted key.
+
 Never print secrets during CI troubleshooting.
 
-## 9. Auth redirect origins
+## 10. Auth redirect origins
 
 Maintain approved redirect origins per environment.
 
@@ -134,7 +169,7 @@ https://krunditark.ee
 
 Because the GitHub Pages phase may use hash routing, test the actual Supabase Auth callback flow before marking auth complete.
 
-## 10. CORS origins
+## 11. CORS origins
 
 Edge Functions should load a controlled list from server configuration.
 
@@ -150,7 +185,7 @@ production: https://krunditark.ee
 
 Use exact behavior appropriate to the deployed path and Supabase CORS implementation.
 
-## 11. Source endpoint changes
+## 12. Source endpoint changes
 
 Official government endpoints can change.
 
@@ -162,7 +197,21 @@ When changing endpoint/layer configuration:
 - run contract tests;
 - do not silently point a source ID to a semantically different dataset.
 
-## 12. Secret incident procedure
+## 13. Gemini SDK/model changes
+
+Gemini API and model availability can change independently of Krunditark releases.
+
+When changing SDK/model:
+
+- verify current official Google AI documentation;
+- update lockfile intentionally;
+- keep SDK types inside the Gemini adapter;
+- run structured-output and adversarial tests;
+- confirm timeout/rate/error mapping;
+- record selected model in deployment/release configuration;
+- do not alter deterministic finding semantics merely because a different Gemini model is selected.
+
+## 14. Secret incident procedure
 
 If a secret is committed or exposed:
 

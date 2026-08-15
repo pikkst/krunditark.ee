@@ -30,11 +30,11 @@ Mandatory companion docs:
 
 ## KT-001 — Initialize React/TypeScript/Vite application
 
-- [ ] React + TypeScript + Vite at repository root.
-- [ ] strict TypeScript.
-- [ ] source structure from `ARCHITECTURE.md`.
-- [ ] minimal Estonian application shell.
-- [ ] no secrets/placeholders that look like real credentials.
+- [x] React + TypeScript + Vite at repository root.
+- [x] strict TypeScript.
+- [x] source structure from `ARCHITECTURE.md`.
+- [x] minimal Estonian application shell.
+- [x] no secrets/placeholders that look like real credentials.
 
 Acceptance:
 

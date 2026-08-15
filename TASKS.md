@@ -11,6 +11,8 @@ Status legend:
 
 Do not skip phases merely because a later task looks easier. A task may be implemented earlier only when its dependencies are already satisfied and doing so does not create temporary insecure architecture.
 
+For all official-data work, `docs/DATA_REFRESH_AND_VERSIONING.md` and ADR 0005 are mandatory requirements.
+
 ---
 
 # Phase 0 — Repository and engineering foundation
@@ -19,7 +21,6 @@ Do not skip phases merely because a later task looks easier. A task may be imple
 
 - [ ] Create React + TypeScript + Vite application at repository root.
 - [ ] Enable TypeScript strict mode.
-- [ ] Configure path aliases only if they materially improve structure.
 - [ ] Add base directories: `src/app`, `src/components`, `src/features`, `src/lib`, `src/domain`, `src/types`, `src/styles`.
 - [ ] Add a minimal Estonian landing/application shell.
 - [ ] No backend secrets or placeholder secret values in source.
@@ -28,59 +29,44 @@ Acceptance:
 
 - `npm ci`, typecheck and production build succeed.
 - App renders locally.
-- No `any`-heavy scaffold.
 
 ## KT-002 — Add formatting, linting and test foundation
 
-- [ ] Add ESLint.
-- [ ] Add Prettier.
-- [ ] Add Vitest.
-- [ ] Add Testing Library if component testing is used.
-- [ ] Add scripts: `format:check`, `lint`, `typecheck`, `test`, `build`.
+- [ ] ESLint.
+- [ ] Prettier.
+- [ ] Vitest.
+- [ ] Testing Library where useful.
+- [ ] scripts: `format:check`, `lint`, `typecheck`, `test`, `build`.
 
 Acceptance:
 
-- All scripts run non-interactively.
-- A minimal test proves CI test execution works.
+- all scripts run non-interactively;
+- minimal test proves CI execution.
 
 ## KT-003 — Configure GitHub Actions CI
 
-- [ ] Run `npm ci` using committed lockfile.
-- [ ] Run format check.
-- [ ] Run lint.
-- [ ] Run TypeScript checks.
-- [ ] Run unit tests.
-- [ ] Run production build.
-- [ ] Cache dependencies safely.
+- [ ] `npm ci` using committed lockfile.
+- [ ] format, lint, typecheck, unit tests, production build.
+- [ ] safe dependency caching.
 
 Acceptance:
 
-- CI runs for pull requests and pushes to `main`.
-- Failed checks make the workflow fail.
+- CI runs on PRs and pushes to `main`;
+- failed checks fail the workflow.
 
 ## KT-004 — Configure GitHub Pages preview deployment
 
-- [ ] Add Pages deployment workflow after successful build.
-- [ ] Support repository-path hosting during the preview phase.
-- [ ] Use a routing strategy that works on GitHub Pages without a private server runtime.
-- [ ] Document custom-domain transition separately from preview routing.
-
-Acceptance:
-
-- `main` can deploy a production build to GitHub Pages.
-- Refresh/navigation behavior is covered by an E2E/smoke test or documented deployment test.
+- [ ] Pages deployment after successful build.
+- [ ] repository-path hosting supported.
+- [ ] routing works without private server runtime.
+- [ ] custom-domain transition documented separately.
 
 ## KT-005 — Add project environment contract
 
-- [ ] Add `.env.example` using non-secret placeholder values.
-- [ ] Ensure `.env`, `.env.local`, Supabase secret files and local credentials are ignored.
-- [ ] Frontend variables use only publishable configuration.
-- [ ] Document local/dev/production origin values.
-
-Acceptance:
-
-- `docs/ENVIRONMENT.md` matches actual variables.
-- No elevated secret can be required by frontend build.
+- [ ] `.env.example` with placeholders only.
+- [ ] ignore real environment/Supabase secret files.
+- [ ] frontend variables are publishable only.
+- [ ] Gemini key is never a `VITE_*` variable.
 
 ---
 
@@ -88,106 +74,76 @@ Acceptance:
 
 ## KT-010 — Initialize Supabase project structure
 
-- [ ] Add `supabase/config.toml` through the Supabase CLI initialization flow.
-- [ ] Add `supabase/migrations/`.
-- [ ] Add `supabase/functions/`.
-- [ ] Keep generated/local state out of git where appropriate.
-
-Acceptance:
-
-- Local Supabase can start with documented prerequisites.
-- Repository contains no cloud credentials.
+- [ ] `supabase/config.toml` through Supabase CLI.
+- [ ] `supabase/migrations/`.
+- [ ] `supabase/functions/`.
+- [ ] local/generated state ignored as appropriate.
 
 ## KT-011 — Enable PostGIS by migration
 
-- [ ] Enable PostGIS in a documented schema.
-- [ ] Verify `ST_Transform`, `ST_Intersects`, `ST_DWithin`, `ST_Distance` and GiST indexes are available.
-- [ ] Add a migration-level smoke test.
+- [ ] enable PostGIS.
+- [ ] verify required spatial functions and GiST indexes.
+- [ ] migration smoke test.
+
+## KT-012 — Create identity/profile tables
+
+- [ ] `profiles` keyed to Supabase Auth user ID.
+- [ ] minimal user/admin role model.
+- [ ] RLS; no client-controlled elevation.
+
+## KT-013 — Create project/proposal tables
+
+- [ ] `projects`.
+- [ ] versioned `project_proposals`.
+- [ ] cadastral identifier is selection, not proof of ownership.
+- [ ] footprint geometry/design parameters.
+- [ ] RLS and indexes.
+
+## KT-014 — Create source/provenance/version schemas
+
+Implement the source/data-release foundation from `docs/DATABASE_SCHEMA.md`:
+
+- [ ] `private.source_definitions`.
+- [ ] `private.source_sync_runs`.
+- [ ] `private.source_dataset_versions`.
+- [ ] `private.data_releases`.
+- [ ] `private.data_release_sources`.
+- [ ] normalized source snapshot relationships.
+- [ ] hashes/provenance metadata.
 
 Acceptance:
 
-- Fresh database setup enables required spatial functionality automatically.
-
-## KT-012 — Create core identity/profile tables
-
-- [ ] Create `profiles` keyed to Supabase Auth user ID.
-- [ ] Add timestamps.
-- [ ] Add minimal role model; no client-controlled admin elevation.
-- [ ] Add RLS.
-
-Acceptance:
-
-- Users can read/update only allowed own profile fields.
-- Anonymous access is denied unless explicitly documented.
-
-## KT-013 — Create project and proposal tables
-
-- [ ] Create `projects`.
-- [ ] Create `project_proposals` for planned buildings/structures.
-- [ ] Store cadastral identifier as a project reference, not proof of ownership.
-- [ ] Store footprint geometry and design parameters.
-- [ ] Add RLS and spatial indexes.
-
-Acceptance:
-
-- User A cannot access User B project data.
-- Geometry SRID is constrained and documented.
-
-## KT-014 — Create source/provenance schemas
-
-- [ ] Create internal tables for source definitions.
-- [ ] Create source fetch/run records.
-- [ ] Create source object snapshots/normalized object references.
-- [ ] Store raw payload hash rather than relying only on mutable remote state.
-- [ ] Keep internal tables out of public client access.
-
-Acceptance:
-
-- A normalized fact can be traced to one or more source retrieval records.
+- a normalized fact can be traced to exact source dataset version and sync run;
+- internal tables are not exposed to ordinary clients.
 
 ## KT-015 — Create rules-engine schema
 
-- [ ] Create rule definitions.
-- [ ] Create immutable/versioned rule versions.
-- [ ] Add effective dates and verification status.
-- [ ] Link rule versions to official source references.
-
-Acceptance:
-
-- Updating a rule does not erase the version used by an earlier analysis.
+- [ ] rule definitions.
+- [ ] immutable/versioned rule versions.
+- [ ] effective dates and verification status.
+- [ ] official source relationships.
+- [ ] legal change candidate table.
 
 ## KT-016 — Create analysis snapshot schema
 
-- [ ] Create `analyses`.
-- [ ] Create `analysis_findings`.
-- [ ] Create evidence relationships.
-- [ ] Store engine version and input snapshot.
-- [ ] Make completed analyses reproducible/immutable through application rules and permissions.
-
-Acceptance:
-
-- A completed finding can identify exact rule version and evidence/source records.
+- [ ] analyses/findings/evidence.
+- [ ] exact `data_release_id`.
+- [ ] exact rule-version references.
+- [ ] engine/input version metadata.
+- [ ] completed analyses immutable.
 
 ## KT-017 — Add audit logging model
 
-- [ ] Create internal audit log for security/administrative changes.
-- [ ] Do not record secrets/tokens.
-- [ ] Capture actor, action, target, timestamp and structured safe metadata.
-
-Acceptance:
-
-- Administrative rule/source changes can be audited.
+- [ ] actor/action/target/timestamp/safe metadata.
+- [ ] include source promotion/manual refresh/legal-rule verification events.
+- [ ] never log credentials.
 
 ## KT-018 — Add database and RLS test suite
 
-- [ ] Test anonymous access.
-- [ ] Test authenticated ownership isolation.
-- [ ] Test internal schemas are unavailable to ordinary clients.
-- [ ] Test admin/service operations only through intended paths.
-
-Acceptance:
-
-- Clean-database CI can run RLS tests.
+- [ ] anonymous access.
+- [ ] ownership isolation.
+- [ ] internal schemas unavailable to ordinary clients.
+- [ ] admin/server-only source sync/promotion behavior.
 
 ---
 
@@ -195,56 +151,40 @@ Acceptance:
 
 ## KT-020 — Define cadastral parcel domain model
 
-- [ ] Add provider-independent TypeScript model.
-- [ ] Include cadastral identifier, geometry, address where available, area, land-use facts where sourced, source metadata and freshness.
-- [ ] Do not include provider SDK types in domain model.
+- [ ] provider-independent TypeScript model.
+- [ ] cadastral ID, geometry, basic facts, source dataset version, freshness.
+- [ ] no provider SDK types.
 
-Acceptance:
+## KT-021 — Define building proposal model
 
-- Model can be created from a deterministic fixture without network access.
+Include:
 
-## KT-021 — Define building proposal domain model
-
-- [ ] Building/structure category.
-- [ ] footprint polygon.
-- [ ] width/length when applicable.
-- [ ] floor area / building footprint area.
-- [ ] height.
-- [ ] storeys.
-- [ ] intended use.
-- [ ] orientation.
-- [ ] optional notes.
-
-Acceptance:
-
-- Invalid/empty/self-intersecting proposal geometry is rejected or normalized under explicit rules.
+- [ ] structure category;
+- [ ] footprint polygon;
+- [ ] dimensions/area;
+- [ ] height/storeys;
+- [ ] intended use;
+- [ ] orientation;
+- [ ] notes.
 
 ## KT-022 — Define normalized spatial constraint model
 
-- [ ] Constraint stable ID.
-- [ ] Category/subcategory.
-- [ ] Geometry.
-- [ ] source/evidence reference.
-- [ ] legal/source reference where applicable.
+Include:
+
+- [ ] stable source object ID;
+- [ ] category/subcategory;
+- [ ] geometry/impact geometry;
+- [ ] exact source dataset version;
+- [ ] legal/source references where applicable;
 - [ ] effective/freshness metadata.
-- [ ] human-safe labels in Estonian.
-
-Acceptance:
-
-- Same internal model can represent at least cadastral restrictions, environmental restrictions and planning areas without losing source-specific metadata.
 
 ## KT-023 — Define finding and Ehituspass contracts
 
-- [ ] Structured finding states: `clear`, `condition`, `conflict`, `unknown`.
-- [ ] Severity/priority distinct from state.
-- [ ] Evidence/provenance fields.
-- [ ] Next actions.
-- [ ] Official links.
-- [ ] Data freshness/completeness metadata.
-
-Acceptance:
-
-- Contract cannot represent a material authoritative finding without evidence references.
+- [ ] states: `clear`, `condition`, `conflict`, `unknown`.
+- [ ] severity distinct from state.
+- [ ] evidence/provenance.
+- [ ] next actions/official links.
+- [ ] data release + source freshness/completeness.
 
 ---
 
@@ -252,51 +192,31 @@ Acceptance:
 
 ## KT-030 — Implement cadastral identifier validation
 
-- [ ] Validate expected Estonian cadastral identifier format.
-- [ ] Normalize whitespace/presentation.
-- [ ] Return typed validation errors.
+- [ ] validate/normalize Estonian cadastral identifier format.
+- [ ] typed errors and tests.
 
-Acceptance:
+## KT-031 — Implement Maa- ja Ruumiamet cadastral adapter
 
-- Unit tests cover valid, invalid and malformed identifiers.
-
-## KT-031 — Implement Maa- ja Ruumiamet cadastral WFS adapter
-
-- [ ] Server-side adapter in Edge Function/shared server module.
-- [ ] Configurable endpoint.
-- [ ] Timeout, retry and maximum response size.
-- [ ] Schema validation.
-- [ ] Normalize parcel geometry and metadata.
-- [ ] Record source retrieval provenance.
-
-Acceptance:
-
-- Fixture tests pass offline.
-- Live integration test is optional/separate and must not gate normal unit tests.
+- [ ] server-side WFS/API adapter.
+- [ ] verified configured endpoint/layer.
+- [ ] timeout/retry/max response size.
+- [ ] schema validation.
+- [ ] normalization to domain/source snapshot format.
+- [ ] deterministic fixtures.
 
 ## KT-032 — Implement parcel lookup API
 
-- [ ] `GET /parcel/:cadastralId` equivalent Edge Function contract.
-- [ ] Input validation.
-- [ ] normalized response.
-- [ ] source freshness metadata.
-- [ ] explicit not-found/source-unavailable errors.
+- [ ] stable Krunditark response contract.
+- [ ] source dataset version/data release/freshness metadata.
+- [ ] correct not-found vs unavailable semantics.
 
-Acceptance:
-
-- UI never needs to parse WFS/GML/provider payload directly.
+During transition before replicated cadastral data exists, a bounded server-side lookup may be used. Production must follow the registered source refresh policy.
 
 ## KT-033 — Implement parcel search UI
 
-- [ ] Estonian cadastral input.
-- [ ] loading, validation, not-found and provider-unavailable states.
-- [ ] result summary.
-- [ ] open parcel on map action.
-
-Acceptance:
-
-- Keyboard accessible.
-- No false “not found” when upstream status is actually unavailable.
+- [ ] cadastral input.
+- [ ] loading/validation/not-found/unavailable states.
+- [ ] result summary and open-map action.
 
 ---
 
@@ -304,129 +224,140 @@ Acceptance:
 
 ## KT-040 — Add MapLibre map shell
 
-- [ ] Show Estonia-centered default map.
-- [ ] Include required source attribution.
-- [ ] Support parcel zoom/fit.
-- [ ] Keep map component separated from analysis domain logic.
-
-Acceptance:
-
-- Map renders on GitHub Pages and mobile viewport.
+- [ ] Estonia-centered map.
+- [ ] required attribution.
+- [ ] parcel fit/zoom.
+- [ ] mobile support.
 
 ## KT-041 — Render selected parcel
 
-- [ ] Transform server result to map display coordinates correctly.
-- [ ] Show parcel boundary and key facts.
-- [ ] Distinguish source geometry from user drawing.
-
-Acceptance:
-
-- Fixture parcel renders at expected location and extent.
+- [ ] correct CRS transformation.
+- [ ] parcel boundary/key facts.
+- [ ] source geometry distinct from user drawing.
 
 ## KT-042 — Add proposal drawing/editing
 
-- [ ] Draw polygon/rectangle.
-- [ ] Move/rotate where supported.
-- [ ] Edit dimensions.
-- [ ] Delete/reset proposal.
-- [ ] Validate polygon before saving.
-
-Acceptance:
-
-- User can create a simple house/sauna/shed footprint without GIS expertise.
+- [ ] draw rectangle/polygon.
+- [ ] move/rotate/edit dimensions where supported.
+- [ ] delete/reset.
+- [ ] validate before save.
 
 ## KT-043 — Add proposal parameter form
 
-- [ ] structure type.
-- [ ] dimensions/area.
-- [ ] height.
-- [ ] storeys.
-- [ ] intended use.
-- [ ] accessible validation.
-
-Acceptance:
-
-- Map and form stay synchronized.
+- [ ] type, dimensions/area, height, storeys, intended use.
+- [ ] map/form synchronization.
 
 ## KT-044 — Add server-side proposal geometry validation
 
-- [ ] Verify geometry validity.
-- [ ] Verify expected SRID.
-- [ ] Verify reasonable bounds and size limits.
-- [ ] Compute canonical area/perimeter server-side.
-
-Acceptance:
-
-- Client cannot forge authoritative area/distance values.
+- [ ] validity/SRID/bounds/size checks.
+- [ ] canonical area/perimeter computed server-side.
 
 ---
 
-# Phase 5 — Official restriction and planning data
+# Phase 5 — Official sources and scheduled data releases
 
-## KT-050 — Implement cadastral restrictions WFS adapter
+## KT-050 — Implement cadastral restrictions adapter
 
-- [ ] Integrate Maa- ja Ruumiamet restriction zones.
-- [ ] Normalize geometry/categories.
-- [ ] preserve source IDs and provenance.
-- [ ] fixture tests.
+- [ ] MaRu restriction zones.
+- [ ] normalized geometry/categories/source IDs.
+- [ ] deterministic fixture tests.
 
-Acceptance:
+## KT-051 — Implement PLANIS adapter
 
-- Proposal/parcel can be checked against supported restriction geometries.
+- [ ] supported planning records/geometries.
+- [ ] plan ID/type/status/official link.
+- [ ] no claim of full textual-plan compliance from polygon alone.
 
-## KT-051 — Implement PLANIS WFS adapter
+## KT-052 — Implement EELIS environmental adapters
 
-- [ ] Query planning areas relevant to parcel/bounding box.
-- [ ] Normalize plan identifiers, type/status and geometry.
-- [ ] Preserve official links/files where available.
-- [ ] Do not treat mere plan-area intersection as a complete interpretation of detailed plan conditions.
-
-Acceptance:
-
-- System can say that a supported planning overlay exists and distinguish this from having parsed all textual conditions.
-
-## KT-052 — Implement EELIS environmental WFS adapter
-
-- [ ] Integrate explicitly selected public environmental layers.
-- [ ] Normalize categories and geometry.
-- [ ] Respect non-public/sensitive data limitations.
-- [ ] Return `unknown`/manual-verification guidance for unsupported hidden data cases.
-
-Acceptance:
-
-- Public absence is never used to claim that no protected non-public object can exist.
+- [ ] explicitly selected public layers only.
+- [ ] normalize geometry/categories.
+- [ ] respect hidden/non-public data limits.
+- [ ] use `unknown`/manual verification where necessary.
 
 ## KT-053 — Implement heritage-source adapter
 
-- [ ] Use an official machine-readable service when available and verified.
-- [ ] Normalize monuments/protection areas relevant to MVP.
-- [ ] Preserve official registry links.
+- [ ] verify an official machine-readable source first.
+- [ ] monument/protection geometry and official links.
+- [ ] no unofficial authoritative substitute.
+
+## KT-054 — Implement road/access adapter
+
+- [ ] official state-road/protection/access context where machine-readable.
+- [ ] semantic rules separate condition/coordination from prohibition.
+
+## KT-055 — Implement source registry refresh/freshness policy
+
+- [ ] each source declares `refresh_policy`.
+- [ ] baseline replicated policy is `monthly_snapshot`.
+- [ ] freshness warning/critical thresholds.
+- [ ] release-blocking behavior.
+- [ ] verification policy.
+- [ ] replication/retention decision.
 
 Acceptance:
 
-- No unofficial secondary dataset is used as authoritative source.
+- no implemented source has implicit refresh semantics;
+- normal user analysis does not control refresh behavior.
 
-## KT-054 — Implement road/access source adapter
+## KT-056 — Implement source synchronization pipeline
 
-- [ ] Normalize state-road proximity/related official data available for automated use.
-- [ ] Identify when Transpordiamet review/coordination may be relevant through rules, not generic text guessing.
-- [ ] Keep local/private-road access as separate/unknown when source support is incomplete.
-
-Acceptance:
-
-- State-road finding has official evidence and does not imply an approval decision.
-
-## KT-055 — Add source cache and freshness policy
-
-- [ ] Cache normalized source objects according to source-specific policy.
-- [ ] Keep `retrieved_at` and source version/update metadata.
-- [ ] Permit forced refresh for analysis when required.
-- [ ] Avoid uncontrolled duplicate provider calls.
+- [ ] privileged server-side sync orchestration.
+- [ ] staging/candidate writes.
+- [ ] source schema/CRS/required-field validation.
+- [ ] stable-ID/hash change detection.
+- [ ] complete-fetch proof before deletion detection.
+- [ ] candidate dataset version creation.
+- [ ] idempotency and overlap locking.
+- [ ] bounded batching/checkpoints where needed.
 
 Acceptance:
 
-- UI can show freshness.
-- Old cache does not masquerade as freshly checked data.
+- repeated identical sync is safe/idempotent;
+- failed/incomplete sync cannot replace active data;
+- Gemini is never called in normal sync.
+
+## KT-057 — Implement source dataset promotion and composite data releases
+
+- [ ] source candidate quality gates.
+- [ ] automatic vs manual verification policy.
+- [ ] transactional source-version promotion.
+- [ ] composite `data_release` creation.
+- [ ] exact source-version membership.
+- [ ] carried-forward/freshness state.
+
+Acceptance:
+
+- readers never observe half-promoted releases;
+- old release remains immutable/reproducible.
+
+## KT-058 — Schedule monthly source reconciliation with Supabase Cron
+
+- [ ] migration/config enables required scheduling mechanism.
+- [ ] schedule monthly full reconciliation for due `monthly_snapshot` sources.
+- [ ] orchestration invokes privileged Edge Function/server workflow.
+- [ ] duplicate schedule invocation remains idempotent.
+- [ ] retries/failures observable.
+- [ ] manual/emergency source refresh supported through controlled admin/server path.
+
+Acceptance:
+
+- scheduled job can run without user traffic;
+- missed/failed sync does not erase last verified data.
+
+## KT-059 — Add source health, legal change detection and monitoring
+
+- [ ] last successful sync/next due time.
+- [ ] fetched/added/changed/removed metrics.
+- [ ] abnormal-diff quarantine threshold.
+- [ ] stale critical source alert state.
+- [ ] source schema-change handling.
+- [ ] Riigi Teataja/legal source diff candidate workflow.
+- [ ] legal change cannot auto-promote rule interpretation.
+
+Acceptance:
+
+- an admin can determine whether production data is fresh and why a release was rejected/carried forward.
 
 ---
 
@@ -434,49 +365,26 @@ Acceptance:
 
 ## KT-060 — Implement parcel containment checks
 
-- [ ] Proposal contained by parcel.
-- [ ] Proposal crosses parcel boundary.
-- [ ] Proposal touches parcel boundary.
-- [ ] Compute distances using metric CRS.
-
-Acceptance:
-
-- Deterministic PostGIS tests include boundary-touch cases.
+- [ ] contained/crossing/touching.
+- [ ] metric distances.
+- [ ] deterministic PostGIS tests.
 
 ## KT-061 — Implement generic constraint intersection evaluator
 
-- [ ] `ST_Intersects`/appropriate predicates.
-- [ ] intersection area/length where meaningful.
-- [ ] nearest distance when no intersection.
-- [ ] evidence geometry reference.
-
-Acceptance:
-
-- Same engine can evaluate normalized layers without source-specific UI code.
+- [ ] correct spatial predicates.
+- [ ] intersection measurements.
+- [ ] nearest distance where meaningful.
+- [ ] evidence/source version reference.
 
 ## KT-062 — Implement geometry evidence output
 
-- [ ] Produce map-safe evidence geometry/summary for conflicts.
-- [ ] Avoid returning excessively large geometries to browser.
-- [ ] Include source attribution.
-
-Acceptance:
-
-- User can visually see why a finding was triggered.
+- [ ] map-safe evidence geometry/summary.
+- [ ] avoid excessive browser geometry.
+- [ ] attribution.
 
 ## KT-063 — Add GIS regression fixture suite
 
-- [ ] contained.
-- [ ] crossing.
-- [ ] touching.
-- [ ] 1 cm / 1 m / configured threshold boundary cases.
-- [ ] invalid geometry.
-- [ ] multipolygon.
-- [ ] holes/interior rings where relevant.
-
-Acceptance:
-
-- Results are deterministic across clean database runs.
+Cover contained, crossing, touching, near-threshold, invalid geometry, multipolygon and holes where applicable.
 
 ---
 
@@ -484,64 +392,38 @@ Acceptance:
 
 ## KT-070 — Implement rule evaluator interface
 
-- [ ] Provider-independent inputs.
-- [ ] Versioned rule identifier.
+- [ ] provider-independent inputs.
+- [ ] versioned rule ID.
 - [ ] deterministic output.
-- [ ] no network or LLM calls inside evaluator.
-
-Acceptance:
-
-- Rule evaluation can run entirely from fixtures.
+- [ ] no network/Gemini calls.
 
 ## KT-071 — Implement rule provenance enforcement
 
-- [ ] Production finding requires verified rule version.
-- [ ] Verified rule requires official source reference.
-- [ ] Analysis persists exact version used.
-
-Acceptance:
-
-- Database/API prevents a completed authoritative finding from referencing only a mutable rule name.
+- [ ] verified production rule requires official source.
+- [ ] analysis stores exact rule version.
 
 ## KT-072 — Implement initial Ehitusseadustik permit-path rules
 
-- [ ] Model only rules verified against the current official law/version.
-- [ ] Cover MVP-supported structure categories/parameters.
-- [ ] Return `unknown` outside supported matrix.
-- [ ] Add boundary tests for thresholds.
-
-Acceptance:
-
-- Every threshold has official source metadata and tests immediately below/equal/above threshold where relevant.
+- [ ] only verified supported structure matrix.
+- [ ] `unknown` outside matrix.
+- [ ] threshold boundary tests.
 
 ## KT-073 — Implement initial spatial restriction rules
 
-- [ ] Convert supported GIS intersections into deterministic finding categories.
-- [ ] Do not automatically label every protection-zone intersection “prohibited”.
-- [ ] Encode whether it means conflict, condition or manual authority review according to verified source/rule.
-
-Acceptance:
-
-- Rule semantics distinguish protection/coordination requirements from absolute prohibitions.
+- [ ] convert supported GIS facts into deterministic findings.
+- [ ] do not treat every protection zone as automatic prohibition.
 
 ## KT-074 — Implement planning completeness rule
 
-- [ ] Distinguish “planning area detected” from “all plan textual conditions parsed”.
-- [ ] Return manual verification requirement where textual plan provisions are not yet machine interpreted.
-
-Acceptance:
-
-- MVP never claims detailed-plan compliance solely from polygon containment.
+- [ ] planning area detected != all textual conditions parsed.
+- [ ] manual verification where needed.
 
 ## KT-075 — Add rule verification workflow
 
-- [ ] `draft -> verified -> retired` lifecycle.
-- [ ] Store verifier, verified timestamp and source version.
-- [ ] Admin-only transition to verified.
-
-Acceptance:
-
-- Unverified rule versions cannot be used as authoritative production findings.
+- [ ] `draft -> verified -> retired`.
+- [ ] verifier/time/source version.
+- [ ] admin-only verification.
+- [ ] legal-change candidates can mark rules for review without auto-changing them.
 
 ---
 
@@ -549,49 +431,38 @@ Acceptance:
 
 ## KT-080 — Implement analysis orchestrator
 
-- [ ] Validate proposal.
-- [ ] resolve parcel.
-- [ ] obtain required source data.
+- [ ] validate proposal.
+- [ ] select latest eligible promoted data release.
+- [ ] pin exact release/source versions for whole analysis.
+- [ ] resolve parcel/source facts from that release.
+- [ ] calculate freshness/completeness.
 - [ ] compute GIS facts.
 - [ ] evaluate verified rules.
-- [ ] calculate source completeness/freshness.
-- [ ] persist immutable analysis snapshot.
+- [ ] persist immutable analysis.
 
 Acceptance:
 
-- Same frozen inputs/rule versions produce identical structured result.
+- same frozen inputs + data release + rule versions produce identical structured result;
+- analysis never bulk-refreshes national sources.
 
 ## KT-081 — Implement analysis API endpoint
 
-- [ ] Authenticated saved-project path.
-- [ ] Optional public/guest path only if rate/security requirements are satisfied.
-- [ ] Idempotency key for analysis requests.
+- [ ] authenticated saved-project path.
+- [ ] idempotency.
 - [ ] typed progress/failure states.
+- [ ] return selected data release metadata.
 
-Acceptance:
+## KT-082 — Implement partial/stale source semantics
 
-- Repeated idempotent request does not create contradictory duplicate snapshots.
+- [ ] stale source distinct from missing/no matches.
+- [ ] critical unknowns visible.
+- [ ] successful independent findings survive unrelated source failure.
 
-## KT-082 — Implement partial-source failure semantics
+## KT-083 — Implement deterministic summary classification
 
-- [ ] Distinguish provider timeout from no matching objects.
-- [ ] Mark affected categories `unknown`.
-- [ ] Do not discard successful independent findings.
-
-Acceptance:
-
-- One failed data source cannot cause “all clear”.
-
-## KT-083 — Implement analysis summary classification
-
-- [ ] Derive overall summary from structured findings.
-- [ ] A conflict cannot be hidden by clear findings.
-- [ ] Unknown critical categories remain visible.
-- [ ] Avoid fake probability score.
-
-Acceptance:
-
-- Summary logic is deterministic and unit tested.
+- [ ] conflicts cannot be hidden.
+- [ ] unknown critical categories remain visible.
+- [ ] no fake buildability probability.
 
 ---
 
@@ -599,117 +470,78 @@ Acceptance:
 
 ## KT-090 — Build analysis progress experience
 
-- [ ] Show source/check groups being evaluated.
-- [ ] Avoid fake progress percentages unless based on real steps.
-- [ ] Handle source timeout/retry states.
-
-Acceptance:
-
-- User understands whether analysis is still running, partially complete or failed.
+- [ ] real analysis steps, not fake percentages.
+- [ ] preparing/evaluating/partial/failed states.
 
 ## KT-091 — Build Ehituspass overview
 
-- [ ] Overall result.
+- [ ] overall result.
 - [ ] parcel/proposal summary.
-- [ ] critical findings.
-- [ ] unknown/manual-review items.
-- [ ] source freshness.
-
-Acceptance:
-
-- No important warning is hidden below a generic green score.
+- [ ] critical findings and unknowns.
+- [ ] data release and freshness.
 
 ## KT-092 — Build finding cards
 
-- [ ] textual state label.
+Each card includes:
+
+- [ ] textual state/severity.
 - [ ] plain Estonian explanation.
-- [ ] source.
-- [ ] source date.
+- [ ] source and source date/version.
 - [ ] official link.
 - [ ] next action.
 - [ ] map evidence action.
 
-Acceptance:
-
-- Accessible without relying on red/yellow/green alone.
-
 ## KT-093 — Build map finding overlays
 
-- [ ] Select finding to highlight triggering geometry.
-- [ ] Show proposal and parcel simultaneously.
-- [ ] Source attribution remains visible.
+- [ ] highlight triggering geometry.
+- [ ] proposal + parcel visible.
+- [ ] source attribution.
 
-Acceptance:
+## KT-094 — Build next-steps checklist
 
-- Spatial conflict can be understood visually and textually.
-
-## KT-094 — Build “what should I do next?” checklist
-
-- [ ] Derived from structured findings/actions.
-- [ ] Ordered by blockers/dependencies.
-- [ ] Official action links where known.
-- [ ] Clearly distinguish required/likely/manual-check actions.
-
-Acceptance:
-
-- Checklist contains no AI-invented requirement.
+- [ ] deterministic structured actions.
+- [ ] dependency/blocker ordering.
+- [ ] official links.
+- [ ] required/likely/manual-check distinction.
 
 ---
 
-# Phase 10 — AI explanation layer
+# Phase 10 — Google Gemini explanation layer
 
-## KT-100 — Define LLM provider interface
+## KT-100 — Define explanation provider interface
 
-- [ ] Provider-neutral interface.
-- [ ] No provider types in domain layer.
-- [ ] Configured only server-side.
-- [ ] timeouts and token/output limits.
+- [ ] provider-neutral domain interface.
+- [ ] Gemini production adapter selected by configuration.
+- [ ] no Google SDK types in domain layer.
+- [ ] timeouts/output limits.
 
-Acceptance:
+## KT-101 — Implement Gemini explanation input contract
 
-- Deterministic analysis works with AI completely disabled.
+- [ ] structured immutable analysis only.
+- [ ] minimal approved evidence/excerpts.
+- [ ] evidence separated from instructions.
+- [ ] explicitly prohibit changing finding state.
 
-## KT-101 — Implement explanation input contract
+## KT-102 — Implement Gemini structured response validation/cache
 
-- [ ] Pass only structured analysis data and approved source excerpts/metadata.
-- [ ] Separate evidence from system instructions.
-- [ ] Explicitly prohibit status/rule modification.
+- [ ] schema validation.
+- [ ] supplied finding/source IDs only.
+- [ ] deterministic fallback on failure.
+- [ ] reuse stored validated explanation for same immutable analysis where allowed.
 
-Acceptance:
+## KT-103 — Add AI adversarial tests
 
-- Prompt does not ask model to decide legality independently.
+- [ ] prompt injection in source/user text.
+- [ ] request to ignore restriction.
+- [ ] request to convert `unknown` to allowed.
+- [ ] fabricated source URL.
+- [ ] malformed response/timeout/rate limit.
 
-## KT-102 — Implement structured AI response validation
+## KT-104 — Add Ask Krunditark follow-up mode
 
-- [ ] Schema-validate output.
-- [ ] Require references to supplied finding IDs.
-- [ ] reject unknown source IDs.
-- [ ] fallback to deterministic templated explanation on failure.
-
-Acceptance:
-
-- AI failure never prevents access to the factual Ehituspass.
-
-## KT-103 — Add prompt-injection and source-text isolation tests
-
-- [ ] malicious source/document text.
-- [ ] user prompt asking model to ignore restrictions.
-- [ ] request to convert unknown to allowed.
-- [ ] fabricated source URL attempt.
-
-Acceptance:
-
-- AI cannot change deterministic finding states or cite an unsupplied source.
-
-## KT-104 — Add “Ask Krunditark” follow-up mode
-
-- [ ] Questions limited to selected project/analysis evidence in MVP.
-- [ ] Responses cite finding/source IDs.
-- [ ] state limitations clearly.
-
-Acceptance:
-
-- Follow-up answer cannot introduce uncited legal facts as project-specific conclusions.
+- [ ] selected analysis evidence only.
+- [ ] cited finding/source IDs.
+- [ ] no source refresh from a chat question.
 
 ---
 
@@ -717,146 +549,101 @@ Acceptance:
 
 ## KT-110 — Implement Supabase Auth UX
 
-- [ ] Choose MVP auth method (prefer low-friction email magic link/OTP unless product owner changes it).
-- [ ] GitHub Pages callback routing supported.
+- [ ] low-friction approved auth method.
+- [ ] GitHub Pages callback routing.
 - [ ] clear session/error states.
-
-Acceptance:
-
-- Auth secrets remain server-side/platform-managed.
 
 ## KT-111 — Implement project dashboard
 
-- [ ] list saved projects.
-- [ ] show parcel identifier and last analysis date/status.
-- [ ] create/open/delete permitted own projects.
-
-Acceptance:
-
-- RLS tests prove ownership isolation.
+- [ ] list/create/open/archive/delete own projects.
+- [ ] last analysis date/status/data release.
+- [ ] RLS isolation.
 
 ## KT-112 — Implement analysis history
 
-- [ ] List immutable analysis snapshots.
-- [ ] Show data/rule version date.
-- [ ] Allow rerun as a new analysis.
-
-Acceptance:
-
-- Reanalysis does not overwrite prior evidence/history.
+- [ ] immutable snapshots.
+- [ ] data release/rule version visible.
+- [ ] rerun creates new analysis against latest eligible release.
 
 ---
 
 # Phase 12 — EHR and richer project context
 
-## KT-120 — Research and document E-ehitus/EHR API access for MVP fields
+## KT-120 — Research/document E-ehitus/EHR API
 
-- [ ] Identify exact official endpoints and authentication/access conditions.
-- [ ] Document which data can be consumed publicly/server-side.
-- [ ] Add sample fixtures only after terms/access are confirmed.
-
-Acceptance:
-
-- No guessed endpoint or undocumented scraping dependency.
+- [ ] exact endpoints/access/auth/terms/rate limits.
+- [ ] fields relevant to Krunditark.
+- [ ] replication/storage permission.
+- [ ] choose `monthly_snapshot`, incremental sync or justified `live_lookup` policy.
 
 ## KT-121 — Implement supported EHR adapter
 
-- [ ] Existing building facts relevant to parcel/proposal.
-- [ ] source provenance.
-- [ ] typed unavailable/restricted states.
-
-Acceptance:
-
-- Existing-building data can inform analysis without exposing restricted records.
+- [ ] existing building facts.
+- [ ] provenance/source version.
+- [ ] typed unavailable/restricted state.
+- [ ] integrate with the source version/release model.
 
 ---
 
-# Phase 13 — Reporting and export
+# Phase 13 — Reporting/export
 
-## KT-130 — Implement printable Ehituspass view
+## KT-130 — Implement printable Ehituspass
 
-- [ ] A4-friendly browser print CSS.
-- [ ] source citations/links.
-- [ ] generation timestamp.
+- [ ] A4-friendly CSS.
+- [ ] data release/source/rule citations.
+- [ ] generation timestamp and source-data dates distinguished.
 - [ ] disclaimer.
-- [ ] parcel/proposal identifiers.
 
-Acceptance:
+## KT-131 — Evaluate PDF architecture
 
-- Printed result retains warnings and provenance.
-
-## KT-131 — Evaluate PDF generation architecture
-
-- [ ] Decide client print-to-PDF vs server-generated signed/versioned report.
-- [ ] Create ADR before adding heavy PDF infrastructure.
-
-Acceptance:
-
-- No PDF architecture is introduced without provenance/version requirements.
+- [ ] client print-to-PDF vs signed/versioned server report.
+- [ ] ADR before heavy PDF infrastructure.
 
 ---
 
-# Phase 14 — Utility and cost intelligence (post-core MVP unless promoted)
+# Phase 14 — Utility and cost intelligence
 
 ## KT-140 — Define utility availability model
 
-- [ ] Electricity.
-- [ ] water.
-- [ ] sewerage.
-- [ ] telecommunications.
-- [ ] distinguish network proximity from actual connection availability/capacity.
+- [ ] electricity/water/sewer/telecom.
+- [ ] network proximity != connection capacity/availability.
 
-## KT-141 — Research official/provider utility data access
+## KT-141 — Research official/provider utility data
 
-- [ ] document APIs/maps/terms.
-- [ ] identify data that requires provider quote/manual request.
+- [ ] APIs/maps/terms.
+- [ ] snapshot vs live-quote semantics.
 
 ## KT-142 — Add cost estimate model
 
-- [ ] official fees vs market ranges vs provider quote.
-- [ ] source/date/region.
-- [ ] assumptions and uncertainty.
+- [ ] official fee vs market estimate vs provider quote.
+- [ ] source/date/region/assumptions.
 
 ---
 
 # Phase 15 — Security, privacy and production hardening
 
-## KT-150 — Add Edge Function rate limiting
+## KT-150 — Add rate limiting
 
-- [ ] Public/source-expensive endpoints protected.
-- [ ] authenticated per-user limits.
-- [ ] avoid storing unnecessary raw IP history.
+Protect public/expensive analysis, AI and manual-refresh endpoints.
 
 ## KT-151 — Add CORS production policy
 
-- [ ] GitHub Pages preview origin.
-- [ ] `https://krunditark.ee` production origin when enabled.
-- [ ] no wildcard credentials policy.
+Support preview and `https://krunditark.ee`; no insecure wildcard credential policy.
 
 ## KT-152 — Add security headers/deployment checks
 
-- [ ] CSP strategy compatible with map/Supabase endpoints.
-- [ ] HSTS when custom HTTPS domain is production-ready.
-- [ ] referrer policy.
-- [ ] MIME/content-type protection where hosting supports it.
+CSP/HSTS/referrer/content-type policies as hosting permits.
 
 ## KT-153 — Add privacy/retention implementation
 
-- [ ] user project deletion.
-- [ ] account deletion path.
-- [ ] retention schedule for logs/cache/AI payloads.
-- [ ] document subprocessors/provider policy before production AI use.
+- [ ] user/account deletion.
+- [ ] source/raw payload retention.
+- [ ] AI payload retention.
+- [ ] provider/subprocessor privacy decision.
 
 ## KT-154 — Perform pre-production threat review
 
-- [ ] auth bypass.
-- [ ] RLS bypass.
-- [ ] source response poisoning.
-- [ ] prompt injection.
-- [ ] geometry/resource exhaustion.
-- [ ] SSRF in source adapters.
-- [ ] oversized file/payload.
-- [ ] secret leakage.
+Cover auth/RLS bypass, source poisoning, sync endpoint abuse, prompt injection, geometry exhaustion, SSRF, oversized payloads, secret leakage.
 
 ---
 
@@ -864,36 +651,27 @@ Acceptance:
 
 ## KT-160 — Verify `.ee` registrar/DNS options at migration time
 
-- [ ] Re-check Cloudflare Registrar support for `.ee` before planning a registrar transfer.
-- [ ] If unsupported, keep registration at Zone and move only authoritative DNS/CDN to Cloudflare if desired.
-- [ ] Export/back up Zone DNS records before nameserver changes.
+- [ ] re-check Cloudflare Registrar `.ee` support.
+- [ ] keep Zone registrar if needed; Cloudflare DNS/edge can still be used.
+- [ ] back up Zone DNS.
 
-Acceptance:
+## KT-161 — Add `krunditark.ee` to Cloudflare DNS when requested
 
-- No assumption that moving DNS requires moving the registrar.
-
-## KT-161 — Add `krunditark.ee` to Cloudflare DNS when product owner requests migration
-
-- [ ] inventory existing DNS.
-- [ ] review DNSSEC state before nameserver migration.
-- [ ] add required records.
-- [ ] switch nameservers at Zone.
+- [ ] inventory DNS/DNSSEC.
+- [ ] add records/switch nameservers.
 - [ ] validate DNS/HTTPS.
 
 ## KT-162 — Decide GitHub Pages vs Cloudflare Pages production hosting
 
-- [ ] Benchmark operational needs.
-- [ ] If moving to Cloudflare Pages, add ADR and production deployment workflow.
-- [ ] Preserve Supabase backend separation.
+- [ ] ADR if moving hosting.
+- [ ] preserve Supabase backend separation.
 
-## KT-163 — Production custom domain launch
+## KT-163 — Production custom-domain launch
 
-- [ ] `krunditark.ee` canonical.
-- [ ] `www` redirect policy.
-- [ ] HTTPS enforced.
-- [ ] auth redirect URLs updated.
-- [ ] CORS origins updated.
-- [ ] sitemap/robots/metadata configured.
+- [ ] canonical domain/www redirect.
+- [ ] HTTPS.
+- [ ] auth/CORS updates.
+- [ ] sitemap/robots/metadata.
 
 ---
 
@@ -901,83 +679,80 @@ Acceptance:
 
 ## KT-170 — Add Playwright critical-path suite
 
-Cover at minimum:
+Cover:
 
 - [ ] open site.
-- [ ] search valid parcel fixture/integration environment.
-- [ ] handle invalid cadastral ID.
+- [ ] parcel search.
+- [ ] invalid cadastral ID.
 - [ ] place proposal.
 - [ ] run analysis.
-- [ ] inspect conflict/condition/unknown finding.
-- [ ] follow official source link UI.
-- [ ] mobile viewport.
-- [ ] auth/saved-project flow where enabled.
+- [ ] inspect conflict/condition/unknown.
+- [ ] data release/freshness display.
+- [ ] official source link.
+- [ ] mobile.
+- [ ] auth/saved project where enabled.
 
 ## KT-171 — Add accessibility audit
 
-- [ ] keyboard flows.
-- [ ] focus management.
-- [ ] labels/errors.
-- [ ] contrast.
-- [ ] status not color-only.
-- [ ] map has non-map textual equivalent for findings.
+Keyboard/focus/labels/contrast/status semantics/non-map textual equivalent.
 
 ## KT-172 — Add performance budgets
 
-- [ ] frontend JS budget.
-- [ ] lazy-load map/heavy GIS UI.
-- [ ] source API timeout budgets.
-- [ ] analysis endpoint observability.
+- [ ] frontend bundle/lazy map loading.
+- [ ] analysis DB latency.
+- [ ] Gemini latency budget.
+- [ ] source sync batch/runtime budgets independently from user latency.
 
-## KT-173 — Source outage drill
+## KT-173 — Source outage/sync failure drill
 
-- [ ] cadastral provider unavailable.
-- [ ] PLANIS unavailable.
-- [ ] EELIS unavailable.
-- [ ] AI provider unavailable.
+Test:
+
+- [ ] MaRu/PLANIS/EELIS sync failure.
+- [ ] rejected candidate version.
+- [ ] previous verified version carried forward.
+- [ ] stale source visible.
+- [ ] Gemini unavailable.
 
 Acceptance:
 
-- Deterministic successful source findings survive unrelated provider failure.
-- A failed source becomes `unknown`, never “clear”.
+- failed refresh never becomes “all clear” and never erases previous verified data.
 
 ## KT-174 — Legal/rule verification review
 
-- [ ] Every production rule has current official source metadata.
-- [ ] Rule effective dates reviewed.
-- [ ] Deprecated/changed rules retired rather than silently rewritten.
-- [ ] User disclaimers reviewed.
+- [ ] every production rule has official source/version metadata.
+- [ ] pending legal change candidates reviewed.
+- [ ] changed rules versioned/verified, never silently rewritten.
+- [ ] disclaimers reviewed.
 
 ## KT-175 — MVP release candidate
 
-- [ ] All MVP-required tasks complete.
+- [ ] all MVP-required tasks complete.
 - [ ] CI green.
-- [ ] migrations apply to clean database.
-- [ ] RLS verified.
+- [ ] clean migrations/RLS green.
+- [ ] monthly source sync/data-release pipeline demonstrated.
+- [ ] source freshness/health observable.
+- [ ] historical analysis reproducibility verified.
 - [ ] critical E2E green.
-- [ ] security review complete.
-- [ ] source provenance verified on representative analyses.
+- [ ] security/legal review complete.
 - [ ] production deployment runbook tested.
 
 ---
 
 # Post-MVP candidates
 
-These are intentionally not part of the initial completion gate unless promoted by product decision:
-
 - [ ] Blueprint/PDF floorplan import and scale detection.
-- [ ] DXF/DWG/IFC placement workflows.
-- [ ] Automatic best-placement optimizer inside buildable candidate area.
-- [ ] Terrain/slope and elevation analysis.
-- [ ] Flood-risk analysis.
-- [ ] Solar/shadow orientation assistance.
-- [ ] Detailed utility connection intelligence.
-- [ ] Construction cost marketplace data.
+- [ ] DXF/DWG/IFC workflows.
+- [ ] Automatic best-placement optimizer.
+- [ ] Terrain/slope/elevation.
+- [ ] Flood risk.
+- [ ] Solar/shadow orientation.
+- [ ] Detailed utility intelligence.
+- [ ] Construction-cost marketplace data.
 - [ ] Architect/surveyor/contractor marketplace.
-- [ ] KOV-specific document/plan-text extraction at national scale.
-- [ ] Business/API plans for developers, brokers and prefab-house vendors.
+- [ ] KOV-specific document/plan-text extraction.
+- [ ] Business/API plans for developers, brokers and prefab vendors.
 - [ ] Batch parcel analysis.
-- [ ] Verified signed professional reports.
+- [ ] Signed professional reports.
 - [ ] Finland/Latvia/Lithuania expansion.
 
 See `docs/ROADMAP.md` before promoting any item.

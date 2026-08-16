@@ -3,18 +3,17 @@
 -- migrations and tests depend on, without requiring the full
 -- Supabase Auth service stack.
 
--- Move PostGIS to extensions schema if present (postgis/postgis image
--- preinstalls it in public). We cannot drop it because dependent
--- extensions (postgis_topology, postgis_tiger_geocoder) exist.
+-- Ensure PostGIS lives in the extensions schema. The postgis/postgis
+-- Docker image preinstalls it in public with dependent extensions
+-- (postgis_topology, postgis_tiger_geocoder). Drop those first so
+-- we can relocate/reinstall PostGIS deterministically.
 CREATE SCHEMA IF NOT EXISTS extensions;
 
-DO $$
-BEGIN
-    IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'postgis') THEN
-        ALTER EXTENSION postgis SET SCHEMA extensions;
-    END IF;
-END;
-$$;
+DROP EXTENSION IF EXISTS postgis_topology CASCADE;
+DROP EXTENSION IF EXISTS postgis_tiger_geocoder CASCADE;
+DROP EXTENSION IF EXISTS postgis CASCADE;
+
+CREATE EXTENSION postgis WITH SCHEMA extensions;
 
 CREATE SCHEMA IF NOT EXISTS auth;
 

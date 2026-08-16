@@ -16,13 +16,21 @@ const concurrencyFixPath = join(
   "migrations",
   "20260815000006_fix_terminal_child_concurrency.sql"
 );
+const projectBindingFixPath = join(
+  root,
+  "supabase",
+  "migrations",
+  "20260815000007_fix_analysis_project_proposal_binding.sql"
+);
 
 const migrationSql = readFileSync(migrationPath, "utf-8");
 const concurrencyFixSql = readFileSync(concurrencyFixPath, "utf-8");
+const projectBindingFixSql = readFileSync(projectBindingFixPath, "utf-8");
 
 async function applyMigrations(client: Client) {
   await client.query(migrationSql);
   await client.query(concurrencyFixSql);
+  await client.query(projectBindingFixSql);
 }
 
 describe("analysis snapshot database regression (KT-016)", () => {
@@ -656,5 +664,156 @@ describe("analysis snapshot database regression (KT-016)", () => {
         [finding.rows[0].id, syncRunA.rows[0].id, versionB.rows[0].id]
       )
     ).rejects.toThrow("was not produced by sync run");
+  });
+
+  runTest("rejects mismatched project and proposal", async () => {
+    await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
+    await client.query("CREATE SCHEMA analysis");
+    await applyMigrations(client);
+
+    const userId = crypto.randomUUID();
+    const userEmail = `test-${userId.slice(0, 8)}@example.com`;
+
+    await client.query(
+      `
+      INSERT INTO auth.users (id, email, role, is_sso_user, is_anonymous) VALUES ($1, $2, 'authenticated', false, false)
+    `,
+      [userId, userEmail]
+    );
+
+    const projectA = await client.query(
+      `
+      INSERT INTO public.projects (user_id, name, cadastral_id)
+      VALUES ($1, 'Project A', '12345')
+      RETURNING id
+    `,
+      [userId]
+    );
+
+    const projectB = await client.query(
+      `
+      INSERT INTO public.projects (user_id, name, cadastral_id)
+      VALUES ($1, 'Project B', '67890')
+      RETURNING id
+    `,
+      [userId]
+    );
+
+    const proposalInB = await client.query(
+      `
+      INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2)
+      VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100)
+      RETURNING id
+    `,
+      [projectB.rows[0].id]
+    );
+
+    const dataRelease = await client.query(
+      `
+      INSERT INTO private.data_releases (release_key, status)
+      VALUES ('test-release-' || substr($1, 1, 8), 'promoted')
+      RETURNING id
+    `,
+      [userId]
+    );
+
+    await expect(
+      client.query(
+        `
+        INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
+        VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
+      `,
+        [projectA.rows[0].id, proposalInB.rows[0].id, dataRelease.rows[0].id]
+      )
+    ).rejects.toThrow("does not belong to project");
+  });
+
+  runTest("prevents child mutation after concurrent terminal transition", async () => {
+    await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
+    await client.query("CREATE SCHEMA analysis");
+    await applyMigrations(client);
+
+    const userId = crypto.randomUUID();
+    const userEmail = `test-${userId.slice(0, 8)}@example.com`;
+
+    await client.query(
+      `
+      INSERT INTO auth.users (id, email, role, is_sso_user, is_anonymous) VALUES ($1, $2, 'authenticated', false, false)
+    `,
+      [userId, userEmail]
+    );
+
+    const project = await client.query(
+      `
+      INSERT INTO public.projects (user_id, name, cadastral_id)
+      VALUES ($1, 'Test', '12345')
+      RETURNING id
+    `,
+      [userId]
+    );
+
+    const proposal = await client.query(
+      `
+      INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2)
+      VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100)
+      RETURNING id
+    `,
+      [project.rows[0].id]
+    );
+
+    const dataRelease = await client.query(
+      `
+      INSERT INTO private.data_releases (release_key, status)
+      VALUES ('test-release-' || substr($1, 1, 8), 'promoted')
+      RETURNING id
+    `,
+      [userId]
+    );
+
+    const analysis = await client.query(
+      `
+      INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
+      VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
+      RETURNING id
+    `,
+      [project.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]
+    );
+
+    const { sourceId, sourceVersionId } = await createSourceVersion(client, dataRelease.rows[0].id);
+
+    await client.query(
+      `
+      INSERT INTO analysis.analysis_source_versions (analysis_id, source_id, source_dataset_version_id)
+      VALUES ($1, $2, $3)
+    `,
+      [analysis.rows[0].id, sourceId, sourceVersionId]
+    );
+
+    const clientA = new Client({ connectionString: DATABASE_URL });
+    const clientB = new Client({ connectionString: DATABASE_URL });
+    await clientA.connect();
+    await clientB.connect();
+
+    try {
+      await clientA.query("BEGIN");
+      await clientB.query("BEGIN");
+
+      await clientA.query(`UPDATE analysis.analyses SET status = 'completed' WHERE id = $1`, [
+        analysis.rows[0].id,
+      ]);
+
+      await expect(
+        clientB.query(
+          `INSERT INTO analysis.analysis_source_versions (analysis_id, source_id, source_dataset_version_id) VALUES ($1, $2, $3)`,
+          [analysis.rows[0].id, sourceId, sourceVersionId]
+        )
+      ).rejects.toThrow("cannot insert child rows for terminal analysis");
+
+      await clientA.query("COMMIT");
+      await clientB.query("COMMIT");
+    } finally {
+      await clientA.end();
+      await clientB.end();
+    }
   });
 });

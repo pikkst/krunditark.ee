@@ -13,6 +13,41 @@ const migrationPath = join(
 
 const sql = readFileSync(migrationPath, "utf-8");
 
+async function ensureRoles(client: Client) {
+  await client.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+        CREATE ROLE anon;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+        CREATE ROLE authenticated;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+        CREATE ROLE service_role;
+      END IF;
+    END;
+    $$;
+  `);
+}
+
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
+  let lastError: Error | undefined;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      if (lastError.message.includes("deadlock detected") && i < maxRetries - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 500 * (i + 1)));
+        continue;
+      }
+      throw lastError;
+    }
+  }
+  throw lastError;
+}
+
 describe("internal audit model database regression (KT-017)", () => {
   let client: Client;
 
@@ -23,6 +58,7 @@ describe("internal audit model database regression (KT-017)", () => {
     }
     client = new Client({ connectionString: DATABASE_URL });
     await client.connect();
+    await ensureRoles(client);
   }, 30000);
 
   afterAll(async () => {
@@ -44,9 +80,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("applies migration to a clean database", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withRetry(async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
     const result = await client.query(
       "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'private' AND table_name = 'audit_log'"
     );
@@ -54,9 +92,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("actor_user_id is a bare UUID without live FK", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withRetry(async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
 
     const userId = crypto.randomUUID();
 
@@ -74,9 +114,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("deleting referenced auth user does not affect audit log", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withRetry(async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
 
     const userId = crypto.randomUUID();
 
@@ -99,9 +141,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("rejects unknown audit action codes", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withRetry(async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
 
     await expect(
       client.query(
@@ -112,9 +156,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("accepts all known action codes via log_audit_event", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withRetry(async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
 
     const actions = [
       "rule.verify",
@@ -178,9 +224,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("rejects metadata missing required fields for analysis.invalidated", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withRetry(async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
 
     await expect(
       client.query(
@@ -191,9 +239,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("rejects metadata missing required fields for admin.role_changed", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withRetry(async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
 
     await expect(
       client.query(
@@ -206,9 +256,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("rejects metadata with forbidden credential keys", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withRetry(async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
 
     await expect(
       client.query(
@@ -219,9 +271,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("rejects metadata with sensitive token patterns in values", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withRetry(async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
 
     await expect(
       client.query(
@@ -232,9 +286,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("rejects direct INSERT with unknown action code", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withRetry(async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
 
     await expect(
       client.query(
@@ -244,9 +300,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("rejects direct INSERT with valid action but missing required metadata", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withRetry(async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
 
     await expect(
       client.query(
@@ -256,9 +314,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("audit_log is immutable after insert", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withRetry(async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
 
     const auditId = await client.query(
       `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "rv-1", "implementation_key": "impl-1"}'::jsonb) AS id`,

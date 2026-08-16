@@ -84,7 +84,7 @@ describe("internal audit model migration (KT-017)", () => {
     expect(sql).toMatch(/jsonb_typeof\s*\(\s*v_raw\s*\)\s*=\s*'null'/i);
     expect(sql).toMatch(/jsonb_typeof\s*\(\s*v_raw\s*\)\s+IN\s*\(\s*'object'\s*,\s*'array'\s*\)/i);
     expect(sql).toMatch(/trim\s*\(\s*both\s+'\"'\s+from\s+v_raw::text\s*\)/i);
-    expect(sql).toMatch(/v_text\s+!=\s*''/i);
+    expect(sql).toMatch(/trim\s*\(\s*v_text\s*\)\s+!=\s*''/i);
   });
 
   test("creates validate_audit_metadata function with required fields per action", () => {

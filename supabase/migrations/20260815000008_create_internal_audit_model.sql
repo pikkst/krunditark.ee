@@ -134,7 +134,7 @@ BEGIN
         RETURN false;
     END IF;
     v_text := trim(both '"' from v_raw::text);
-    RETURN v_text != '';
+    RETURN trim(v_text) != '';
 END;
 $$;
 

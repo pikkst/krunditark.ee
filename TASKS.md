@@ -157,12 +157,12 @@ Implement from `DATABASE_SCHEMA.md` / canonical refresh doc:
 
 ## KT-016 — Create analysis snapshot schema
 
-- [ ] analyses.
-- [ ] findings.
-- [ ] evidence.
-- [ ] exact data release/rule versions.
-- [ ] engine/profile/input hash.
-- [ ] completed analysis immutable.
+- [x] analyses.
+- [x] findings.
+- [x] evidence.
+- [x] exact data release/rule versions.
+- [x] engine/profile/input hash.
+- [x] completed analysis immutable.
 
 ## KT-017 — Create internal audit model
 

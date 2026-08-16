@@ -12,6 +12,20 @@ jobs:
   checks:
     name: Format / Lint / Typecheck / Test / Build
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:15-3.4
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: krunditark
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -34,7 +48,19 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Setup database
+        env:
+          POSTGRES_PASSWORD: postgres
+        run: |
+          PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U postgres -d krunditark -f supabase/ci-setup.sql
+          for f in $(ls supabase/migrations/*.sql | sort); do
+            echo "Applying $f"
+            PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U postgres -d krunditark -f "$f"
+          done
+
       - name: Test
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/krunditark
         run: npm run test
 
       - name: Build

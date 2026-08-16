@@ -4,7 +4,7 @@ import react from "eslint-plugin-react";
 
 export default tseslint.config(
   {
-    ignores: ["dist/", "node_modules/", "coverage/"],
+    ignores: ["dist/", "node_modules/", "coverage/", "supabase/.temp/"],
   },
   {
     files: ["**/*.{ts,tsx}"],

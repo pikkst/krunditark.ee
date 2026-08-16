@@ -267,6 +267,93 @@ describe("internal audit model database regression (KT-017)", () => {
     ).rejects.toThrow("audit metadata value at key");
   });
 
+  runTest("rejects metadata with sensitive tokens inside arrays", async () => {
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
+
+    await expect(
+      client.query(
+        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "rv-1", "implementation_key": "impl-1", "tokens": ["bearer abc123", "token def456"]}'::jsonb)`,
+        [crypto.randomUUID()]
+      )
+    ).rejects.toThrow("audit metadata array element contains sensitive pattern");
+  });
+
+  runTest("rejects bare bearer token values without key= or key: separator", async () => {
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
+
+    await expect(
+      client.query(
+        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "rv-1", "implementation_key": "impl-1", "notes": "Bearer abc123"}'::jsonb)`,
+        [crypto.randomUUID()]
+      )
+    ).rejects.toThrow("audit metadata value at key");
+  });
+
+  runTest("rejects metadata with null required values for analysis.invalidated", async () => {
+    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+    await client.query("CREATE SCHEMA private");
+    await client.query(sql);
+
+    await expect(
+      client.query(
+        `SELECT private.log_audit_event($1, 'system', 'analysis.invalidated', 'analysis', 'analysis-id', '{"analysis_id": null, "annotation": "test"}'::jsonb)`,
+        [crypto.randomUUID()]
+      )
+    ).rejects.toThrow("analysis.invalidated requires analysis_id and annotation in metadata");
+  });
+
+  runTest(
+    "rejects metadata with empty string required values for analysis.invalidated",
+    async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+
+      await expect(
+        client.query(
+          `SELECT private.log_audit_event($1, 'system', 'analysis.invalidated', 'analysis', 'analysis-id', '{"analysis_id": "analysis-1", "annotation": ""}'::jsonb)`,
+          [crypto.randomUUID()]
+        )
+      ).rejects.toThrow("analysis.invalidated requires analysis_id and annotation in metadata");
+    }
+  );
+
+  runTest("rejects metadata with null required values for admin.role_changed", async () => {
+    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+    await client.query("CREATE SCHEMA private");
+    await client.query(sql);
+
+    await expect(
+      client.query(
+        `SELECT private.log_audit_event($1, 'system', 'admin.role_changed', 'profile', 'profile-id', '{"target_user_id": "user-1", "new_role": null, "old_role": "user"}'::jsonb)`,
+        [crypto.randomUUID()]
+      )
+    ).rejects.toThrow(
+      "admin.role_changed requires target_user_id, new_role, and old_role in metadata"
+    );
+  });
+
+  runTest("rejects metadata with empty string required values for commerce.refund", async () => {
+    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+    await client.query("CREATE SCHEMA private");
+    await client.query(sql);
+
+    await expect(
+      client.query(
+        `SELECT private.log_audit_event($1, 'system', 'commerce.refund', 'order', 'order-id', '{"order_id": "order-1", "amount": "", "reason": "customer request"}'::jsonb)`,
+        [crypto.randomUUID()]
+      )
+    ).rejects.toThrow("commerce.refund requires order_id, amount, and reason in metadata");
+  });
+
   runTest("rejects direct INSERT with unknown action code", async () => {
     await withAdvisoryLock(client, async () => {
       await client.query("DROP SCHEMA IF EXISTS private CASCADE");

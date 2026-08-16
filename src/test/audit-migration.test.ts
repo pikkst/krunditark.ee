@@ -70,6 +70,18 @@ describe("internal audit model migration (KT-017)", () => {
     expect(sql).toMatch(
       /authorization|auth|token|secret|password|api_key|apikey|access_token|refresh_token|cookie|credential|bearer|basic|signature|private_key|client_secret|session|jwt/i
     );
+    expect(sql).toMatch(/jsonb_typeof\s*\(\s*p_metadata\s*\)\s*=\s*'array'/i);
+    expect(sql).toMatch(/jsonb_array_elements/i);
+    expect(sql).toMatch(/bearer.*token.*secret.*password/i);
+    expect(sql).toMatch(/api_key|apikey/i);
+  });
+
+  test("creates audit_metadata_has_value helper function", () => {
+    expect(sql).toMatch(/CREATE\s+OR\s+REPLACE\s+FUNCTION\s+private\.audit_metadata_has_value/i);
+    expect(sql).toMatch(/RETURNS\s+boolean/i);
+    expect(sql).toMatch(/LANGUAGE\s+plpgsql/i);
+    expect(sql).toMatch(/STABLE/i);
+    expect(sql).toMatch(/v_value\s+IS\s+NOT\s+NULL\s+AND\s+v_value\s+!=\s*''/i);
   });
 
   test("creates validate_audit_metadata function with required fields per action", () => {

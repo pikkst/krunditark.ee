@@ -62,7 +62,7 @@ AS $$
 DECLARE
     v_key text;
     v_value jsonb;
-    v_sanitized jsonb := '{}'::jsonb;
+    v_sanitized jsonb;
     v_forbidden_patterns text[] := ARRAY[
         'authorization', 'auth', 'token', 'secret', 'password',
         'api_key', 'apikey', 'access_token', 'refresh_token', 'cookie',
@@ -71,27 +71,64 @@ DECLARE
     ];
     v_rec record;
 BEGIN
-    FOR v_rec IN SELECT * FROM jsonb_each(COALESCE(p_metadata, '{}'::jsonb)) LOOP
-        IF jsonb_typeof(v_rec.value) = 'object' THEN
-            v_sanitized := jsonb_set(v_sanitized, ARRAY[v_rec.key], private.sanitize_audit_metadata(v_rec.value));
-        ELSE
-            IF EXISTS (
-                SELECT 1 FROM unnest(v_forbidden_patterns) p
-                WHERE lower(v_rec.key) = p OR lower(v_rec.key) LIKE '%' || p || '%'
-            ) THEN
-                RAISE EXCEPTION 'audit metadata contains forbidden key: %', v_rec.key;
+    IF jsonb_typeof(p_metadata) = 'object' THEN
+        v_sanitized := '{}'::jsonb;
+        FOR v_rec IN SELECT * FROM jsonb_each(COALESCE(p_metadata, '{}'::jsonb)) LOOP
+            IF jsonb_typeof(v_rec.value) IN ('object', 'array') THEN
+                v_sanitized := jsonb_set(v_sanitized, ARRAY[v_rec.key], private.sanitize_audit_metadata(v_rec.value));
+            ELSE
+                IF EXISTS (
+                    SELECT 1 FROM unnest(v_forbidden_patterns) p
+                    WHERE lower(v_rec.key) = p OR lower(v_rec.key) LIKE '%' || p || '%'
+                ) THEN
+                    RAISE EXCEPTION 'audit metadata contains forbidden key: %', v_rec.key;
+                END IF;
+                IF v_rec.value::text ~* '(bearer|token|secret|password|api[_-]?key)\s*[=:]\s*\S+' OR
+                   v_rec.value::text ~* '\b(bearer|token|secret|password|api[_-]?key)\s+\S+' THEN
+                    RAISE EXCEPTION 'audit metadata value at key "%" contains sensitive pattern', v_rec.key;
+                END IF;
+                v_sanitized := jsonb_set(v_sanitized, ARRAY[v_rec.key], v_rec.value);
             END IF;
-            IF v_rec.value::text ~* '(bearer|token|secret|password|api[_-]?key)\s*[=:]\s*\S+' THEN
-                RAISE EXCEPTION 'audit metadata value at key "%" contains sensitive pattern', v_rec.key;
+        END LOOP;
+    ELSIF jsonb_typeof(p_metadata) = 'array' THEN
+        v_sanitized := '[]'::jsonb;
+        FOR v_rec IN 
+            SELECT val, idx FROM jsonb_array_elements(COALESCE(p_metadata, '[]'::jsonb)) WITH ORDINALITY AS t(val, idx)
+        LOOP
+            IF jsonb_typeof(v_rec.val) IN ('object', 'array') THEN
+                v_sanitized := jsonb_set(v_sanitized, ARRAY[CAST((v_rec.idx - 1) AS text)], private.sanitize_audit_metadata(v_rec.val));
+            ELSE
+                IF v_rec.val::text ~* '(bearer|token|secret|password|api[_-]?key)\s*[=:]\s*\S+' OR
+                   v_rec.val::text ~* '\b(bearer|token|secret|password|api[_-]?key)\s+\S+' THEN
+                    RAISE EXCEPTION 'audit metadata array element contains sensitive pattern';
+                END IF;
+                v_sanitized := jsonb_set(v_sanitized, ARRAY[CAST((v_rec.idx - 1) AS text)], v_rec.val);
             END IF;
-            v_sanitized := jsonb_set(v_sanitized, ARRAY[v_rec.key], v_rec.value);
-        END IF;
-    END LOOP;
+        END LOOP;
+    ELSE
+        v_sanitized := p_metadata;
+    END IF;
     RETURN v_sanitized;
 END;
 $$;
 
 -- 4. Required metadata validation per action
+
+CREATE OR REPLACE FUNCTION private.audit_metadata_has_value(p_metadata jsonb, p_key text)
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+    v_value text;
+BEGIN
+    IF NOT (p_metadata ? p_key) THEN
+        RETURN false;
+    END IF;
+    v_value := p_metadata->>p_key;
+    RETURN v_value IS NOT NULL AND v_value != '';
+END;
+$$;
 
 CREATE OR REPLACE FUNCTION private.validate_audit_metadata(p_action text, p_metadata jsonb)
 RETURNS boolean
@@ -101,39 +138,39 @@ AS $$
 BEGIN
     CASE p_action
         WHEN 'rule.verify' THEN
-            IF NOT (p_metadata ? 'rule_version_id' AND p_metadata ? 'implementation_key') THEN
+            IF NOT (private.audit_metadata_has_value(p_metadata, 'rule_version_id') AND private.audit_metadata_has_value(p_metadata, 'implementation_key')) THEN
                 RAISE EXCEPTION 'rule.verify requires rule_version_id and implementation_key in metadata';
             END IF;
         WHEN 'rule.retire' THEN
-            IF NOT (p_metadata ? 'rule_version_id') THEN
+            IF NOT (private.audit_metadata_has_value(p_metadata, 'rule_version_id')) THEN
                 RAISE EXCEPTION 'rule.retire requires rule_version_id in metadata';
             END IF;
         WHEN 'source.promote' THEN
-            IF NOT (p_metadata ? 'source_id' AND p_metadata ? 'dataset_version_id') THEN
+            IF NOT (private.audit_metadata_has_value(p_metadata, 'source_id') AND private.audit_metadata_has_value(p_metadata, 'dataset_version_id')) THEN
                 RAISE EXCEPTION 'source.promote requires source_id and dataset_version_id in metadata';
             END IF;
         WHEN 'source.disable' THEN
-            IF NOT (p_metadata ? 'source_id') THEN
+            IF NOT (private.audit_metadata_has_value(p_metadata, 'source_id')) THEN
                 RAISE EXCEPTION 'source.disable requires source_id in metadata';
             END IF;
         WHEN 'source.manual_refresh' THEN
-            IF NOT (p_metadata ? 'source_id') THEN
+            IF NOT (private.audit_metadata_has_value(p_metadata, 'source_id')) THEN
                 RAISE EXCEPTION 'source.manual_refresh requires source_id in metadata';
             END IF;
         WHEN 'admin.role_changed' THEN
-            IF NOT (p_metadata ? 'target_user_id' AND p_metadata ? 'new_role' AND p_metadata ? 'old_role') THEN
+            IF NOT (private.audit_metadata_has_value(p_metadata, 'target_user_id') AND private.audit_metadata_has_value(p_metadata, 'new_role') AND private.audit_metadata_has_value(p_metadata, 'old_role')) THEN
                 RAISE EXCEPTION 'admin.role_changed requires target_user_id, new_role, and old_role in metadata';
             END IF;
         WHEN 'analysis.invalidated' THEN
-            IF NOT (p_metadata ? 'analysis_id' AND p_metadata ? 'annotation') THEN
+            IF NOT (private.audit_metadata_has_value(p_metadata, 'analysis_id') AND private.audit_metadata_has_value(p_metadata, 'annotation')) THEN
                 RAISE EXCEPTION 'analysis.invalidated requires analysis_id and annotation in metadata';
             END IF;
         WHEN 'commerce.refund' THEN
-            IF NOT (p_metadata ? 'order_id' AND p_metadata ? 'amount' AND p_metadata ? 'reason') THEN
+            IF NOT (private.audit_metadata_has_value(p_metadata, 'order_id') AND private.audit_metadata_has_value(p_metadata, 'amount') AND private.audit_metadata_has_value(p_metadata, 'reason')) THEN
                 RAISE EXCEPTION 'commerce.refund requires order_id, amount, and reason in metadata';
             END IF;
         WHEN 'commerce.manual_entitlement' THEN
-            IF NOT (p_metadata ? 'user_id' AND p_metadata ? 'entitlement_type' AND p_metadata ? 'reason') THEN
+            IF NOT (private.audit_metadata_has_value(p_metadata, 'user_id') AND private.audit_metadata_has_value(p_metadata, 'entitlement_type') AND private.audit_metadata_has_value(p_metadata, 'reason')) THEN
                 RAISE EXCEPTION 'commerce.manual_entitlement requires user_id, entitlement_type, and reason in metadata';
             END IF;
     END CASE;

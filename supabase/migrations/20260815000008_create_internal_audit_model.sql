@@ -74,15 +74,15 @@ BEGIN
     IF jsonb_typeof(p_metadata) = 'object' THEN
         v_sanitized := '{}'::jsonb;
         FOR v_rec IN SELECT * FROM jsonb_each(COALESCE(p_metadata, '{}'::jsonb)) LOOP
+            IF EXISTS (
+                SELECT 1 FROM unnest(v_forbidden_patterns) p
+                WHERE lower(v_rec.key) = p OR lower(v_rec.key) LIKE '%' || p || '%'
+            ) THEN
+                RAISE EXCEPTION 'audit metadata contains forbidden key: %', v_rec.key;
+            END IF;
             IF jsonb_typeof(v_rec.value) IN ('object', 'array') THEN
                 v_sanitized := jsonb_set(v_sanitized, ARRAY[v_rec.key], private.sanitize_audit_metadata(v_rec.value));
             ELSE
-                IF EXISTS (
-                    SELECT 1 FROM unnest(v_forbidden_patterns) p
-                    WHERE lower(v_rec.key) = p OR lower(v_rec.key) LIKE '%' || p || '%'
-                ) THEN
-                    RAISE EXCEPTION 'audit metadata contains forbidden key: %', v_rec.key;
-                END IF;
                 IF v_rec.value::text ~* '(bearer|token|secret|password|api[_-]?key)\s*[=:]\s*\S+' OR
                    v_rec.value::text ~* '(bearer|token|secret|password|api[_-]?key)(\s*[=:]\s*|\s+)\S+' THEN
                     RAISE EXCEPTION 'audit metadata value at key "%" contains sensitive pattern', v_rec.key;
@@ -120,13 +120,21 @@ LANGUAGE plpgsql
 STABLE
 AS $$
 DECLARE
-    v_value text;
+    v_raw jsonb;
+    v_text text;
 BEGIN
     IF NOT (p_metadata ? p_key) THEN
         RETURN false;
     END IF;
-    v_value := p_metadata->>p_key;
-    RETURN v_value IS NOT NULL AND v_value != '';
+    v_raw := p_metadata -> p_key;
+    IF jsonb_typeof(v_raw) = 'null' THEN
+        RETURN false;
+    END IF;
+    IF jsonb_typeof(v_raw) IN ('object', 'array') THEN
+        RETURN false;
+    END IF;
+    v_text := trim(v_raw::text);
+    RETURN v_text != '';
 END;
 $$;
 

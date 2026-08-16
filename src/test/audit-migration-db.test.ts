@@ -131,9 +131,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("rejects unknown audit action codes", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
 
     await expect(
       client.query(
@@ -212,9 +214,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("rejects metadata missing required fields for analysis.invalidated", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
 
     await expect(
       client.query(
@@ -225,9 +229,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("rejects metadata missing required fields for admin.role_changed", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
 
     await expect(
       client.query(
@@ -240,9 +246,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("rejects metadata with forbidden credential keys", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
 
     await expect(
       client.query(
@@ -298,9 +306,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("rejects metadata with null required values for analysis.invalidated", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
 
     await expect(
       client.query(
@@ -313,9 +323,11 @@ describe("internal audit model database regression (KT-017)", () => {
   runTest(
     "rejects metadata with empty string required values for analysis.invalidated",
     async () => {
-      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-      await client.query("CREATE SCHEMA private");
-      await client.query(sql);
+      await withAdvisoryLock(client, async () => {
+        await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+        await client.query("CREATE SCHEMA private");
+        await client.query(sql);
+      });
 
       await expect(
         client.query(
@@ -327,9 +339,11 @@ describe("internal audit model database regression (KT-017)", () => {
   );
 
   runTest("rejects metadata with null required values for admin.role_changed", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
 
     await expect(
       client.query(
@@ -342,9 +356,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("rejects metadata with empty string required values for commerce.refund", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
 
     await expect(
       client.query(
@@ -369,9 +385,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("audit_log rejects update after insert", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
 
     const auditId = await client.query(
       `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "rv-1", "implementation_key": "impl-1"}'::jsonb) AS id`,

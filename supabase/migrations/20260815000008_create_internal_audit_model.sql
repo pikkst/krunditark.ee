@@ -84,7 +84,7 @@ BEGIN
                     RAISE EXCEPTION 'audit metadata contains forbidden key: %', v_rec.key;
                 END IF;
                 IF v_rec.value::text ~* '(bearer|token|secret|password|api[_-]?key)\s*[=:]\s*\S+' OR
-                   v_rec.value::text ~* '\b(bearer|token|secret|password|api[_-]?key)\s+\S+' THEN
+                   v_rec.value::text ~* '(bearer|token|secret|password|api[_-]?key)(\s*[=:]\s*|\s+)\S+' THEN
                     RAISE EXCEPTION 'audit metadata value at key "%" contains sensitive pattern', v_rec.key;
                 END IF;
                 v_sanitized := jsonb_set(v_sanitized, ARRAY[v_rec.key], v_rec.value);
@@ -99,7 +99,7 @@ BEGIN
                 v_sanitized := jsonb_set(v_sanitized, ARRAY[CAST((v_rec.idx - 1) AS text)], private.sanitize_audit_metadata(v_rec.val));
             ELSE
                 IF v_rec.val::text ~* '(bearer|token|secret|password|api[_-]?key)\s*[=:]\s*\S+' OR
-                   v_rec.val::text ~* '\b(bearer|token|secret|password|api[_-]?key)\s+\S+' THEN
+                   v_rec.val::text ~* '(bearer|token|secret|password|api[_-]?key)(\s*[=:]\s*|\s+)\S+' THEN
                     RAISE EXCEPTION 'audit metadata array element contains sensitive pattern';
                 END IF;
                 v_sanitized := jsonb_set(v_sanitized, ARRAY[CAST((v_rec.idx - 1) AS text)], v_rec.val);

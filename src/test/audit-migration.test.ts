@@ -16,6 +16,21 @@ describe("internal audit model migration (KT-017)", () => {
     expect(sql.length).toBeGreaterThan(0);
   });
 
+  test("creates audit_action_codes lookup table with required codes", () => {
+    expect(sql).toMatch(/CREATE\s+TABLE\s+private\.audit_action_codes/i);
+    expect(sql).toMatch(/code\s+text\s+PRIMARY\s+KEY/i);
+    expect(sql).toMatch(/description\s+text\s+NOT\s+NULL/i);
+    expect(sql).toMatch(/'rule\.verify'/i);
+    expect(sql).toMatch(/'rule\.retire'/i);
+    expect(sql).toMatch(/'source\.promote'/i);
+    expect(sql).toMatch(/'source\.disable'/i);
+    expect(sql).toMatch(/'source\.manual_refresh'/i);
+    expect(sql).toMatch(/'admin\.role_changed'/i);
+    expect(sql).toMatch(/'analysis\.invalidated'/i);
+    expect(sql).toMatch(/'commerce\.refund'/i);
+    expect(sql).toMatch(/'commerce\.manual_entitlement'/i);
+  });
+
   test("creates audit_log table with required columns", () => {
     expect(sql).toMatch(/CREATE\s+TABLE\s+private\.audit_log/i);
     expect(sql).toMatch(/id\s+uuid\s+PRIMARY\s+KEY\s+DEFAULT\s+gen_random_uuid/i);
@@ -28,9 +43,14 @@ describe("internal audit model migration (KT-017)", () => {
     expect(sql).toMatch(/created_at\s+timestamptz\s+NOT\s+NULL\s+DEFAULT\s+now/i);
   });
 
-  test("audit_log references auth.users for actor_user_id", () => {
+  test("actor_user_id has no live FK to auth.users", () => {
+    expect(sql).toMatch(/actor_user_id\s+uuid\s+NULL/i);
+    expect(sql).not.toMatch(/actor_user_id\s+uuid\s+NULL\s+REFERENCES\s+auth\.users/i);
+  });
+
+  test("audit_log action is constrained to known codes", () => {
     expect(sql).toMatch(
-      /actor_user_id\s+uuid\s+NULL\s+REFERENCES\s+auth\.users\s*\(\s*id\s*\)\s+ON\s+DELETE\s+SET\s+NULL/i
+      /audit_log_action_fk\s+FOREIGN\s+KEY\s*\(\s*action\s*\)\s+REFERENCES\s+private\.audit_action_codes/i
     );
   });
 
@@ -41,9 +61,52 @@ describe("internal audit model migration (KT-017)", () => {
     expect(sql).toMatch(/audit_log_target_id_length/i);
   });
 
-  test("audit_log target_id length allows nullable long identifiers", () => {
+  test("creates sanitize_audit_metadata function", () => {
+    expect(sql).toMatch(/CREATE\s+OR\s+REPLACE\s+FUNCTION\s+private\.sanitize_audit_metadata/i);
+    expect(sql).toMatch(/RETURNS\s+jsonb/i);
+    expect(sql).toMatch(/LANGUAGE\s+plpgsql/i);
+    expect(sql).toMatch(/IMMUTABLE/i);
+    expect(sql).toMatch(/forbidden\s+key/i);
     expect(sql).toMatch(
-      /audit_log_target_id_length\s+CHECK\s*\(\s*target_id\s+IS\s+NULL\s+OR\s+char_length\s*\(\s*target_id\s*\)\s+<=\s*200\s*\)/i
+      /authorization|auth|token|secret|password|api_key|apikey|access_token|refresh_token|cookie|credential|bearer|basic|signature|private_key|client_secret|session|jwt/i
+    );
+  });
+
+  test("creates validate_audit_metadata function with required fields per action", () => {
+    expect(sql).toMatch(/CREATE\s+OR\s+REPLACE\s+FUNCTION\s+private\.validate_audit_metadata/i);
+    expect(sql).toMatch(/RETURNS\s+boolean/i);
+    expect(sql).toMatch(/rule\.verify\s+requires\s+rule_version_id\s+and\s+implementation_key/i);
+    expect(sql).toMatch(/rule\.retire\s+requires\s+rule_version_id/i);
+    expect(sql).toMatch(/source\.promote\s+requires\s+source_id\s+and\s+dataset_version_id/i);
+    expect(sql).toMatch(/source\.disable\s+requires\s+source_id/i);
+    expect(sql).toMatch(/source\.manual_refresh\s+requires\s+source_id/i);
+    expect(sql).toMatch(
+      /admin\.role_changed\s+requires\s+target_user_id,\s*new_role,\s*and\s*old_role/i
+    );
+    expect(sql).toMatch(/analysis\.invalidated\s+requires\s+analysis_id\s+and\s+annotation/i);
+    expect(sql).toMatch(/commerce\.refund\s+requires\s+order_id,\s*amount,\s*and\s+reason/i);
+    expect(sql).toMatch(
+      /commerce\.manual_entitlement\s+requires\s+user_id,\s*entitlement_type,\s*and\s+reason/i
+    );
+  });
+
+  test("creates log_audit_event canonical writer function", () => {
+    expect(sql).toMatch(/CREATE\s+OR\s+REPLACE\s+FUNCTION\s+private\.log_audit_event/i);
+    expect(sql).toMatch(/p_actor_user_id\s+uuid/i);
+    expect(sql).toMatch(/p_actor_type\s+text/i);
+    expect(sql).toMatch(/p_action\s+text/i);
+    expect(sql).toMatch(/p_target_type\s+text/i);
+    expect(sql).toMatch(/p_target_id\s+text/i);
+    expect(sql).toMatch(/p_metadata\s+jsonb/i);
+    expect(sql).toMatch(/unknown\s+audit\s+action/i);
+    expect(sql).toMatch(/sanitize_audit_metadata/i);
+    expect(sql).toMatch(/validate_audit_metadata/i);
+    expect(sql).toMatch(/RETURNS\s+uuid/i);
+  });
+
+  test("log_audit_event inserts actor_user_id without FK", () => {
+    expect(sql).toMatch(
+      /INSERT\s+INTO\s+private\.audit_log\s*\([\s\S]*?actor_user_id\s*,\s*actor_type\s*,\s*action\s*,\s*target_type\s*,\s*target_id\s*,\s*safe_metadata[\s\S]*?VALUES\s*\(\s*p_actor_user_id/i
     );
   });
 
@@ -59,7 +122,7 @@ describe("internal audit model migration (KT-017)", () => {
     expect(sql).toMatch(/TG_OP\s*=\s*'INSERT'\s+THEN\s+RETURN\s+NEW/i);
   });
 
-  test("immutability trigger rejects updates", () => {
+  test("immutability trigger rejects updates and deletes", () => {
     expect(sql).toMatch(/audit_log is immutable/i);
     expect(sql).toMatch(/cannot\s+%s\s+row/i);
     expect(sql).toMatch(/BEFORE\s+UPDATE\s+OR\s+DELETE\s+ON\s+private\.audit_log/i);
@@ -68,6 +131,18 @@ describe("internal audit model migration (KT-017)", () => {
   test("creates trigger on audit_log for immutability", () => {
     expect(sql).toMatch(
       /CREATE\s+TRIGGER\s+prevent_audit_log_mutation\s+BEFORE\s+UPDATE\s+OR\s+DELETE\s+ON\s+private\.audit_log\s+FOR\s+EACH\s+ROW\s+EXECUTE\s+FUNCTION\s+private\.prevent_audit_log_mutation\(\)/i
+    );
+  });
+
+  test("creates action code validation trigger", () => {
+    expect(sql).toMatch(/CREATE\s+OR\s+REPLACE\s+FUNCTION\s+private\.validate_audit_action_code/i);
+    expect(sql).toMatch(/RETURNS\s+trigger/i);
+    expect(sql).toMatch(/LANGUAGE\s+plpgsql/i);
+    expect(sql).toMatch(/SECURITY\s+DEFINER/i);
+    expect(sql).toMatch(/SET\s+search_path\s*=\s*private/i);
+    expect(sql).toMatch(/unknown\s+audit\s+action/i);
+    expect(sql).toMatch(
+      /CREATE\s+TRIGGER\s+validate_audit_action_code\s+BEFORE\s+INSERT\s+ON\s+private\.audit_log\s+FOR\s+EACH\s+ROW\s+EXECUTE\s+FUNCTION\s+private\.validate_audit_action_code\(\)/i
     );
   });
 
@@ -92,27 +167,37 @@ describe("internal audit model migration (KT-017)", () => {
     );
   });
 
-  test("enables RLS on audit_log", () => {
+  test("enables RLS on audit_log and audit_action_codes", () => {
     expect(sql).toMatch(/ALTER\s+TABLE\s+private\.audit_log\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY/i);
+    expect(sql).toMatch(
+      /ALTER\s+TABLE\s+private\.audit_action_codes\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY/i
+    );
   });
 
-  test("blocks anon access to audit_log", () => {
+  test("blocks anon and authenticated access to audit tables", () => {
     expect(sql).toMatch(/CREATE\s+POLICY\s+audit_log_no_anon\s+ON\s+private\.audit_log/i);
     expect(sql).toMatch(/TO\s+anon/i);
     expect(sql).toMatch(/USING\s*\(\s*false\s*\)/i);
-  });
-
-  test("blocks authenticated access to audit_log", () => {
     expect(sql).toMatch(/CREATE\s+POLICY\s+audit_log_no_authenticated\s+ON\s+private\.audit_log/i);
     expect(sql).toMatch(/TO\s+authenticated/i);
     expect(sql).toMatch(/USING\s*\(\s*false\s*\)/i);
+    expect(sql).toMatch(
+      /CREATE\s+POLICY\s+audit_action_codes_no_anon\s+ON\s+private\.audit_action_codes/i
+    );
+    expect(sql).toMatch(
+      /CREATE\s+POLICY\s+audit_action_codes_no_authenticated\s+ON\s+private\.audit_action_codes/i
+    );
   });
 
-  test("grants service_role access to audit_log", () => {
-    expect(sql).toMatch(/GRANT\s+SELECT,\s*INSERT\s+ON\s+private\.audit_log\s+TO\s+service_role/i);
+  test("grants service_role access via canonical function, not direct INSERT", () => {
+    expect(sql).toMatch(/GRANT\s+SELECT\s+ON\s+private\.audit_log\s+TO\s+service_role/i);
+    expect(sql).toMatch(
+      /GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+private\.log_audit_event\s*\(\s*uuid\s*,\s*text\s*,\s*text\s*,\s*text\s*,\s*text\s*,\s*jsonb\s*\)\s+TO\s+service_role/i
+    );
+    expect(sql).not.toMatch(/GRANT\s+INSERT\s+ON\s+private\.audit_log\s+TO\s+service_role/i);
   });
 
-  test("does not expose audit_log through Data API", () => {
+  test("does not expose audit tables through Data API", () => {
     expect(sql).not.toMatch(/GRANT.*TO\s+anon/i);
     expect(sql).not.toMatch(/GRANT.*TO\s+authenticated/i);
   });

@@ -1,63 +1,48 @@
--- KT-016-project-binding: Enforce that analysis.project_id matches proposal's project
+-- KT-016-project-binding: Make analysis.project_id/proposal_id relationally durable
 --
--- analyses.project_id and analyses.proposal_id are independent FKs, so the
--- database can accept an analysis whose proposal belongs to a different project.
--- This breaks ownership-boundary assumptions in RLS and provenance.
+-- The original table uses independent FKs for project_id and proposal_id,
+-- so the database can accept an analysis whose proposal belongs to a different
+-- project. This breaks ownership-boundary assumptions in RLS and provenance.
 --
--- This migration adds bidirectional validation:
--- 1. analysis INSERT/UPDATE validates project_id matches the proposal's project
--- 2. project_proposals UPDATE prevents re-parenting a proposal that is referenced
---    by any analysis, preserving the invariant durably.
+-- This migration replaces the independent FKs with a composite FK from
+-- analysis.analyses(proposal_id, project_id) to a unique key on
+-- public.project_proposals(id, project_id). The composite FK is enforced
+-- by PostgreSQL's MVCC engine with proper table-level locking, making it
+-- safe against concurrent analysis insert + proposal re-parent operations.
+--
+-- Guest/anonymous analyses with project_id = NULL remain valid because
+-- composite FKs are not checked when any component column is NULL.
 
-CREATE OR REPLACE FUNCTION analysis.validate_analysis_project_proposal()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = analysis, public
-AS $$
-BEGIN
-    IF NEW.project_id IS NOT NULL THEN
-        IF NOT EXISTS (
-            SELECT 1
-            FROM public.project_proposals
-            WHERE id = NEW.proposal_id
-              AND project_id = NEW.project_id
-        ) THEN
-            RAISE EXCEPTION 'analysis proposal % does not belong to project %', NEW.proposal_id, NEW.project_id;
-        END IF;
-    END IF;
-    RETURN NEW;
-END;
-$$;
+-- 1. Unique key on project_proposals(id, project_id) for composite FK target
+-- id is already the primary key, so (id, project_id) is functionally unique,
+-- but PostgreSQL requires an explicit constraint for FK references.
 
-CREATE TRIGGER validate_analysis_project_proposal
-    BEFORE INSERT OR UPDATE ON analysis.analyses
-    FOR EACH ROW
-    EXECUTE FUNCTION analysis.validate_analysis_project_proposal();
+ALTER TABLE public.project_proposals
+    DROP CONSTRAINT IF EXISTS project_proposals_id_project_id_key;
 
-CREATE OR REPLACE FUNCTION public.prevent_proposal_reparenting()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, analysis
-AS $$
-BEGIN
-    IF NEW.project_id IS DISTINCT FROM OLD.project_id THEN
-        IF EXISTS (
-            SELECT 1
-            FROM analysis.analyses
-            WHERE proposal_id = NEW.id
-        ) THEN
-            RAISE EXCEPTION 'cannot change project_id for proposal % because it is referenced by an analysis', NEW.id;
-        END IF;
-    END IF;
-    RETURN NEW;
-END;
-$$;
+ALTER TABLE public.project_proposals
+    ADD CONSTRAINT project_proposals_id_project_id_key UNIQUE (id, project_id);
 
-DROP TRIGGER IF EXISTS prevent_proposal_reparenting ON public.project_proposals;
+-- 2. Drop the old independent FKs from analysis.analyses
 
-CREATE TRIGGER prevent_proposal_reparenting
-    BEFORE UPDATE OF project_id ON public.project_proposals
-    FOR EACH ROW
-    EXECUTE FUNCTION public.prevent_proposal_reparenting();
+ALTER TABLE analysis.analyses
+    DROP CONSTRAINT IF EXISTS analyses_project_id_fkey;
+
+ALTER TABLE analysis.analyses
+    DROP CONSTRAINT IF EXISTS analyses_proposal_id_fkey;
+
+-- 3. Add composite FK: (proposal_id, project_id) -> project_proposals(id, project_id)
+-- This ensures:
+--   - INSERT/UPDATE on analyses validates that the proposal belongs to the project
+--   - UPDATE on project_proposals changing project_id is rejected if any analysis
+--     references (proposal_id, old_project_id)
+-- The FK is not checked when project_id IS NULL, preserving guest analyses.
+--
+-- PostgreSQL's FK enforcement acquires table-level locks that serialize
+-- concurrent inserts and re-parents, preventing the READ COMMITTED race
+-- where both transactions could pass the FK check before either commits.
+
+ALTER TABLE analysis.analyses
+    ADD CONSTRAINT analyses_proposal_project_fk
+        FOREIGN KEY (proposal_id, project_id)
+        REFERENCES public.project_proposals(id, project_id);

@@ -753,77 +753,93 @@ describe("analysis snapshot database regression (KT-016)", () => {
       `,
         [projectA.rows[0].id, proposalInB.rows[0].id, dataRelease.rows[0].id]
       )
-    ).rejects.toThrow("does not belong to project");
+    ).rejects.toThrow();
   });
 
-  runTest("prevents re-parenting proposal after analysis references it", async () => {
-    await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-    await client.query("CREATE SCHEMA analysis");
-    await applyMigrations(client);
+  runTest(
+    "prevents re-parenting proposal after analysis references it (two-connection)",
+    async () => {
+      const clientA = new Client({ connectionString: DATABASE_URL });
+      const clientB = new Client({ connectionString: DATABASE_URL });
+      await clientA.connect();
+      await clientB.connect();
 
-    const userId = crypto.randomUUID();
-    const userEmail = `test-${userId.slice(0, 8)}@example.com`;
+      try {
+        await clientA.query("DROP SCHEMA IF EXISTS analysis CASCADE");
+        await clientA.query("CREATE SCHEMA analysis");
+        await applyMigrations(clientA);
 
-    await client.query(
-      `
-      INSERT INTO auth.users (id, email, role, is_sso_user, is_anonymous) VALUES ($1, $2, 'authenticated', false, false)
-    `,
-      [userId, userEmail]
-    );
+        const userId = crypto.randomUUID();
+        const userEmail = `test-${userId.slice(0, 8)}@example.com`;
 
-    const projectA = await client.query(
-      `
-      INSERT INTO public.projects (user_id, name, cadastral_id)
-      VALUES ($1, 'Project A', '12345')
-      RETURNING id
-    `,
-      [userId]
-    );
+        await clientA.query(
+          `
+          INSERT INTO auth.users (id, email, role, is_sso_user, is_anonymous) VALUES ($1, $2, 'authenticated', false, false)
+        `,
+          [userId, userEmail]
+        );
 
-    const projectB = await client.query(
-      `
-      INSERT INTO public.projects (user_id, name, cadastral_id)
-      VALUES ($1, 'Project B', '67890')
-      RETURNING id
-    `,
-      [userId]
-    );
+        const projectA = await clientA.query(
+          `
+          INSERT INTO public.projects (user_id, name, cadastral_id)
+          VALUES ($1, 'Project A', '12345')
+          RETURNING id
+        `,
+          [userId]
+        );
 
-    const proposal = await client.query(
-      `
-      INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2)
-      VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100)
-      RETURNING id
-    `,
-      [projectA.rows[0].id]
-    );
+        const projectB = await clientA.query(
+          `
+          INSERT INTO public.projects (user_id, name, cadastral_id)
+          VALUES ($1, 'Project B', '67890')
+          RETURNING id
+        `,
+          [userId]
+        );
 
-    const dataRelease = await client.query(
-      `
-      INSERT INTO private.data_releases (release_key, status)
-      VALUES ('test-release-' || substr($1, 1, 8), 'promoted')
-      RETURNING id
-    `,
-      [userId]
-    );
+        const proposal = await clientA.query(
+          `
+          INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2)
+          VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100)
+          RETURNING id
+        `,
+          [projectA.rows[0].id]
+        );
 
-    await client.query(
-      `
-      INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
-      VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
-    `,
-      [projectA.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]
-    );
+        const dataRelease = await clientA.query(
+          `
+          INSERT INTO private.data_releases (release_key, status)
+          VALUES ($1, 'promoted')
+          RETURNING id
+        `,
+          [userId]
+        );
 
-    await expect(
-      client.query(
-        `
-        UPDATE public.project_proposals SET project_id = $1 WHERE id = $2
-      `,
-        [projectB.rows[0].id, proposal.rows[0].id]
-      )
-    ).rejects.toThrow("cannot change project_id for proposal");
-  });
+        await clientA.query(
+          `
+          INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
+          VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
+        `,
+          [projectA.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]
+        );
+
+        await expect(
+          clientB.query(
+            `
+            UPDATE public.project_proposals SET project_id = $1 WHERE id = $2
+          `,
+            [projectB.rows[0].id, proposal.rows[0].id]
+          )
+        ).rejects.toThrow();
+
+        await clientA.query("ROLLBACK");
+        await clientB.query("ROLLBACK");
+      } finally {
+        await clientA.end();
+        await clientB.end();
+      }
+    }
+  );
 
   runTest(
     "prevents child mutation after concurrent terminal transition",

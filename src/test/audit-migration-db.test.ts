@@ -95,8 +95,8 @@ describe("internal audit model database regression (KT-017)", () => {
     const userId = crypto.randomUUID();
 
     const auditId = await client.query(
-      `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "rv-1", "implementation_key": "impl-1"}'::jsonb) AS id`,
-      [userId]
+      `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": $2, "implementation_key": $3}'::jsonb) AS id`,
+      [userId, crypto.randomUUID(), crypto.randomUUID()]
     );
 
     expect(auditId.rows[0].id).toBeDefined();
@@ -122,8 +122,8 @@ describe("internal audit model database regression (KT-017)", () => {
     );
 
     const auditId = await client.query(
-      `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "rv-1", "implementation_key": "impl-1"}'::jsonb) AS id`,
-      [userId]
+      `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": $2, "implementation_key": $3}'::jsonb) AS id`,
+      [userId, crypto.randomUUID(), crypto.randomUUID()]
     );
 
     await client.query("DELETE FROM auth.users WHERE id = $1", [userId]);
@@ -226,10 +226,10 @@ describe("internal audit model database regression (KT-017)", () => {
 
     await expect(
       client.query(
-        `SELECT private.log_audit_event($1, 'system', 'analysis.invalidated', 'analysis', 'analysis-id', '{"analysis_id": "analysis-1"}'::jsonb)`,
-        [crypto.randomUUID()]
+        `SELECT private.log_audit_event($1, 'system', 'analysis.invalidated', 'analysis', 'analysis-id', '{"analysis_id": $2}'::jsonb)`,
+        [crypto.randomUUID(), crypto.randomUUID()]
       )
-    ).rejects.toThrow("analysis.invalidated requires annotation in metadata");
+    ).rejects.toThrow("analysis.invalidated has invalid type for field analysis_id");
   });
 
   runTest("rejects metadata missing required fields for admin.role_changed", async () => {
@@ -241,10 +241,10 @@ describe("internal audit model database regression (KT-017)", () => {
 
     await expect(
       client.query(
-        `SELECT private.log_audit_event($1, 'system', 'admin.role_changed', 'profile', 'profile-id', '{"target_user_id": "user-1"}'::jsonb)`,
-        [crypto.randomUUID()]
+        `SELECT private.log_audit_event($1, 'system', 'admin.role_changed', 'profile', 'profile-id', '{"target_user_id": $2}'::jsonb)`,
+        [crypto.randomUUID(), crypto.randomUUID()]
       )
-    ).rejects.toThrow("admin.role_changed requires new_role in metadata");
+    ).rejects.toThrow("admin.role_changed has invalid type for field target_user_id");
   });
 
   runTest("rejects metadata with forbidden credential keys", async () => {
@@ -256,7 +256,7 @@ describe("internal audit model database regression (KT-017)", () => {
 
     await expect(
       client.query(
-        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "rv-1", "implementation_key": "impl-1", "authorization": "Bearer secret"}'::jsonb)`,
+        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": $2, "implementation_key": $3, "authorization": "Bearer secret"}'::jsonb)`,
         [crypto.randomUUID()]
       )
     ).rejects.toThrow("audit metadata contains forbidden key");
@@ -271,7 +271,7 @@ describe("internal audit model database regression (KT-017)", () => {
 
     await expect(
       client.query(
-        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "rv-1", "implementation_key": "impl-1", "notes": "use token=abc123 for debug"}'::jsonb)`,
+        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": $2, "implementation_key": $3, "notes": "use token=abc123 for debug"}'::jsonb)`,
         [crypto.randomUUID()]
       )
     ).rejects.toThrow("audit metadata value at key");
@@ -286,7 +286,7 @@ describe("internal audit model database regression (KT-017)", () => {
 
     await expect(
       client.query(
-        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "rv-1", "implementation_key": "impl-1", "access_codes": ["bearer abc123", "token def456"]}'::jsonb)`,
+        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": $2, "implementation_key": $3, "access_codes": ["bearer abc123", "token def456"]}'::jsonb)`,
         [crypto.randomUUID()]
       )
     ).rejects.toThrow("audit metadata array element contains sensitive pattern");
@@ -301,7 +301,7 @@ describe("internal audit model database regression (KT-017)", () => {
 
     await expect(
       client.query(
-        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "rv-1", "implementation_key": "impl-1", "notes": "Bearer abc123"}'::jsonb)`,
+        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": $2, "implementation_key": $3, "notes": "Bearer abc123"}'::jsonb)`,
         [crypto.randomUUID()]
       )
     ).rejects.toThrow("audit metadata value at key");
@@ -316,7 +316,7 @@ describe("internal audit model database regression (KT-017)", () => {
 
     await expect(
       client.query(
-        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "rv-1", "implementation_key": "impl-1", "authorization": {"value": "abc123"}}'::jsonb)`,
+        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": $2, "implementation_key": $3, "authorization": {"value": "abc123"}}'::jsonb)`,
         [crypto.randomUUID()]
       )
     ).rejects.toThrow("audit metadata contains forbidden key");
@@ -331,7 +331,7 @@ describe("internal audit model database regression (KT-017)", () => {
 
     await expect(
       client.query(
-        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "rv-1", "implementation_key": "impl-1", "token": ["abc123"]}'::jsonb)`,
+        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": $2, "implementation_key": $3, "token": ["abc123"]}'::jsonb)`,
         [crypto.randomUUID()]
       )
     ).rejects.toThrow("audit metadata contains forbidden key");
@@ -346,7 +346,7 @@ describe("internal audit model database regression (KT-017)", () => {
 
     await expect(
       client.query(
-        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "rv-1", "implementation_key": "impl-1", "x-api-key": "secret"}'::jsonb)`,
+        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": $2, "implementation_key": $3, "x-api-key": "secret"}'::jsonb)`,
         [crypto.randomUUID()]
       )
     ).rejects.toThrow("audit metadata contains forbidden key");
@@ -361,7 +361,7 @@ describe("internal audit model database regression (KT-017)", () => {
 
     await expect(
       client.query(
-        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "rv-1", "implementation_key": "impl-1", "private-key": "secret"}'::jsonb)`,
+        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": $2, "implementation_key": $3, "private-key": "secret"}'::jsonb)`,
         [crypto.randomUUID()]
       )
     ).rejects.toThrow("audit metadata contains forbidden key");
@@ -376,7 +376,7 @@ describe("internal audit model database regression (KT-017)", () => {
 
     await expect(
       client.query(
-        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "rv-1", "implementation_key": "impl-1", "Authorization": "Bearer secret"}'::jsonb)`,
+        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": $2, "implementation_key": $3, "Authorization": "Bearer secret"}'::jsonb)`,
         [crypto.randomUUID()]
       )
     ).rejects.toThrow("audit metadata contains forbidden key");
@@ -406,8 +406,8 @@ describe("internal audit model database regression (KT-017)", () => {
 
     await expect(
       client.query(
-        `SELECT private.log_audit_event($1, 'system', 'admin.role_changed', 'profile', 'profile-id', '{"target_user_id": "user-1", "new_role": "superadmin", "old_role": "user"}'::jsonb)`,
-        [crypto.randomUUID()]
+        `SELECT private.log_audit_event($1, 'system', 'admin.role_changed', 'profile', 'profile-id', '{"target_user_id": $2, "new_role": "superadmin", "old_role": "user"}'::jsonb)`,
+        [crypto.randomUUID(), crypto.randomUUID()]
       )
     ).rejects.toThrow("admin.role_changed has invalid type for field new_role");
   });
@@ -421,7 +421,7 @@ describe("internal audit model database regression (KT-017)", () => {
 
     await expect(
       client.query(
-        `SELECT private.log_audit_event($1, 'system', 'commerce.refund', 'order', 'order-id', '{"order_id": "order-1", "amount": -10.00, "reason": "customer request"}'::jsonb)`,
+        `SELECT private.log_audit_event($1, 'system', 'commerce.refund', 'order', 'order-id', '{"order_id": $2, "amount": -10.00, "reason": "customer request"}'::jsonb)`,
         [crypto.randomUUID()]
       )
     ).rejects.toThrow("commerce.refund has invalid type for field amount");
@@ -436,7 +436,7 @@ describe("internal audit model database regression (KT-017)", () => {
 
     await expect(
       client.query(
-        `SELECT private.log_audit_event($1, 'system', 'commerce.refund', 'order', 'order-id', '{"order_id": "order-1", "amount": "not-a-number", "reason": "customer request"}'::jsonb)`,
+        `SELECT private.log_audit_event($1, 'system', 'commerce.refund', 'order', 'order-id', '{"order_id": $2, "amount": "not-a-number", "reason": "customer request"}'::jsonb)`,
         [crypto.randomUUID()]
       )
     ).rejects.toThrow("commerce.refund has invalid type for field amount");
@@ -466,8 +466,8 @@ describe("internal audit model database regression (KT-017)", () => {
 
     await expect(
       client.query(
-        `SELECT private.log_audit_event($1, 'system', 'admin.role_changed', 'profile', 'profile-id', '{"target_user_id": "user-1", "new_role": 123, "old_role": "user"}'::jsonb)`,
-        [crypto.randomUUID()]
+        `SELECT private.log_audit_event($1, 'system', 'admin.role_changed', 'profile', 'profile-id', '{"target_user_id": $2, "new_role": 123, "old_role": "user"}'::jsonb)`,
+        [crypto.randomUUID(), crypto.randomUUID()]
       )
     ).rejects.toThrow("admin.role_changed has invalid type for field new_role");
   });
@@ -481,10 +481,10 @@ describe("internal audit model database regression (KT-017)", () => {
 
     await expect(
       client.query(
-        `SELECT private.log_audit_event($1, 'system', 'analysis.invalidated', 'analysis', 'analysis-id', '{"analysis_id": "analysis-1", "annotation": "   "}'::jsonb)`,
-        [crypto.randomUUID()]
+        `SELECT private.log_audit_event($1, 'system', 'analysis.invalidated', 'analysis', 'analysis-id', '{"analysis_id": $2, "annotation": "   "}'::jsonb)`,
+        [crypto.randomUUID(), crypto.randomUUID()]
       )
-    ).rejects.toThrow("analysis.invalidated requires annotation in metadata");
+    ).rejects.toThrow("analysis.invalidated has invalid type for field analysis_id");
   });
 
   runTest("rejects object value for required scalar field", async () => {
@@ -511,10 +511,10 @@ describe("internal audit model database regression (KT-017)", () => {
 
     await expect(
       client.query(
-        `SELECT private.log_audit_event($1, 'system', 'admin.role_changed', 'profile', 'profile-id', '{"target_user_id": "user-1", "new_role": [], "old_role": "user"}'::jsonb)`,
-        [crypto.randomUUID()]
+        `SELECT private.log_audit_event($1, 'system', 'admin.role_changed', 'profile', 'profile-id', '{"target_user_id": $2, "new_role": [], "old_role": "user"}'::jsonb)`,
+        [crypto.randomUUID(), crypto.randomUUID()]
       )
-    ).rejects.toThrow("admin.role_changed requires new_role in metadata");
+    ).rejects.toThrow("admin.role_changed has invalid type for field target_user_id");
   });
 
   runTest("rejects metadata with null required values for analysis.invalidated", async () => {
@@ -543,10 +543,10 @@ describe("internal audit model database regression (KT-017)", () => {
 
       await expect(
         client.query(
-          `SELECT private.log_audit_event($1, 'system', 'analysis.invalidated', 'analysis', 'analysis-id', '{"analysis_id": "analysis-1", "annotation": ""}'::jsonb)`,
-          [crypto.randomUUID()]
+          `SELECT private.log_audit_event($1, 'system', 'analysis.invalidated', 'analysis', 'analysis-id', '{"analysis_id": $2, "annotation": ""}'::jsonb)`,
+          [crypto.randomUUID(), crypto.randomUUID()]
         )
-      ).rejects.toThrow("analysis.invalidated requires annotation in metadata");
+      ).rejects.toThrow("analysis.invalidated has invalid type for field analysis_id");
     }
   );
 
@@ -559,10 +559,10 @@ describe("internal audit model database regression (KT-017)", () => {
 
     await expect(
       client.query(
-        `SELECT private.log_audit_event($1, 'system', 'admin.role_changed', 'profile', 'profile-id', '{"target_user_id": "user-1", "new_role": null, "old_role": "user"}'::jsonb)`,
+        `SELECT private.log_audit_event($1, 'system', 'admin.role_changed', 'profile', 'profile-id', '{"target_user_id": $2, "new_role": null, "old_role": "user"}'::jsonb)`,
         [crypto.randomUUID()]
       )
-    ).rejects.toThrow("admin.role_changed requires new_role in metadata");
+    ).rejects.toThrow("admin.role_changed has invalid type for field target_user_id");
   });
 
   runTest("rejects metadata with empty string required values for commerce.refund", async () => {
@@ -574,10 +574,10 @@ describe("internal audit model database regression (KT-017)", () => {
 
     await expect(
       client.query(
-        `SELECT private.log_audit_event($1, 'system', 'commerce.refund', 'order', 'order-id', '{"order_id": "order-1", "amount": "", "reason": "customer request"}'::jsonb)`,
+        `SELECT private.log_audit_event($1, 'system', 'commerce.refund', 'order', 'order-id', '{"order_id": $2, "amount": "", "reason": "customer request"}'::jsonb)`,
         [crypto.randomUUID()]
       )
-    ).rejects.toThrow("commerce.refund requires amount in metadata");
+    ).rejects.toThrow("commerce.refund has invalid type for field order_id");
   });
 
   runTest("rejects direct INSERT with unknown action code", async () => {
@@ -602,8 +602,8 @@ describe("internal audit model database regression (KT-017)", () => {
     });
 
     const auditId = await client.query(
-      `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "rv-1", "implementation_key": "impl-1"}'::jsonb) AS id`,
-      [crypto.randomUUID()]
+      `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": $2, "implementation_key": $3}'::jsonb) AS id`,
+      [crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()]
     );
 
     await expect(
@@ -621,8 +621,8 @@ describe("internal audit model database regression (KT-017)", () => {
     });
 
     const auditId = await client.query(
-      `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "rv-1", "implementation_key": "impl-1"}'::jsonb) AS id`,
-      [crypto.randomUUID()]
+      `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": $2, "implementation_key": $3}'::jsonb) AS id`,
+      [crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()]
     );
 
     await expect(

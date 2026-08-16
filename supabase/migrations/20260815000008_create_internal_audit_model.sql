@@ -133,7 +133,7 @@ BEGIN
     IF jsonb_typeof(v_raw) IN ('object', 'array') THEN
         RETURN false;
     END IF;
-    v_text := trim(v_raw::text);
+    v_text := trim(both '"' from v_raw::text);
     RETURN v_text != '';
 END;
 $$;

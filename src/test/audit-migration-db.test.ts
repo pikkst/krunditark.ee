@@ -288,7 +288,7 @@ describe("internal audit model database regression (KT-017)", () => {
 
     await expect(
       client.query(
-        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "rv-1", "implementation_key": "impl-1", "tokens": ["bearer abc123", "token def456"]}'::jsonb)`,
+        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "rv-1", "implementation_key": "impl-1", "access_codes": ["bearer abc123", "token def456"]}'::jsonb)`,
         [crypto.randomUUID()]
       )
     ).rejects.toThrow("audit metadata array element contains sensitive pattern");

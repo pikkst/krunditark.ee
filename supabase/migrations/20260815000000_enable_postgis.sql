@@ -6,14 +6,26 @@
 -- Creating the schema explicitly keeps extension placement deterministic.
 CREATE SCHEMA IF NOT EXISTS extensions;
 
--- PostGIS is installed into the extensions schema so internal spatial objects
--- are separated from user-facing tables. IF NOT EXISTS does not relocate an
--- already-installed extension; the assertion below verifies the namespace.
-CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA extensions;
+-- If PostGIS is already installed in another schema (for example the
+-- postgis/postgis Docker image preinstalls it in public), relocate it
+-- to the extensions schema before proceeding.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'postgis') THEN
+        IF EXISTS (
+            SELECT 1 FROM pg_extension e
+            JOIN pg_namespace n ON n.oid = e.extnamespace
+            WHERE e.extname = 'postgis' AND n.nspname <> 'extensions'
+        ) THEN
+            ALTER EXTENSION postgis SET SCHEMA extensions;
+        END IF;
+    ELSE
+        CREATE EXTENSION postgis WITH SCHEMA extensions;
+    END IF;
+END;
+$$;
 
 -- Verify the installed extension lives in the extensions schema.
--- This assertion fails if PostGIS was previously installed elsewhere and
--- could not be relocated by the statement above.
 DO $$
 DECLARE
     v_extname text;

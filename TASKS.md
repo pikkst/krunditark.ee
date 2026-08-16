@@ -168,13 +168,12 @@ Implement from `DATABASE_SCHEMA.md` / canonical refresh doc:
 
 Capture:
 
-- [ ] rule verify/retire.
-- [ ] source promote/disable/manual refresh.
-- [ ] admin role changes.
-- [ ] analysis invalidation annotation.
-- [ ] later refunds/manual entitlements.
-
-No credentials/tokens.
+- [x] rule verify/retire.
+- [x] source promote/disable/manual refresh.
+- [x] admin role changes.
+- [x] analysis invalidation annotation.
+- [x] later refunds/manual entitlements.
+- [x] No credentials/tokens.
 
 ## KT-018 — Database/RLS clean-start test suite
 

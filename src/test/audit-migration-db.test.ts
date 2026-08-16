@@ -31,6 +31,13 @@ async function ensureRoles(client: Client) {
   `);
 }
 
+const DB_TEST_ADVISORY_LOCK = 0xdeadbeef;
+
+async function withAdvisoryLock<T>(client: Client, fn: () => Promise<T>): Promise<T> {
+  await client.query("SELECT pg_advisory_xact_lock($1)", [DB_TEST_ADVISORY_LOCK]);
+  return fn();
+}
+
 describe("internal audit model database regression (KT-017)", () => {
   let client: Client;
 
@@ -63,9 +70,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("applies migration to a clean database", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
     const result = await client.query(
       "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'private' AND table_name = 'audit_log'"
     );
@@ -73,9 +82,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("actor_user_id is a bare UUID without live FK", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
 
     const userId = crypto.randomUUID();
 
@@ -93,9 +104,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("deleting referenced auth user does not affect audit log", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
 
     const userId = crypto.randomUUID();
 
@@ -131,9 +144,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("accepts all known action codes via log_audit_event", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
 
     const actions = [
       "rule.verify",
@@ -238,9 +253,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("rejects metadata with sensitive token patterns in values", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
 
     await expect(
       client.query(
@@ -251,9 +268,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("rejects direct INSERT with unknown action code", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
 
     await expect(
       client.query(
@@ -280,9 +299,11 @@ describe("internal audit model database regression (KT-017)", () => {
   });
 
   runTest("audit_log rejects delete after insert", async () => {
-    await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-    await client.query("CREATE SCHEMA private");
-    await client.query(sql);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
 
     const auditId = await client.query(
       `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "rv-1", "implementation_key": "impl-1"}'::jsonb) AS id`,

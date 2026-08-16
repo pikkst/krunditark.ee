@@ -229,7 +229,7 @@ describe("internal audit model database regression (KT-017)", () => {
         `SELECT private.log_audit_event($1, 'system', 'analysis.invalidated', 'analysis', 'analysis-id', '{"analysis_id": "analysis-1"}'::jsonb)`,
         [crypto.randomUUID()]
       )
-    ).rejects.toThrow("analysis.invalidated requires analysis_id and annotation in metadata");
+    ).rejects.toThrow("analysis.invalidated requires annotation in metadata");
   });
 
   runTest("rejects metadata missing required fields for admin.role_changed", async () => {
@@ -339,6 +339,66 @@ describe("internal audit model database regression (KT-017)", () => {
     ).rejects.toThrow("audit metadata contains forbidden key");
   });
 
+  runTest("rejects x-api-key separator variant", async () => {
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
+
+    await expect(
+      client.query(
+        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "rv-1", "implementation_key": "impl-1", "x-api-key": "secret"}'::jsonb)`,
+        [crypto.randomUUID()]
+      )
+    ).rejects.toThrow("audit metadata contains forbidden key");
+  });
+
+  runTest("rejects private-key separator variant", async () => {
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
+
+    await expect(
+      client.query(
+        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "rv-1", "implementation_key": "impl-1", "private-key": "secret"}'::jsonb)`,
+        [crypto.randomUUID()]
+      )
+    ).rejects.toThrow("audit metadata contains forbidden key");
+  });
+
+  runTest("rejects boolean value for UUID field", async () => {
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
+
+    await expect(
+      client.query(
+        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": true, "implementation_key": "impl-1"}'::jsonb)`,
+        [crypto.randomUUID()]
+      )
+    ).rejects.toThrow("rule.verify has invalid type for field rule_version_id");
+  });
+
+  runTest("rejects number value for text field", async () => {
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
+
+    await expect(
+      client.query(
+        `SELECT private.log_audit_event($1, 'system', 'admin.role_changed', 'profile', 'profile-id', '{"target_user_id": "user-1", "new_role": 123, "old_role": "user"}'::jsonb)`,
+        [crypto.randomUUID()]
+      )
+    ).rejects.toThrow("admin.role_changed has invalid type for field new_role");
+  });
+
   runTest("rejects whitespace-only required values for analysis.invalidated", async () => {
     await withAdvisoryLock(client, async () => {
       await client.query("DROP SCHEMA IF EXISTS private CASCADE");
@@ -351,7 +411,7 @@ describe("internal audit model database regression (KT-017)", () => {
         `SELECT private.log_audit_event($1, 'system', 'analysis.invalidated', 'analysis', 'analysis-id', '{"analysis_id": "analysis-1", "annotation": "   "}'::jsonb)`,
         [crypto.randomUUID()]
       )
-    ).rejects.toThrow("analysis.invalidated requires analysis_id and annotation in metadata");
+    ).rejects.toThrow("analysis.invalidated requires annotation in metadata");
   });
 
   runTest("rejects object value for required scalar field", async () => {
@@ -366,7 +426,7 @@ describe("internal audit model database regression (KT-017)", () => {
         `SELECT private.log_audit_event($1, 'system', 'analysis.invalidated', 'analysis', 'analysis-id', '{"analysis_id": {}, "annotation": "test"}'::jsonb)`,
         [crypto.randomUUID()]
       )
-    ).rejects.toThrow("analysis.invalidated requires analysis_id and annotation in metadata");
+    ).rejects.toThrow("analysis.invalidated requires annotation in metadata");
   });
 
   runTest("rejects array value for required scalar field", async () => {
@@ -398,7 +458,7 @@ describe("internal audit model database regression (KT-017)", () => {
         `SELECT private.log_audit_event($1, 'system', 'analysis.invalidated', 'analysis', 'analysis-id', '{"analysis_id": null, "annotation": "test"}'::jsonb)`,
         [crypto.randomUUID()]
       )
-    ).rejects.toThrow("analysis.invalidated requires analysis_id and annotation in metadata");
+    ).rejects.toThrow("analysis.invalidated requires annotation in metadata");
   });
 
   runTest(
@@ -415,7 +475,7 @@ describe("internal audit model database regression (KT-017)", () => {
           `SELECT private.log_audit_event($1, 'system', 'analysis.invalidated', 'analysis', 'analysis-id', '{"analysis_id": "analysis-1", "annotation": ""}'::jsonb)`,
           [crypto.randomUUID()]
         )
-      ).rejects.toThrow("analysis.invalidated requires analysis_id and annotation in metadata");
+      ).rejects.toThrow("analysis.invalidated requires annotation in metadata");
     }
   );
 

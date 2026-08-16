@@ -69,14 +69,16 @@ DECLARE
         'credential', 'bearer', 'basic', 'signature', 'private_key',
         'client_secret', 'session', 'jwt'
     ];
+    v_normalized_key text;
     v_rec record;
 BEGIN
     IF jsonb_typeof(p_metadata) = 'object' THEN
         v_sanitized := '{}'::jsonb;
         FOR v_rec IN SELECT * FROM jsonb_each(COALESCE(p_metadata, '{}'::jsonb)) LOOP
+            v_normalized_key := lower(regexp_replace(v_rec.key, '[^a-z0-9]', '_', 'g'));
             IF EXISTS (
                 SELECT 1 FROM unnest(v_forbidden_patterns) p
-                WHERE lower(v_rec.key) = p OR lower(v_rec.key) LIKE '%' || p || '%'
+                WHERE v_normalized_key = p OR v_normalized_key LIKE '%' || p || '%'
             ) THEN
                 RAISE EXCEPTION 'audit metadata contains forbidden key: %', v_rec.key;
             END IF;
@@ -138,50 +140,66 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION private.validate_audit_metadata(p_action text, p_metadata jsonb)
+CREATE OR REPLACE FUNCTION private.validate_audit_field_type(p_key text, p_value jsonb)
 RETURNS boolean
 LANGUAGE plpgsql
 STABLE
 AS $$
 BEGIN
+    IF p_key IN ('rule_version_id', 'implementation_key', 'source_id', 'dataset_version_id', 'target_user_id', 'analysis_id', 'order_id', 'user_id') THEN
+        RETURN jsonb_typeof(p_value) = 'string';
+    END IF;
+    IF p_key IN ('annotation', 'reason', 'new_role', 'old_role', 'entitlement_type') THEN
+        RETURN jsonb_typeof(p_value) = 'string' AND trim(both '"' from p_value::text) != '';
+    END IF;
+    IF p_key = 'amount' THEN
+        RETURN jsonb_typeof(p_value) IN ('string', 'number');
+    END IF;
+    RETURN true;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION private.validate_audit_metadata(p_action text, p_metadata jsonb)
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+    v_required_fields text[];
+    v_field text;
+BEGIN
     CASE p_action
         WHEN 'rule.verify' THEN
-            IF NOT (private.audit_metadata_has_value(p_metadata, 'rule_version_id') AND private.audit_metadata_has_value(p_metadata, 'implementation_key')) THEN
-                RAISE EXCEPTION 'rule.verify requires rule_version_id and implementation_key in metadata';
-            END IF;
+            v_required_fields := ARRAY['rule_version_id', 'implementation_key'];
         WHEN 'rule.retire' THEN
-            IF NOT (private.audit_metadata_has_value(p_metadata, 'rule_version_id')) THEN
-                RAISE EXCEPTION 'rule.retire requires rule_version_id in metadata';
-            END IF;
+            v_required_fields := ARRAY['rule_version_id'];
         WHEN 'source.promote' THEN
-            IF NOT (private.audit_metadata_has_value(p_metadata, 'source_id') AND private.audit_metadata_has_value(p_metadata, 'dataset_version_id')) THEN
-                RAISE EXCEPTION 'source.promote requires source_id and dataset_version_id in metadata';
-            END IF;
+            v_required_fields := ARRAY['source_id', 'dataset_version_id'];
         WHEN 'source.disable' THEN
-            IF NOT (private.audit_metadata_has_value(p_metadata, 'source_id')) THEN
-                RAISE EXCEPTION 'source.disable requires source_id in metadata';
-            END IF;
+            v_required_fields := ARRAY['source_id'];
         WHEN 'source.manual_refresh' THEN
-            IF NOT (private.audit_metadata_has_value(p_metadata, 'source_id')) THEN
-                RAISE EXCEPTION 'source.manual_refresh requires source_id in metadata';
-            END IF;
+            v_required_fields := ARRAY['source_id'];
         WHEN 'admin.role_changed' THEN
-            IF NOT (private.audit_metadata_has_value(p_metadata, 'target_user_id') AND private.audit_metadata_has_value(p_metadata, 'new_role') AND private.audit_metadata_has_value(p_metadata, 'old_role')) THEN
-                RAISE EXCEPTION 'admin.role_changed requires target_user_id, new_role, and old_role in metadata';
-            END IF;
+            v_required_fields := ARRAY['target_user_id', 'new_role', 'old_role'];
         WHEN 'analysis.invalidated' THEN
-            IF NOT (private.audit_metadata_has_value(p_metadata, 'analysis_id') AND private.audit_metadata_has_value(p_metadata, 'annotation')) THEN
-                RAISE EXCEPTION 'analysis.invalidated requires analysis_id and annotation in metadata';
-            END IF;
+            v_required_fields := ARRAY['analysis_id', 'annotation'];
         WHEN 'commerce.refund' THEN
-            IF NOT (private.audit_metadata_has_value(p_metadata, 'order_id') AND private.audit_metadata_has_value(p_metadata, 'amount') AND private.audit_metadata_has_value(p_metadata, 'reason')) THEN
-                RAISE EXCEPTION 'commerce.refund requires order_id, amount, and reason in metadata';
-            END IF;
+            v_required_fields := ARRAY['order_id', 'amount', 'reason'];
         WHEN 'commerce.manual_entitlement' THEN
-            IF NOT (private.audit_metadata_has_value(p_metadata, 'user_id') AND private.audit_metadata_has_value(p_metadata, 'entitlement_type') AND private.audit_metadata_has_value(p_metadata, 'reason')) THEN
-                RAISE EXCEPTION 'commerce.manual_entitlement requires user_id, entitlement_type, and reason in metadata';
-            END IF;
+            v_required_fields := ARRAY['user_id', 'entitlement_type', 'reason'];
+        ELSE
+            RETURN true;
     END CASE;
+
+    FOREACH v_field IN ARRAY v_required_fields LOOP
+        IF NOT private.audit_metadata_has_value(p_metadata, v_field) THEN
+            RAISE EXCEPTION '% requires % in metadata', p_action, v_field;
+        END IF;
+        IF NOT private.validate_audit_field_type(v_field, p_metadata -> v_field) THEN
+            RAISE EXCEPTION '% has invalid type for field %', p_action, v_field;
+        END IF;
+    END LOOP;
+
     RETURN true;
 END;
 $$;

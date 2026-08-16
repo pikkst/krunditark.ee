@@ -70,6 +70,7 @@ describe("internal audit model migration (KT-017)", () => {
     expect(sql).toMatch(
       /authorization|auth|token|secret|password|api_key|apikey|access_token|refresh_token|cookie|credential|bearer|basic|signature|private_key|client_secret|session|jwt/i
     );
+    expect(sql).toMatch(/regexp_replace\s*\(\s*v_rec\.key\s*,\s*'\[\^a-z0-9\]'\s*,\s*'_'\s*,\s*'g'\s*\)/i);
     expect(sql).toMatch(/jsonb_typeof\s*\(\s*p_metadata\s*\)\s*=\s*'array'/i);
     expect(sql).toMatch(/jsonb_array_elements/i);
     expect(sql).toMatch(/bearer.*token.*secret.*password/i);
@@ -87,22 +88,23 @@ describe("internal audit model migration (KT-017)", () => {
     expect(sql).toMatch(/trim\s*\(\s*v_text\s*\)\s+!=\s*''/i);
   });
 
+  test("creates validate_audit_field_type function", () => {
+    expect(sql).toMatch(/CREATE\s+OR\s+REPLACE\s+FUNCTION\s+private\.validate_audit_field_type/i);
+    expect(sql).toMatch(/RETURNS\s+boolean/i);
+    expect(sql).toMatch(/LANGUAGE\s+plpgsql/i);
+    expect(sql).toMatch(/STABLE/i);
+    expect(sql).toMatch(/jsonb_typeof\s*\(\s*p_value\s*\)\s*=\s*'string'/i);
+    expect(sql).toMatch(/jsonb_typeof\s*\(\s*p_value\s*\)\s+IN\s*\(\s*'string'\s*,\s*'number'\s*\)/i);
+  });
+
   test("creates validate_audit_metadata function with required fields per action", () => {
     expect(sql).toMatch(/CREATE\s+OR\s+REPLACE\s+FUNCTION\s+private\.validate_audit_metadata/i);
     expect(sql).toMatch(/RETURNS\s+boolean/i);
-    expect(sql).toMatch(/rule\.verify\s+requires\s+rule_version_id\s+and\s+implementation_key/i);
-    expect(sql).toMatch(/rule\.retire\s+requires\s+rule_version_id/i);
-    expect(sql).toMatch(/source\.promote\s+requires\s+source_id\s+and\s+dataset_version_id/i);
-    expect(sql).toMatch(/source\.disable\s+requires\s+source_id/i);
-    expect(sql).toMatch(/source\.manual_refresh\s+requires\s+source_id/i);
-    expect(sql).toMatch(
-      /admin\.role_changed\s+requires\s+target_user_id,\s*new_role,\s*and\s*old_role/i
-    );
-    expect(sql).toMatch(/analysis\.invalidated\s+requires\s+analysis_id\s+and\s+annotation/i);
-    expect(sql).toMatch(/commerce\.refund\s+requires\s+order_id,\s*amount,\s*and\s+reason/i);
-    expect(sql).toMatch(
-      /commerce\.manual_entitlement\s+requires\s+user_id,\s*entitlement_type,\s*and\s+reason/i
-    );
+    expect(sql).toMatch(/FOREACH\s+v_field\s+IN\s+ARRAY\s+v_required_fields\s+LOOP/i);
+    expect(sql).toMatch(/%\s+requires\s+%\s+in\s+metadata/i);
+    expect(sql).toMatch(/validate_audit_field_type/i);
+    expect(sql).toMatch(/has invalid type for field/i);
+    expect(sql).toMatch(/ELSE\s+RETURN\s+true/i);
   });
 
   test("creates log_audit_event canonical writer function", () => {

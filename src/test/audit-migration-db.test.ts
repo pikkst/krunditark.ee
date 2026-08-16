@@ -367,6 +367,81 @@ describe("internal audit model database regression (KT-017)", () => {
     ).rejects.toThrow("audit metadata contains forbidden key");
   });
 
+  runTest("rejects Authorization case variant", async () => {
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
+
+    await expect(
+      client.query(
+        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "rv-1", "implementation_key": "impl-1", "Authorization": "Bearer secret"}'::jsonb)`,
+        [crypto.randomUUID()]
+      )
+    ).rejects.toThrow("audit metadata contains forbidden key");
+  });
+
+  runTest("rejects invalid UUID format for rule_version_id", async () => {
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
+
+    await expect(
+      client.query(
+        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "not-a-uuid", "implementation_key": "impl-1"}'::jsonb)`,
+        [crypto.randomUUID()]
+      )
+    ).rejects.toThrow("rule.verify has invalid type for field rule_version_id");
+  });
+
+  runTest("rejects invalid role value for admin.role_changed", async () => {
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
+
+    await expect(
+      client.query(
+        `SELECT private.log_audit_event($1, 'system', 'admin.role_changed', 'profile', 'profile-id', '{"target_user_id": "user-1", "new_role": "superadmin", "old_role": "user"}'::jsonb)`,
+        [crypto.randomUUID()]
+      )
+    ).rejects.toThrow("admin.role_changed has invalid type for field new_role");
+  });
+
+  runTest("rejects negative amount for commerce.refund", async () => {
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
+
+    await expect(
+      client.query(
+        `SELECT private.log_audit_event($1, 'system', 'commerce.refund', 'order', 'order-id', '{"order_id": "order-1", "amount": -10.00, "reason": "customer request"}'::jsonb)`,
+        [crypto.randomUUID()]
+      )
+    ).rejects.toThrow("commerce.refund has invalid type for field amount");
+  });
+
+  runTest("rejects non-numeric string amount for commerce.refund", async () => {
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
+
+    await expect(
+      client.query(
+        `SELECT private.log_audit_event($1, 'system', 'commerce.refund', 'order', 'order-id', '{"order_id": "order-1", "amount": "not-a-number", "reason": "customer request"}'::jsonb)`,
+        [crypto.randomUUID()]
+      )
+    ).rejects.toThrow("commerce.refund has invalid type for field amount");
+  });
+
   runTest("rejects boolean value for UUID field", async () => {
     await withAdvisoryLock(client, async () => {
       await client.query("DROP SCHEMA IF EXISTS private CASCADE");

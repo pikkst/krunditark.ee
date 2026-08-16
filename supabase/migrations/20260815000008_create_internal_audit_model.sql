@@ -75,7 +75,7 @@ BEGIN
     IF jsonb_typeof(p_metadata) = 'object' THEN
         v_sanitized := '{}'::jsonb;
         FOR v_rec IN SELECT * FROM jsonb_each(COALESCE(p_metadata, '{}'::jsonb)) LOOP
-            v_normalized_key := lower(regexp_replace(v_rec.key, '[^a-z0-9]', '_', 'g'));
+            v_normalized_key := regexp_replace(lower(v_rec.key), '[^a-z0-9]', '_', 'g');
             IF EXISTS (
                 SELECT 1 FROM unnest(v_forbidden_patterns) p
                 WHERE v_normalized_key = p OR v_normalized_key LIKE '%' || p || '%'
@@ -145,15 +145,35 @@ RETURNS boolean
 LANGUAGE plpgsql
 STABLE
 AS $$
+DECLARE
+    v_text text;
 BEGIN
     IF p_key IN ('rule_version_id', 'implementation_key', 'source_id', 'dataset_version_id', 'target_user_id', 'analysis_id', 'order_id', 'user_id') THEN
-        RETURN jsonb_typeof(p_value) = 'string';
+        IF jsonb_typeof(p_value) != 'string' THEN
+            RETURN false;
+        END IF;
+        v_text := trim(both '"' from p_value::text);
+        RETURN v_text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
     END IF;
-    IF p_key IN ('annotation', 'reason', 'new_role', 'old_role', 'entitlement_type') THEN
+    IF p_key IN ('new_role', 'old_role') THEN
+        RETURN jsonb_typeof(p_value) = 'string'
+            AND trim(both '"' from p_value::text) IN ('user', 'admin');
+    END IF;
+    IF p_key IN ('annotation', 'reason', 'entitlement_type') THEN
         RETURN jsonb_typeof(p_value) = 'string' AND trim(both '"' from p_value::text) != '';
     END IF;
     IF p_key = 'amount' THEN
-        RETURN jsonb_typeof(p_value) IN ('string', 'number');
+        IF jsonb_typeof(p_value) = 'number' THEN
+            RETURN p_value::numeric >= 0;
+        ELSIF jsonb_typeof(p_value) = 'string' THEN
+            BEGIN
+                RETURN (trim(both '"' from p_value::text))::numeric >= 0;
+            EXCEPTION
+                WHEN others THEN
+                    RETURN false;
+            END;
+        END IF;
+        RETURN false;
     END IF;
     RETURN true;
 END;

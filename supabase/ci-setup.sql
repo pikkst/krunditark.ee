@@ -3,9 +3,18 @@
 -- migrations and tests depend on, without requiring the full
 -- Supabase Auth service stack.
 
--- Drop any pre-existing PostGIS extension so migrations can recreate it
--- in the extensions schema deterministically.
-DROP EXTENSION IF EXISTS postgis;
+-- Move PostGIS to extensions schema if present (postgis/postgis image
+-- preinstalls it in public). We cannot drop it because dependent
+-- extensions (postgis_topology, postgis_tiger_geocoder) exist.
+CREATE SCHEMA IF NOT EXISTS extensions;
+
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'postgis') THEN
+        ALTER EXTENSION postgis SET SCHEMA extensions;
+    END IF;
+END;
+$$;
 
 CREATE SCHEMA IF NOT EXISTS auth;
 
@@ -23,6 +32,18 @@ LANGUAGE sql
 STABLE
 AS $$
     SELECT NULL::uuid;
+$$;
+
+-- Create roles expected by migration grants
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+        CREATE ROLE service_role;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+        CREATE ROLE authenticated;
+    END IF;
+END;
 $$;
 
 ALTER DATABASE krunditark SET search_path = public, geo, rules, analysis, private, extensions;

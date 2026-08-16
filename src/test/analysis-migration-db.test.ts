@@ -33,6 +33,13 @@ async function applyMigrations(client: Client) {
   await client.query(projectBindingFixSql);
 }
 
+const DB_TEST_ADVISORY_LOCK = 0xdeadbeef;
+
+async function withAdvisoryLock<T>(client: Client, fn: () => Promise<T>): Promise<T> {
+  await client.query("SELECT pg_advisory_xact_lock($1)", [DB_TEST_ADVISORY_LOCK]);
+  return fn();
+}
+
 describe("analysis snapshot database regression (KT-016)", () => {
   let client: Client;
 
@@ -64,9 +71,11 @@ describe("analysis snapshot database regression (KT-016)", () => {
   });
 
   runTest("applies migration to a clean database", async () => {
-    await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-    await client.query("CREATE SCHEMA analysis");
-    await applyMigrations(client);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
+      await client.query("CREATE SCHEMA analysis");
+      await applyMigrations(client);
+    });
     const result = await client.query(
       "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'analysis'"
     );
@@ -74,9 +83,11 @@ describe("analysis snapshot database regression (KT-016)", () => {
   });
 
   runTest("prevents child mutation after parent analysis reaches terminal state", async () => {
-    await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-    await client.query("CREATE SCHEMA analysis");
-    await applyMigrations(client);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
+      await client.query("CREATE SCHEMA analysis");
+      await applyMigrations(client);
+    });
 
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
@@ -149,9 +160,11 @@ describe("analysis snapshot database regression (KT-016)", () => {
   });
 
   runTest("prevents child insert after parent analysis reaches terminal state", async () => {
-    await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-    await client.query("CREATE SCHEMA analysis");
-    await applyMigrations(client);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
+      await client.query("CREATE SCHEMA analysis");
+      await applyMigrations(client);
+    });
 
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
@@ -228,9 +241,11 @@ describe("analysis snapshot database regression (KT-016)", () => {
   });
 
   runTest("prevents child update after parent analysis reaches terminal state", async () => {
-    await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-    await client.query("CREATE SCHEMA analysis");
-    await applyMigrations(client);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
+      await client.query("CREATE SCHEMA analysis");
+      await applyMigrations(client);
+    });
 
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
@@ -308,9 +323,11 @@ describe("analysis snapshot database regression (KT-016)", () => {
   });
 
   runTest("prevents child delete after parent analysis reaches terminal state", async () => {
-    await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-    await client.query("CREATE SCHEMA analysis");
-    await applyMigrations(client);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
+      await client.query("CREATE SCHEMA analysis");
+      await applyMigrations(client);
+    });
 
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
@@ -386,9 +403,11 @@ describe("analysis snapshot database regression (KT-016)", () => {
   });
 
   runTest("prevents moving child rows away from terminal analysis", async () => {
-    await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-    await client.query("CREATE SCHEMA analysis");
-    await applyMigrations(client);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
+      await client.query("CREATE SCHEMA analysis");
+      await applyMigrations(client);
+    });
 
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
@@ -486,9 +505,11 @@ describe("analysis snapshot database regression (KT-016)", () => {
   });
 
   runTest("allows normal child insert/update/delete on non-terminal analysis", async () => {
-    await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-    await client.query("CREATE SCHEMA analysis");
-    await applyMigrations(client);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
+      await client.query("CREATE SCHEMA analysis");
+      await applyMigrations(client);
+    });
 
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
@@ -560,9 +581,11 @@ describe("analysis snapshot database regression (KT-016)", () => {
   });
 
   runTest("rejects mismatched evidence source sync run and dataset version", async () => {
-    await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-    await client.query("CREATE SCHEMA analysis");
-    await applyMigrations(client);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
+      await client.query("CREATE SCHEMA analysis");
+      await applyMigrations(client);
+    });
 
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
@@ -695,9 +718,11 @@ describe("analysis snapshot database regression (KT-016)", () => {
   });
 
   runTest("rejects mismatched project and proposal", async () => {
-    await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-    await client.query("CREATE SCHEMA analysis");
-    await applyMigrations(client);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
+      await client.query("CREATE SCHEMA analysis");
+      await applyMigrations(client);
+    });
 
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
@@ -757,9 +782,11 @@ describe("analysis snapshot database regression (KT-016)", () => {
   });
 
   runTest("rejects nonexistent proposal for guest analysis", async () => {
-    await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-    await client.query("CREATE SCHEMA analysis");
-    await applyMigrations(client);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
+      await client.query("CREATE SCHEMA analysis");
+      await applyMigrations(client);
+    });
 
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
@@ -801,9 +828,11 @@ describe("analysis snapshot database regression (KT-016)", () => {
   });
 
   runTest("accepts valid proposal for guest analysis", async () => {
-    await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-    await client.query("CREATE SCHEMA analysis");
-    await applyMigrations(client);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
+      await client.query("CREATE SCHEMA analysis");
+      await applyMigrations(client);
+    });
 
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
@@ -852,9 +881,11 @@ describe("analysis snapshot database regression (KT-016)", () => {
   });
 
   runTest("accepts valid proposal for guest analysis", async () => {
-    await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-    await client.query("CREATE SCHEMA analysis");
-    await applyMigrations(client);
+    await withAdvisoryLock(client, async () => {
+      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
+      await client.query("CREATE SCHEMA analysis");
+      await applyMigrations(client);
+    });
 
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
@@ -911,9 +942,11 @@ describe("analysis snapshot database regression (KT-016)", () => {
       await clientB.connect();
 
       try {
-        await clientA.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-        await clientA.query("CREATE SCHEMA analysis");
-        await applyMigrations(clientA);
+        await withAdvisoryLock(clientA, async () => {
+          await clientA.query("DROP SCHEMA IF EXISTS analysis CASCADE");
+          await clientA.query("CREATE SCHEMA analysis");
+          await applyMigrations(clientA);
+        });
 
         const userId = crypto.randomUUID();
         const userEmail = `test-${userId.slice(0, 8)}@example.com`;
@@ -996,9 +1029,11 @@ describe("analysis snapshot database regression (KT-016)", () => {
       await clientB.connect();
 
       try {
-        await clientA.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-        await clientA.query("CREATE SCHEMA analysis");
-        await applyMigrations(clientA);
+        await withAdvisoryLock(clientA, async () => {
+          await clientA.query("DROP SCHEMA IF EXISTS analysis CASCADE");
+          await clientA.query("CREATE SCHEMA analysis");
+          await applyMigrations(clientA);
+        });
 
         const userId = crypto.randomUUID();
         const userEmail = `test-${userId.slice(0, 8)}@example.com`;

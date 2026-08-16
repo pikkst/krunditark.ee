@@ -13,9 +13,8 @@ describe("PostGIS migration (KT-011)", () => {
 
   test("creates extensions schema and installs PostGIS into it", () => {
     expect(sql).toMatch(/CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+extensions/i);
-    expect(sql).toMatch(
-      /CREATE\s+EXTENSION\s+IF\s+NOT\s+EXISTS\s+postgis\s+WITH\s+SCHEMA\s+extensions/i
-    );
+    expect(sql).toMatch(/CREATE\s+EXTENSION\s+postgis\s+WITH\s+SCHEMA\s+extensions/i);
+    expect(sql).toMatch(/ALTER\s+EXTENSION\s+postgis\s+SET\s+SCHEMA\s+extensions/i);
   });
 
   test("asserts PostGIS is installed in the extensions schema", () => {

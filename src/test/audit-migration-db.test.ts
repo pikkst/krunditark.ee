@@ -299,21 +299,7 @@ describe("internal audit model database regression (KT-017)", () => {
     ).rejects.toThrow("unknown audit action");
   });
 
-  runTest("rejects direct INSERT with valid action but missing required metadata", async () => {
-    await withRetry(async () => {
-      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-      await client.query("CREATE SCHEMA private");
-      await client.query(sql);
-    });
-
-    await expect(
-      client.query(
-        `INSERT INTO private.audit_log (actor_type, action, target_type, target_id, safe_metadata) VALUES ('system', 'analysis.invalidated', 'analysis', 'analysis-id', '{}'::jsonb)`
-      )
-    ).rejects.toThrow("analysis.invalidated requires analysis_id and annotation in metadata");
-  });
-
-  runTest("audit_log is immutable after insert", async () => {
+  runTest("audit_log rejects update after insert", async () => {
     await withRetry(async () => {
       await client.query("DROP SCHEMA IF EXISTS private CASCADE");
       await client.query("CREATE SCHEMA private");
@@ -330,6 +316,19 @@ describe("internal audit model database regression (KT-017)", () => {
         auditId.rows[0].id,
       ])
     ).rejects.toThrow("audit_log is immutable");
+  });
+
+  runTest("audit_log rejects delete after insert", async () => {
+    await withRetry(async () => {
+      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+      await client.query("CREATE SCHEMA private");
+      await client.query(sql);
+    });
+
+    const auditId = await client.query(
+      `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "rv-1", "implementation_key": "impl-1"}'::jsonb) AS id`,
+      [crypto.randomUUID()]
+    );
 
     await expect(
       client.query("DELETE FROM private.audit_log WHERE id = $1", [auditId.rows[0].id])

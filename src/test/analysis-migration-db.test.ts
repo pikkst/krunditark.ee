@@ -81,48 +81,71 @@ describe("analysis snapshot database regression (KT-016)", () => {
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
 
-    await client.query(`
+    await client.query(
+      `
       INSERT INTO auth.users (id, email, role, is_sso_user, is_anonymous) VALUES ($1, $2, 'authenticated', false, false)
-    `, [userId, userEmail]);
+    `,
+      [userId, userEmail]
+    );
 
-    const project = await client.query(`
+    const project = await client.query(
+      `
       INSERT INTO public.projects (user_id, name, cadastral_id)
       VALUES ($1, 'Test', '12345')
       RETURNING id
-    `, [userId]);
+    `,
+      [userId]
+    );
 
-    const proposal = await client.query(`
+    const proposal = await client.query(
+      `
       INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2)
       VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100)
       RETURNING id
-    `, [project.rows[0].id]);
+    `,
+      [project.rows[0].id]
+    );
 
-    const dataRelease = await client.query(`
+    const dataRelease = await client.query(
+      `
       INSERT INTO private.data_releases (release_key, status)
       VALUES ('test-release-' || substr($1, 1, 8), 'promoted')
       RETURNING id
-    `, [userId]);
+    `,
+      [userId]
+    );
 
-    const analysis = await client.query(`
+    const analysis = await client.query(
+      `
       INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
       VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
       RETURNING id
-    `, [project.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]);
+    `,
+      [project.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]
+    );
 
     const { sourceId, sourceVersionId } = await createSourceVersion(client, dataRelease.rows[0].id);
     void (await createSourceVersion(client, dataRelease.rows[0].id));
 
-    await client.query(`
+    await client.query(
+      `
       INSERT INTO analysis.analysis_source_versions (analysis_id, source_id, source_dataset_version_id)
       VALUES ($1, $2, $3)
-    `, [analysis.rows[0].id, sourceId, sourceVersionId]);
+    `,
+      [analysis.rows[0].id, sourceId, sourceVersionId]
+    );
 
-    await client.query(`
+    await client.query(
+      `
       UPDATE analysis.analyses SET status = 'completed' WHERE id = $1
-    `, [analysis.rows[0].id]);
+    `,
+      [analysis.rows[0].id]
+    );
 
-    const completed = await client.query(`SELECT status FROM analysis.analyses WHERE id = $1`, [analysis.rows[0].id]);
-    expect(completed.rows[0].status).toBe('completed');
+    const completed = await client.query(`SELECT status FROM analysis.analyses WHERE id = $1`, [
+      analysis.rows[0].id,
+    ]);
+    expect(completed.rows[0].status).toBe("completed");
   });
 
   runTest("prevents child insert after parent analysis reaches terminal state", async () => {
@@ -133,51 +156,75 @@ describe("analysis snapshot database regression (KT-016)", () => {
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
 
-    await client.query(`
+    await client.query(
+      `
       INSERT INTO auth.users (id, email, role, is_sso_user, is_anonymous) VALUES ($1, $2, 'authenticated', false, false)
-    `, [userId, userEmail]);
+    `,
+      [userId, userEmail]
+    );
 
-    const project = await client.query(`
+    const project = await client.query(
+      `
       INSERT INTO public.projects (user_id, name, cadastral_id)
       VALUES ($1, 'Test', '12345')
       RETURNING id
-    `, [userId]);
+    `,
+      [userId]
+    );
 
-    const proposal = await client.query(`
+    const proposal = await client.query(
+      `
       INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2)
       VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100)
       RETURNING id
-    `, [project.rows[0].id]);
+    `,
+      [project.rows[0].id]
+    );
 
-    const dataRelease = await client.query(`
+    const dataRelease = await client.query(
+      `
       INSERT INTO private.data_releases (release_key, status)
       VALUES ('test-release-' || substr($1, 1, 8), 'promoted')
       RETURNING id
-    `, [userId]);
+    `,
+      [userId]
+    );
 
-    const analysis = await client.query(`
+    const analysis = await client.query(
+      `
       INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
       VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
       RETURNING id
-    `, [project.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]);
+    `,
+      [project.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]
+    );
 
     const { sourceId, sourceVersionId } = await createSourceVersion(client, dataRelease.rows[0].id);
 
-    await client.query(`
+    await client.query(
+      `
       INSERT INTO analysis.analysis_source_versions (analysis_id, source_id, source_dataset_version_id)
       VALUES ($1, $2, $3)
-    `, [analysis.rows[0].id, sourceId, sourceVersionId]);
+    `,
+      [analysis.rows[0].id, sourceId, sourceVersionId]
+    );
 
-    await client.query(`
+    await client.query(
+      `
       UPDATE analysis.analyses SET status = 'completed' WHERE id = $1
-    `, [analysis.rows[0].id]);
+    `,
+      [analysis.rows[0].id]
+    );
 
     await expect(
-      client.query(`
+      client.query(
+        `
         INSERT INTO analysis.analysis_source_versions (analysis_id, source_id, source_dataset_version_id)
         VALUES ($1, $2, $3)
-      `, [analysis.rows[0].id, sourceId, sourceVersionId])
-    ).rejects.toThrow('cannot insert child rows for terminal analysis');
+      `,
+        [analysis.rows[0].id, sourceId, sourceVersionId]
+      )
+    ).rejects.toThrow("cannot insert child rows for terminal analysis");
   });
 
   runTest("prevents child update after parent analysis reaches terminal state", async () => {
@@ -188,51 +235,76 @@ describe("analysis snapshot database regression (KT-016)", () => {
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
 
-    await client.query(`
+    await client.query(
+      `
       INSERT INTO auth.users (id, email, role, is_sso_user, is_anonymous) VALUES ($1, $2, 'authenticated', false, false)
-    `, [userId, userEmail]);
+    `,
+      [userId, userEmail]
+    );
 
-    const project = await client.query(`
+    const project = await client.query(
+      `
       INSERT INTO public.projects (user_id, name, cadastral_id)
       VALUES ($1, 'Test', '12345')
       RETURNING id
-    `, [userId]);
+    `,
+      [userId]
+    );
 
-    const proposal = await client.query(`
+    const proposal = await client.query(
+      `
       INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2)
       VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100)
       RETURNING id
-    `, [project.rows[0].id]);
+    `,
+      [project.rows[0].id]
+    );
 
-    const dataRelease = await client.query(`
+    const dataRelease = await client.query(
+      `
       INSERT INTO private.data_releases (release_key, status)
       VALUES ('test-release-' || substr($1, 1, 8), 'promoted')
       RETURNING id
-    `, [userId]);
+    `,
+      [userId]
+    );
 
-    const analysis = await client.query(`
+    const analysis = await client.query(
+      `
       INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
       VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
       RETURNING id
-    `, [project.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]);
+    `,
+      [project.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]
+    );
 
     const { sourceId, sourceVersionId } = await createSourceVersion(client, dataRelease.rows[0].id);
-    const { sourceId: otherSourceId, sourceVersionId: otherSourceVersionId } = await createSourceVersion(client, dataRelease.rows[0].id);
+    const { sourceId: otherSourceId, sourceVersionId: otherSourceVersionId } =
+      await createSourceVersion(client, dataRelease.rows[0].id);
 
-    await client.query(`
+    await client.query(
+      `
       INSERT INTO analysis.analysis_source_versions (analysis_id, source_id, source_dataset_version_id)
       VALUES ($1, $2, $3)
-    `, [analysis.rows[0].id, sourceId, sourceVersionId]);
+    `,
+      [analysis.rows[0].id, sourceId, sourceVersionId]
+    );
 
-    await client.query(`
+    await client.query(
+      `
       UPDATE analysis.analyses SET status = 'completed' WHERE id = $1
-    `, [analysis.rows[0].id]);
+    `,
+      [analysis.rows[0].id]
+    );
 
     await expect(
-      client.query(`
+      client.query(
+        `
         UPDATE analysis.analysis_source_versions SET source_id = $1, source_dataset_version_id = $2 WHERE analysis_id = $3 AND source_id = $4
-      `, [otherSourceId, otherSourceVersionId, analysis.rows[0].id, sourceId])
-    ).rejects.toThrow('cannot modify child rows of terminal analysis');
+      `,
+        [otherSourceId, otherSourceVersionId, analysis.rows[0].id, sourceId]
+      )
+    ).rejects.toThrow("cannot modify child rows of terminal analysis");
   });
 
   runTest("prevents child delete after parent analysis reaches terminal state", async () => {
@@ -243,50 +315,74 @@ describe("analysis snapshot database regression (KT-016)", () => {
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
 
-    await client.query(`
+    await client.query(
+      `
       INSERT INTO auth.users (id, email, role, is_sso_user, is_anonymous) VALUES ($1, $2, 'authenticated', false, false)
-    `, [userId, userEmail]);
+    `,
+      [userId, userEmail]
+    );
 
-    const project = await client.query(`
+    const project = await client.query(
+      `
       INSERT INTO public.projects (user_id, name, cadastral_id)
       VALUES ($1, 'Test', '12345')
       RETURNING id
-    `, [userId]);
+    `,
+      [userId]
+    );
 
-    const proposal = await client.query(`
+    const proposal = await client.query(
+      `
       INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2)
       VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100)
       RETURNING id
-    `, [project.rows[0].id]);
+    `,
+      [project.rows[0].id]
+    );
 
-    const dataRelease = await client.query(`
+    const dataRelease = await client.query(
+      `
       INSERT INTO private.data_releases (release_key, status)
       VALUES ('test-release-' || substr($1, 1, 8), 'promoted')
       RETURNING id
-    `, [userId]);
+    `,
+      [userId]
+    );
 
-    const analysis = await client.query(`
+    const analysis = await client.query(
+      `
       INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
       VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
       RETURNING id
-    `, [project.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]);
+    `,
+      [project.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]
+    );
 
     const { sourceId, sourceVersionId } = await createSourceVersion(client, dataRelease.rows[0].id);
 
-    await client.query(`
+    await client.query(
+      `
       INSERT INTO analysis.analysis_source_versions (analysis_id, source_id, source_dataset_version_id)
       VALUES ($1, $2, $3)
-    `, [analysis.rows[0].id, sourceId, sourceVersionId]);
+    `,
+      [analysis.rows[0].id, sourceId, sourceVersionId]
+    );
 
-    await client.query(`
+    await client.query(
+      `
       UPDATE analysis.analyses SET status = 'completed' WHERE id = $1
-    `, [analysis.rows[0].id]);
+    `,
+      [analysis.rows[0].id]
+    );
 
     await expect(
-      client.query(`
+      client.query(
+        `
         DELETE FROM analysis.analysis_source_versions WHERE analysis_id = $1 AND source_id = $2
-      `, [analysis.rows[0].id, sourceId])
-    ).rejects.toThrow('cannot delete child rows of terminal analysis');
+      `,
+        [analysis.rows[0].id, sourceId]
+      )
+    ).rejects.toThrow("cannot delete child rows of terminal analysis");
   });
 
   runTest("prevents moving child rows away from terminal analysis", async () => {
@@ -297,63 +393,96 @@ describe("analysis snapshot database regression (KT-016)", () => {
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
 
-    await client.query(`
+    await client.query(
+      `
       INSERT INTO auth.users (id, email, role, is_sso_user, is_anonymous) VALUES ($1, $2, 'authenticated', false, false)
-    `, [userId, userEmail]);
+    `,
+      [userId, userEmail]
+    );
 
-    const project = await client.query(`
+    const project = await client.query(
+      `
       INSERT INTO public.projects (user_id, name, cadastral_id)
       VALUES ($1, 'Test', '12345')
       RETURNING id
-    `, [userId]);
+    `,
+      [userId]
+    );
 
-    const proposal = await client.query(`
+    const proposal = await client.query(
+      `
       INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2)
       VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100)
       RETURNING id
-    `, [project.rows[0].id]);
+    `,
+      [project.rows[0].id]
+    );
 
-    const dataRelease1 = await client.query(`
+    const dataRelease1 = await client.query(
+      `
       INSERT INTO private.data_releases (release_key, status)
       VALUES ('release-1-' || substr($1, 1, 8), 'promoted')
       RETURNING id
-    `, [userId]);
+    `,
+      [userId]
+    );
 
-    const dataRelease2 = await client.query(`
+    const dataRelease2 = await client.query(
+      `
       INSERT INTO private.data_releases (release_key, status)
       VALUES ('release-2-' || substr($1, 1, 8), 'promoted')
       RETURNING id
-    `, [userId]);
+    `,
+      [userId]
+    );
 
-    const analysis1 = await client.query(`
+    const analysis1 = await client.query(
+      `
       INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
       VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
       RETURNING id
-    `, [project.rows[0].id, proposal.rows[0].id, dataRelease1.rows[0].id]);
+    `,
+      [project.rows[0].id, proposal.rows[0].id, dataRelease1.rows[0].id]
+    );
 
-    const analysis2 = await client.query(`
+    const analysis2 = await client.query(
+      `
       INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
       VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
       RETURNING id
-    `, [project.rows[0].id, proposal.rows[0].id, dataRelease2.rows[0].id]);
+    `,
+      [project.rows[0].id, proposal.rows[0].id, dataRelease2.rows[0].id]
+    );
 
-    const { sourceId: sourceId1, sourceVersionId: sourceVersionId1 } = await createSourceVersion(client, dataRelease1.rows[0].id);
+    const { sourceId: sourceId1, sourceVersionId: sourceVersionId1 } = await createSourceVersion(
+      client,
+      dataRelease1.rows[0].id
+    );
     void (await createSourceVersion(client, dataRelease2.rows[0].id));
 
-    await client.query(`
+    await client.query(
+      `
       INSERT INTO analysis.analysis_source_versions (analysis_id, source_id, source_dataset_version_id)
       VALUES ($1, $2, $3)
-    `, [analysis1.rows[0].id, sourceId1, sourceVersionId1]);
+    `,
+      [analysis1.rows[0].id, sourceId1, sourceVersionId1]
+    );
 
-    await client.query(`
+    await client.query(
+      `
       UPDATE analysis.analyses SET status = 'completed' WHERE id = $1
-    `, [analysis1.rows[0].id]);
+    `,
+      [analysis1.rows[0].id]
+    );
 
     await expect(
-      client.query(`
+      client.query(
+        `
         UPDATE analysis.analysis_source_versions SET analysis_id = $1 WHERE analysis_id = $2 AND source_id = $3
-      `, [analysis2.rows[0].id, analysis1.rows[0].id, sourceId1])
-    ).rejects.toThrow('cannot modify child rows of terminal analysis');
+      `,
+        [analysis2.rows[0].id, analysis1.rows[0].id, sourceId1]
+      )
+    ).rejects.toThrow("cannot modify child rows of terminal analysis");
   });
 
   runTest("allows normal child insert/update/delete on non-terminal analysis", async () => {
@@ -364,41 +493,60 @@ describe("analysis snapshot database regression (KT-016)", () => {
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
 
-    await client.query(`
+    await client.query(
+      `
       INSERT INTO auth.users (id, email, role, is_sso_user, is_anonymous) VALUES ($1, $2, 'authenticated', false, false)
-    `, [userId, userEmail]);
+    `,
+      [userId, userEmail]
+    );
 
-    const project = await client.query(`
+    const project = await client.query(
+      `
       INSERT INTO public.projects (user_id, name, cadastral_id)
       VALUES ($1, 'Test', '12345')
       RETURNING id
-    `, [userId]);
+    `,
+      [userId]
+    );
 
-    const proposal = await client.query(`
+    const proposal = await client.query(
+      `
       INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2)
       VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100)
       RETURNING id
-    `, [project.rows[0].id]);
+    `,
+      [project.rows[0].id]
+    );
 
-    const dataRelease = await client.query(`
+    const dataRelease = await client.query(
+      `
       INSERT INTO private.data_releases (release_key, status)
       VALUES ('test-release-' || substr($1, 1, 8), 'promoted')
       RETURNING id
-    `, [userId]);
+    `,
+      [userId]
+    );
 
-    const analysis = await client.query(`
+    const analysis = await client.query(
+      `
       INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
       VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
       RETURNING id
-    `, [project.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]);
+    `,
+      [project.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]
+    );
 
     const { sourceId, sourceVersionId } = await createSourceVersion(client, dataRelease.rows[0].id);
-    const { sourceId: otherSourceId, sourceVersionId: otherSourceVersionId } = await createSourceVersion(client, dataRelease.rows[0].id);
+    const { sourceId: otherSourceId, sourceVersionId: otherSourceVersionId } =
+      await createSourceVersion(client, dataRelease.rows[0].id);
 
-    await client.query(`
+    await client.query(
+      `
       INSERT INTO analysis.analysis_source_versions (analysis_id, source_id, source_dataset_version_id)
       VALUES ($1, $2, $3)
-    `, [analysis.rows[0].id, sourceId, sourceVersionId]);
+    `,
+      [analysis.rows[0].id, sourceId, sourceVersionId]
+    );
 
     await client.query(
       `UPDATE analysis.analysis_source_versions SET source_id = $1, source_dataset_version_id = $2 WHERE analysis_id = $3 AND source_id = $4`,
@@ -419,39 +567,57 @@ describe("analysis snapshot database regression (KT-016)", () => {
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
 
-    await client.query(`
+    await client.query(
+      `
       INSERT INTO auth.users (id, email, role, is_sso_user, is_anonymous) VALUES ($1, $2, 'authenticated', false, false)
-    `, [userId, userEmail]);
+    `,
+      [userId, userEmail]
+    );
 
-    const project = await client.query(`
+    const project = await client.query(
+      `
       INSERT INTO public.projects (user_id, name, cadastral_id)
       VALUES ($1, 'Test', '12345')
       RETURNING id
-    `, [userId]);
+    `,
+      [userId]
+    );
 
-    const proposal = await client.query(`
+    const proposal = await client.query(
+      `
       INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2)
       VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100)
       RETURNING id
-    `, [project.rows[0].id]);
+    `,
+      [project.rows[0].id]
+    );
 
-    const dataRelease = await client.query(`
+    const dataRelease = await client.query(
+      `
       INSERT INTO private.data_releases (release_key, status)
       VALUES ('test-release-' || substr($1, 1, 8), 'promoted')
       RETURNING id
-    `, [userId]);
+    `,
+      [userId]
+    );
 
-    const analysis = await client.query(`
+    const analysis = await client.query(
+      `
       INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
       VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
       RETURNING id
-    `, [project.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]);
+    `,
+      [project.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]
+    );
 
-    const finding = await client.query(`
+    const finding = await client.query(
+      `
       INSERT INTO analysis.findings (analysis_id, code, category, state, title_key)
       VALUES ($1, 'TEST', 'test', 'clear', 'test.key')
       RETURNING id
-    `, [analysis.rows[0].id]);
+    `,
+      [analysis.rows[0].id]
+    );
 
     const sourceDefA = await client.query(`
       INSERT INTO private.source_definitions (id, name, authority, source_type, base_url, refresh_policy, verification_policy, release_blocking, enabled, normalizer_version)
@@ -465,39 +631,57 @@ describe("analysis snapshot database regression (KT-016)", () => {
       RETURNING id
     `);
 
-    const syncRunA = await client.query(`
+    const syncRunA = await client.query(
+      `
       INSERT INTO private.source_sync_runs (source_id, trigger_type, idempotency_key, status, started_at, normalizer_version, safe_metadata)
       VALUES ($1, 'manual', gen_random_uuid(), 'completed', now(), 'v1', '{}')
       RETURNING id
-    `, [sourceDefA.rows[0].id]);
+    `,
+      [sourceDefA.rows[0].id]
+    );
 
-    const syncRunB = await client.query(`
+    const syncRunB = await client.query(
+      `
       INSERT INTO private.source_sync_runs (source_id, trigger_type, idempotency_key, status, started_at, normalizer_version, safe_metadata)
       VALUES ($1, 'manual', gen_random_uuid(), 'completed', now(), 'v1', '{}')
       RETURNING id
-    `, [sourceDefB.rows[0].id]);
+    `,
+      [sourceDefB.rows[0].id]
+    );
 
-    const versionA = await client.query(`
+    const versionA = await client.query(
+      `
       INSERT INTO private.source_dataset_versions (source_id, version_key, sync_run_id, status, retrieved_at, normalizer_version, record_count, validation_summary)
       VALUES ($1, 'version-a', $2, 'verified', now(), 'v1', 0, '{}')
       RETURNING id
-    `, [sourceDefA.rows[0].id, syncRunA.rows[0].id]);
+    `,
+      [sourceDefA.rows[0].id, syncRunA.rows[0].id]
+    );
 
-    const versionB = await client.query(`
+    const versionB = await client.query(
+      `
       INSERT INTO private.source_dataset_versions (source_id, version_key, sync_run_id, status, retrieved_at, normalizer_version, record_count, validation_summary)
       VALUES ($1, 'version-b', $2, 'verified', now(), 'v1', 0, '{}')
       RETURNING id
-    `, [sourceDefB.rows[0].id, syncRunB.rows[0].id]);
+    `,
+      [sourceDefB.rows[0].id, syncRunB.rows[0].id]
+    );
 
-    await client.query(`
+    await client.query(
+      `
       INSERT INTO private.data_release_sources (data_release_id, source_id, source_dataset_version_id)
       VALUES ($1, $2, $3)
-    `, [dataRelease.rows[0].id, sourceDefA.rows[0].id, versionA.rows[0].id]);
+    `,
+      [dataRelease.rows[0].id, sourceDefA.rows[0].id, versionA.rows[0].id]
+    );
 
-    await client.query(`
+    await client.query(
+      `
       INSERT INTO private.data_release_sources (data_release_id, source_id, source_dataset_version_id)
       VALUES ($1, $2, $3)
-    `, [dataRelease.rows[0].id, sourceDefB.rows[0].id, versionB.rows[0].id]);
+    `,
+      [dataRelease.rows[0].id, sourceDefB.rows[0].id, versionB.rows[0].id]
+    );
 
     await expect(
       client.query(
@@ -518,40 +702,58 @@ describe("analysis snapshot database regression (KT-016)", () => {
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
 
-    await client.query(`
+    await client.query(
+      `
       INSERT INTO auth.users (id, email, role, is_sso_user, is_anonymous) VALUES ($1, $2, 'authenticated', false, false)
-    `, [userId, userEmail]);
+    `,
+      [userId, userEmail]
+    );
 
-    const projectA = await client.query(`
+    const projectA = await client.query(
+      `
       INSERT INTO public.projects (user_id, name, cadastral_id)
       VALUES ($1, 'Project A', '12345')
       RETURNING id
-    `, [userId]);
+    `,
+      [userId]
+    );
 
-    const projectB = await client.query(`
+    const projectB = await client.query(
+      `
       INSERT INTO public.projects (user_id, name, cadastral_id)
       VALUES ($1, 'Project B', '67890')
       RETURNING id
-    `, [userId]);
+    `,
+      [userId]
+    );
 
-    const proposalInB = await client.query(`
+    const proposalInB = await client.query(
+      `
       INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2)
       VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100)
       RETURNING id
-    `, [projectB.rows[0].id]);
+    `,
+      [projectB.rows[0].id]
+    );
 
-    const dataRelease = await client.query(`
+    const dataRelease = await client.query(
+      `
       INSERT INTO private.data_releases (release_key, status)
       VALUES ('test-release-' || substr($1, 1, 8), 'promoted')
       RETURNING id
-    `, [userId]);
+    `,
+      [userId]
+    );
 
     await expect(
-      client.query(`
+      client.query(
+        `
         INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
         VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
-      `, [projectA.rows[0].id, proposalInB.rows[0].id, dataRelease.rows[0].id])
-    ).rejects.toThrow('does not belong to project');
+      `,
+        [projectA.rows[0].id, proposalInB.rows[0].id, dataRelease.rows[0].id]
+      )
+    ).rejects.toThrow("does not belong to project");
   });
 
   runTest("prevents re-parenting proposal after analysis references it", async () => {
@@ -562,43 +764,64 @@ describe("analysis snapshot database regression (KT-016)", () => {
     const userId = crypto.randomUUID();
     const userEmail = `test-${userId.slice(0, 8)}@example.com`;
 
-    await client.query(`
+    await client.query(
+      `
       INSERT INTO auth.users (id, email, role, is_sso_user, is_anonymous) VALUES ($1, $2, 'authenticated', false, false)
-    `, [userId, userEmail]);
+    `,
+      [userId, userEmail]
+    );
 
-    const projectA = await client.query(`
+    const projectA = await client.query(
+      `
       INSERT INTO public.projects (user_id, name, cadastral_id)
       VALUES ($1, 'Project A', '12345')
       RETURNING id
-    `, [userId]);
+    `,
+      [userId]
+    );
 
-    const projectB = await client.query(`
+    const projectB = await client.query(
+      `
       INSERT INTO public.projects (user_id, name, cadastral_id)
       VALUES ($1, 'Project B', '67890')
       RETURNING id
-    `, [userId]);
+    `,
+      [userId]
+    );
 
-    const proposal = await client.query(`
+    const proposal = await client.query(
+      `
       INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2)
       VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100)
       RETURNING id
-    `, [projectA.rows[0].id]);
+    `,
+      [projectA.rows[0].id]
+    );
 
-    const dataRelease = await client.query(`
+    const dataRelease = await client.query(
+      `
       INSERT INTO private.data_releases (release_key, status)
       VALUES ('test-release-' || substr($1, 1, 8), 'promoted')
       RETURNING id
-    `, [userId]);
+    `,
+      [userId]
+    );
 
-    await client.query(`
+    await client.query(
+      `
       INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
       VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
-    `, [projectA.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]);
+    `,
+      [projectA.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]
+    );
 
     await expect(
-      client.query(`
+      client.query(
+        `
         UPDATE public.project_proposals SET project_id = $1 WHERE id = $2
-      `, [projectB.rows[0].id, proposal.rows[0].id])
+      `,
+        [projectB.rows[0].id, proposal.rows[0].id]
+      )
     ).rejects.toThrow("cannot change project_id for proposal");
   });
 
@@ -662,43 +885,57 @@ describe("analysis snapshot database regression (KT-016)", () => {
           [project.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]
         );
 
-        const sourceDef = await clientA.query(`
+        const sourceDef = await clientA.query(
+          `
           INSERT INTO private.source_definitions (id, name, authority, source_type, base_url, refresh_policy, verification_policy, release_blocking, enabled, normalizer_version)
           VALUES ($1, 'Test', 'Test', 'WFS', 'https://example.com', 'monthly_snapshot', 'automatic_quality_gates', true, true, 'v1')
           RETURNING id
-        `, [`test.source-concurrent-${userId.slice(0, 8)}`]);
+        `,
+          [`test.source-concurrent-${userId.slice(0, 8)}`]
+        );
 
-        const syncRun = await clientA.query(`
+        const syncRun = await clientA.query(
+          `
           INSERT INTO private.source_sync_runs (source_id, trigger_type, idempotency_key, status, started_at, normalizer_version, safe_metadata)
           VALUES ($1, 'manual', gen_random_uuid(), 'completed', now(), 'v1', '{}')
           RETURNING id
-        `, [sourceDef.rows[0].id]);
+        `,
+          [sourceDef.rows[0].id]
+        );
 
-        const sourceVersion = await clientA.query(`
+        const sourceVersion = await clientA.query(
+          `
           INSERT INTO private.source_dataset_versions (source_id, version_key, sync_run_id, status, retrieved_at, normalizer_version, record_count, validation_summary)
           VALUES ($1, 'version-1', $2, 'verified', now(), 'v1', 0, '{}')
           RETURNING id
-        `, [sourceDef.rows[0].id, syncRun.rows[0].id]);
+        `,
+          [sourceDef.rows[0].id, syncRun.rows[0].id]
+        );
 
-        await clientA.query(`
+        await clientA.query(
+          `
           INSERT INTO private.data_release_sources (data_release_id, source_id, source_dataset_version_id)
           VALUES ($1, $2, $3)
-        `, [dataRelease.rows[0].id, sourceDef.rows[0].id, sourceVersion.rows[0].id]);
+        `,
+          [dataRelease.rows[0].id, sourceDef.rows[0].id, sourceVersion.rows[0].id]
+        );
 
-        await clientA.query(`
+        await clientA.query(
+          `
           INSERT INTO analysis.analysis_source_versions (analysis_id, source_id, source_dataset_version_id)
           VALUES ($1, $2, $3)
-        `, [analysis.rows[0].id, sourceDef.rows[0].id, sourceVersion.rows[0].id]);
+        `,
+          [analysis.rows[0].id, sourceDef.rows[0].id, sourceVersion.rows[0].id]
+        );
 
         await clientA.query("COMMIT");
 
         await clientA.query("BEGIN");
         await clientB.query("BEGIN");
 
-        await clientA.query(
-          `UPDATE analysis.analyses SET status = 'completed' WHERE id = $1`,
-          [analysis.rows[0].id]
-        );
+        await clientA.query(`UPDATE analysis.analyses SET status = 'completed' WHERE id = $1`, [
+          analysis.rows[0].id,
+        ]);
 
         const childInsertPromise = clientB.query(
           `INSERT INTO analysis.analysis_source_versions (analysis_id, source_id, source_dataset_version_id) VALUES ($1, $2, $3)`,
@@ -724,28 +961,40 @@ describe("analysis snapshot database regression (KT-016)", () => {
 async function createSourceVersion(client: Client, dataReleaseId: string) {
   sourceCounter += 1;
   const sourceId = `test.source-${sourceCounter}`;
-  const sourceDef = await client.query(`
+  const sourceDef = await client.query(
+    `
     INSERT INTO private.source_definitions (id, name, authority, source_type, base_url, refresh_policy, verification_policy, release_blocking, enabled, normalizer_version)
     VALUES ($1, 'Test', 'Test', 'WFS', 'https://example.com', 'monthly_snapshot', 'automatic_quality_gates', true, true, 'v1')
     RETURNING id
-  `, [sourceId]);
+  `,
+    [sourceId]
+  );
 
-  const syncRun = await client.query(`
+  const syncRun = await client.query(
+    `
     INSERT INTO private.source_sync_runs (source_id, trigger_type, idempotency_key, status, started_at, normalizer_version, safe_metadata)
     VALUES ($1, 'manual', gen_random_uuid(), 'completed', now(), 'v1', '{}')
     RETURNING id
-  `, [sourceDef.rows[0].id]);
+  `,
+    [sourceDef.rows[0].id]
+  );
 
-  const sourceVersion = await client.query(`
+  const sourceVersion = await client.query(
+    `
     INSERT INTO private.source_dataset_versions (source_id, version_key, sync_run_id, status, retrieved_at, normalizer_version, record_count, validation_summary)
     VALUES ($1, 'version-1', $2, 'verified', now(), 'v1', 0, '{}')
     RETURNING id
-  `, [sourceDef.rows[0].id, syncRun.rows[0].id]);
+  `,
+    [sourceDef.rows[0].id, syncRun.rows[0].id]
+  );
 
-  await client.query(`
+  await client.query(
+    `
     INSERT INTO private.data_release_sources (data_release_id, source_id, source_dataset_version_id)
     VALUES ($1, $2, $3)
-  `, [dataReleaseId, sourceDef.rows[0].id, sourceVersion.rows[0].id]);
+  `,
+    [dataReleaseId, sourceDef.rows[0].id, sourceVersion.rows[0].id]
+  );
 
   return { sourceId: sourceDef.rows[0].id, sourceVersionId: sourceVersion.rows[0].id };
 }

@@ -229,7 +229,7 @@ describe("internal audit model database regression (KT-017)", () => {
         `SELECT private.log_audit_event($1, 'system', 'analysis.invalidated', 'analysis', 'analysis-id', '{"analysis_id": "analysis-1"}'::jsonb)`,
         [crypto.randomUUID()]
       )
-    ).rejects.toThrow("analysis.invalidated requires analysis_id in metadata");
+    ).rejects.toThrow("analysis.invalidated requires annotation in metadata");
   });
 
   runTest("rejects metadata missing required fields for admin.role_changed", async () => {
@@ -409,7 +409,7 @@ describe("internal audit model database regression (KT-017)", () => {
         `SELECT private.log_audit_event($1, 'system', 'analysis.invalidated', 'analysis', 'analysis-id', '{"analysis_id": "analysis-1", "annotation": "   "}'::jsonb)`,
         [crypto.randomUUID()]
       )
-    ).rejects.toThrow("analysis.invalidated requires analysis_id in metadata");
+    ).rejects.toThrow("analysis.invalidated requires annotation in metadata");
   });
 
   runTest("rejects object value for required scalar field", async () => {
@@ -424,7 +424,7 @@ describe("internal audit model database regression (KT-017)", () => {
         `SELECT private.log_audit_event($1, 'system', 'analysis.invalidated', 'analysis', 'analysis-id', '{"analysis_id": {}, "annotation": "test"}'::jsonb)`,
         [crypto.randomUUID()]
       )
-    ).rejects.toThrow("analysis.invalidated requires analysis_id in metadata");
+    ).rejects.toThrow("analysis.invalidated requires annotation in metadata");
   });
 
   runTest("rejects array value for required scalar field", async () => {
@@ -454,7 +454,7 @@ describe("internal audit model database regression (KT-017)", () => {
         `SELECT private.log_audit_event($1, 'system', 'analysis.invalidated', 'analysis', 'analysis-id', '{"analysis_id": null, "annotation": "test"}'::jsonb)`,
         [crypto.randomUUID()]
       )
-    ).rejects.toThrow("analysis.invalidated requires analysis_id in metadata");
+    ).rejects.toThrow("analysis.invalidated requires annotation in metadata");
   });
 
   runTest(
@@ -471,7 +471,7 @@ describe("internal audit model database regression (KT-017)", () => {
           `SELECT private.log_audit_event($1, 'system', 'analysis.invalidated', 'analysis', 'analysis-id', '{"analysis_id": "analysis-1", "annotation": ""}'::jsonb)`,
           [crypto.randomUUID()]
         )
-      ).rejects.toThrow("analysis.invalidated requires analysis_id in metadata");
+      ).rejects.toThrow("analysis.invalidated requires annotation in metadata");
     }
   );
 

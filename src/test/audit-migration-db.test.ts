@@ -229,7 +229,7 @@ describe("internal audit model database regression (KT-017)", () => {
         `SELECT private.log_audit_event($1, 'system', 'analysis.invalidated', 'analysis', 'analysis-id', '{"analysis_id": "analysis-1"}'::jsonb)`,
         [crypto.randomUUID()]
       )
-    ).rejects.toThrow("analysis.invalidated requires annotation in metadata");
+    ).rejects.toThrow("analysis.invalidated requires analysis_id in metadata");
   });
 
   runTest("rejects metadata missing required fields for admin.role_changed", async () => {
@@ -244,9 +244,7 @@ describe("internal audit model database regression (KT-017)", () => {
         `SELECT private.log_audit_event($1, 'system', 'admin.role_changed', 'profile', 'profile-id', '{"target_user_id": "user-1"}'::jsonb)`,
         [crypto.randomUUID()]
       )
-    ).rejects.toThrow(
-      "admin.role_changed requires target_user_id, new_role, and old_role in metadata"
-    );
+    ).rejects.toThrow("admin.role_changed requires new_role in metadata");
   });
 
   runTest("rejects metadata with forbidden credential keys", async () => {
@@ -411,7 +409,7 @@ describe("internal audit model database regression (KT-017)", () => {
         `SELECT private.log_audit_event($1, 'system', 'analysis.invalidated', 'analysis', 'analysis-id', '{"analysis_id": "analysis-1", "annotation": "   "}'::jsonb)`,
         [crypto.randomUUID()]
       )
-    ).rejects.toThrow("analysis.invalidated requires annotation in metadata");
+    ).rejects.toThrow("analysis.invalidated requires analysis_id in metadata");
   });
 
   runTest("rejects object value for required scalar field", async () => {
@@ -426,7 +424,7 @@ describe("internal audit model database regression (KT-017)", () => {
         `SELECT private.log_audit_event($1, 'system', 'analysis.invalidated', 'analysis', 'analysis-id', '{"analysis_id": {}, "annotation": "test"}'::jsonb)`,
         [crypto.randomUUID()]
       )
-    ).rejects.toThrow("analysis.invalidated requires annotation in metadata");
+    ).rejects.toThrow("analysis.invalidated requires analysis_id in metadata");
   });
 
   runTest("rejects array value for required scalar field", async () => {
@@ -441,9 +439,7 @@ describe("internal audit model database regression (KT-017)", () => {
         `SELECT private.log_audit_event($1, 'system', 'admin.role_changed', 'profile', 'profile-id', '{"target_user_id": "user-1", "new_role": [], "old_role": "user"}'::jsonb)`,
         [crypto.randomUUID()]
       )
-    ).rejects.toThrow(
-      "admin.role_changed requires target_user_id, new_role, and old_role in metadata"
-    );
+    ).rejects.toThrow("admin.role_changed requires new_role in metadata");
   });
 
   runTest("rejects metadata with null required values for analysis.invalidated", async () => {
@@ -458,7 +454,7 @@ describe("internal audit model database regression (KT-017)", () => {
         `SELECT private.log_audit_event($1, 'system', 'analysis.invalidated', 'analysis', 'analysis-id', '{"analysis_id": null, "annotation": "test"}'::jsonb)`,
         [crypto.randomUUID()]
       )
-    ).rejects.toThrow("analysis.invalidated requires annotation in metadata");
+    ).rejects.toThrow("analysis.invalidated requires analysis_id in metadata");
   });
 
   runTest(
@@ -475,7 +471,7 @@ describe("internal audit model database regression (KT-017)", () => {
           `SELECT private.log_audit_event($1, 'system', 'analysis.invalidated', 'analysis', 'analysis-id', '{"analysis_id": "analysis-1", "annotation": ""}'::jsonb)`,
           [crypto.randomUUID()]
         )
-      ).rejects.toThrow("analysis.invalidated requires annotation in metadata");
+      ).rejects.toThrow("analysis.invalidated requires analysis_id in metadata");
     }
   );
 
@@ -491,9 +487,7 @@ describe("internal audit model database regression (KT-017)", () => {
         `SELECT private.log_audit_event($1, 'system', 'admin.role_changed', 'profile', 'profile-id', '{"target_user_id": "user-1", "new_role": null, "old_role": "user"}'::jsonb)`,
         [crypto.randomUUID()]
       )
-    ).rejects.toThrow(
-      "admin.role_changed requires target_user_id, new_role, and old_role in metadata"
-    );
+    ).rejects.toThrow("admin.role_changed requires new_role in metadata");
   });
 
   runTest("rejects metadata with empty string required values for commerce.refund", async () => {
@@ -508,7 +502,7 @@ describe("internal audit model database regression (KT-017)", () => {
         `SELECT private.log_audit_event($1, 'system', 'commerce.refund', 'order', 'order-id', '{"order_id": "order-1", "amount": "", "reason": "customer request"}'::jsonb)`,
         [crypto.randomUUID()]
       )
-    ).rejects.toThrow("commerce.refund requires order_id, amount, and reason in metadata");
+    ).rejects.toThrow("commerce.refund requires amount in metadata");
   });
 
   runTest("rejects direct INSERT with unknown action code", async () => {

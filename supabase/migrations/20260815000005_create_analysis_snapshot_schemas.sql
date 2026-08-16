@@ -82,8 +82,7 @@ CREATE TABLE analysis.analysis_source_versions (
     source_id text NOT NULL REFERENCES private.source_definitions(id) ON DELETE RESTRICT,
     source_dataset_version_id uuid NOT NULL REFERENCES private.source_dataset_versions(id) ON DELETE RESTRICT,
     created_at timestamptz NOT NULL DEFAULT now(),
-    PRIMARY KEY (analysis_id, source_id),
-    CONSTRAINT analysis_source_versions_version_source_fk FOREIGN KEY (source_dataset_version_id, source_id) REFERENCES private.source_dataset_versions(id, source_id)
+    PRIMARY KEY (analysis_id, source_id)
 );
 
 -- 4. Analysis rule versions

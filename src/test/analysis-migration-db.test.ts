@@ -36,8 +36,12 @@ async function applyMigrations(client: Client) {
 const DB_TEST_ADVISORY_LOCK = 0xdeadbeef;
 
 async function withAdvisoryLock<T>(client: Client, fn: () => Promise<T>): Promise<T> {
-  await client.query("SELECT pg_advisory_xact_lock($1)", [DB_TEST_ADVISORY_LOCK]);
-  return fn();
+  await client.query("SELECT pg_advisory_lock($1)", [DB_TEST_ADVISORY_LOCK]);
+  try {
+    return await fn();
+  } finally {
+    await client.query("SELECT pg_advisory_unlock($1)", [DB_TEST_ADVISORY_LOCK]);
+  }
 }
 
 describe("analysis snapshot database regression (KT-016)", () => {

@@ -86,10 +86,9 @@ describe("internal audit model database regression (KT-017)", () => {
 
     expect(auditId.rows[0].id).toBeDefined();
 
-    const row = await client.query(
-      "SELECT actor_user_id FROM private.audit_log WHERE id = $1",
-      [auditId.rows[0].id]
-    );
+    const row = await client.query("SELECT actor_user_id FROM private.audit_log WHERE id = $1", [
+      auditId.rows[0].id,
+    ]);
     expect(row.rows[0].actor_user_id).toBe(userId);
   });
 
@@ -112,10 +111,9 @@ describe("internal audit model database regression (KT-017)", () => {
 
     await client.query("DELETE FROM auth.users WHERE id = $1", [userId]);
 
-    const row = await client.query(
-      "SELECT actor_user_id FROM private.audit_log WHERE id = $1",
-      [auditId.rows[0].id]
-    );
+    const row = await client.query("SELECT actor_user_id FROM private.audit_log WHERE id = $1", [
+      auditId.rows[0].id,
+    ]);
     expect(row.rows[0].actor_user_id).toBe(userId);
   });
 
@@ -221,7 +219,9 @@ describe("internal audit model database regression (KT-017)", () => {
         `SELECT private.log_audit_event($1, 'system', 'admin.role_changed', 'profile', 'profile-id', '{"target_user_id": "user-1"}'::jsonb)`,
         [crypto.randomUUID()]
       )
-    ).rejects.toThrow("admin.role_changed requires target_user_id, new_role, and old_role in metadata");
+    ).rejects.toThrow(
+      "admin.role_changed requires target_user_id, new_role, and old_role in metadata"
+    );
   });
 
   runTest("rejects metadata with forbidden credential keys", async () => {
@@ -273,10 +273,9 @@ describe("internal audit model database regression (KT-017)", () => {
     );
 
     await expect(
-      client.query(
-        "UPDATE private.audit_log SET safe_metadata = '{}'::jsonb WHERE id = $1",
-        [auditId.rows[0].id]
-      )
+      client.query("UPDATE private.audit_log SET safe_metadata = '{}'::jsonb WHERE id = $1", [
+        auditId.rows[0].id,
+      ])
     ).rejects.toThrow("audit_log is immutable");
   });
 

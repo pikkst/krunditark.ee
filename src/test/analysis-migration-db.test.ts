@@ -756,6 +756,152 @@ describe("analysis snapshot database regression (KT-016)", () => {
     ).rejects.toThrow();
   });
 
+  runTest("rejects nonexistent proposal for guest analysis", async () => {
+    await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
+    await client.query("CREATE SCHEMA analysis");
+    await applyMigrations(client);
+
+    const userId = crypto.randomUUID();
+    const userEmail = `test-${userId.slice(0, 8)}@example.com`;
+
+    await client.query(
+      `
+      INSERT INTO auth.users (id, email, role, is_sso_user, is_anonymous) VALUES ($1, $2, 'authenticated', false, false)
+    `,
+      [userId, userEmail]
+    );
+
+    await client.query(
+      `
+      INSERT INTO public.projects (user_id, name, cadastral_id)
+      VALUES ($1, 'Test', '12345')
+      RETURNING id
+    `,
+      [userId]
+    );
+
+    const dataRelease = await client.query(
+      `
+      INSERT INTO private.data_releases (release_key, status)
+      VALUES ('test-release-' || substr($1, 1, 8), 'promoted')
+      RETURNING id
+    `,
+      [userId]
+    );
+
+    await expect(
+      client.query(
+        `
+        INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
+        VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
+      `,
+        [null, crypto.randomUUID(), dataRelease.rows[0].id]
+      )
+    ).rejects.toThrow();
+  });
+
+  runTest("accepts valid proposal for guest analysis", async () => {
+    await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
+    await client.query("CREATE SCHEMA analysis");
+    await applyMigrations(client);
+
+    const userId = crypto.randomUUID();
+    const userEmail = `test-${userId.slice(0, 8)}@example.com`;
+
+    await client.query(
+      `
+      INSERT INTO auth.users (id, email, role, is_sso_user, is_anonymous) VALUES ($1, $2, 'authenticated', false, false)
+    `,
+      [userId, userEmail]
+    );
+
+    const project = await client.query(
+      `
+      INSERT INTO public.projects (user_id, name, cadastral_id)
+      VALUES ($1, 'Test', '12345')
+      RETURNING id
+    `,
+      [userId]
+    );
+
+    const proposal = await client.query(
+      `
+      INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2)
+      VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100)
+      RETURNING id
+    `,
+      [project.rows[0].id]
+    );
+
+    const dataRelease = await client.query(
+      `
+      INSERT INTO private.data_releases (release_key, status)
+      VALUES ('test-release-' || substr($1, 1, 8), 'promoted')
+      RETURNING id
+    `,
+      [userId]
+    );
+
+    await client.query(
+      `
+      INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
+      VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
+    `,
+      [null, proposal.rows[0].id, dataRelease.rows[0].id]
+    );
+  });
+
+  runTest("accepts valid proposal for guest analysis", async () => {
+    await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
+    await client.query("CREATE SCHEMA analysis");
+    await applyMigrations(client);
+
+    const userId = crypto.randomUUID();
+    const userEmail = `test-${userId.slice(0, 8)}@example.com`;
+
+    await client.query(
+      `
+      INSERT INTO auth.users (id, email, role, is_sso_user, is_anonymous) VALUES ($1, $2, 'authenticated', false, false)
+    `,
+      [userId, userEmail]
+    );
+
+    const project = await client.query(
+      `
+      INSERT INTO public.projects (user_id, name, cadastral_id)
+      VALUES ($1, 'Test', '12345')
+      RETURNING id
+    `,
+      [userId]
+    );
+
+    const proposal = await client.query(
+      `
+      INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2)
+      VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100)
+      RETURNING id
+    `,
+      [project.rows[0].id]
+    );
+
+    const dataRelease = await client.query(
+      `
+      INSERT INTO private.data_releases (release_key, status)
+      VALUES ('test-release-' || substr($1, 1, 8), 'promoted')
+      RETURNING id
+    `,
+      [userId]
+    );
+
+    await client.query(
+      `
+      INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
+      VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
+    `,
+      [null, proposal.rows[0].id, dataRelease.rows[0].id]
+    );
+  });
+
   runTest(
     "prevents re-parenting proposal after analysis references it (two-connection)",
     async () => {

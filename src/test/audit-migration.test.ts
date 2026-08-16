@@ -70,7 +70,9 @@ describe("internal audit model migration (KT-017)", () => {
     expect(sql).toMatch(
       /authorization|auth|token|secret|password|api_key|apikey|access_token|refresh_token|cookie|credential|bearer|basic|signature|private_key|client_secret|session|jwt/i
     );
-    expect(sql).toMatch(/regexp_replace\s*\(\s*v_rec\.key\s*,\s*'\[\^a-z0-9\]'\s*,\s*'_'\s*,\s*'g'\s*\)/i);
+    expect(sql).toMatch(
+      /regexp_replace\s*\(\s*v_rec\.key\s*,\s*'\[\^a-z0-9\]'\s*,\s*'_'\s*,\s*'g'\s*\)/i
+    );
     expect(sql).toMatch(/jsonb_typeof\s*\(\s*p_metadata\s*\)\s*=\s*'array'/i);
     expect(sql).toMatch(/jsonb_array_elements/i);
     expect(sql).toMatch(/bearer.*token.*secret.*password/i);
@@ -94,7 +96,9 @@ describe("internal audit model migration (KT-017)", () => {
     expect(sql).toMatch(/LANGUAGE\s+plpgsql/i);
     expect(sql).toMatch(/STABLE/i);
     expect(sql).toMatch(/jsonb_typeof\s*\(\s*p_value\s*\)\s*=\s*'string'/i);
-    expect(sql).toMatch(/jsonb_typeof\s*\(\s*p_value\s*\)\s+IN\s*\(\s*'string'\s*,\s*'number'\s*\)/i);
+    expect(sql).toMatch(
+      /jsonb_typeof\s*\(\s*p_value\s*\)\s+IN\s*\(\s*'string'\s*,\s*'number'\s*\)/i
+    );
   });
 
   test("creates validate_audit_metadata function with required fields per action", () => {

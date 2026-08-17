@@ -6,6 +6,7 @@ import {
   type ParcelGeometry,
   type SourceProvenance,
   type GeometryType,
+  type FreshnessState,
 } from "./types";
 
 describe("parcel domain model (KT-020)", () => {
@@ -14,10 +15,15 @@ describe("parcel domain model (KT-020)", () => {
       expect(normalizeCadastralId("  12345  ")).toBe("12345");
     });
 
-    test("removes dots dashes and spaces", () => {
+    test("removes dots dashes spaces and colons", () => {
       expect(normalizeCadastralId("12345-6789")).toBe("123456789");
       expect(normalizeCadastralId("12345.6789")).toBe("123456789");
       expect(normalizeCadastralId("12345 6789")).toBe("123456789");
+      expect(normalizeCadastralId("41201:004:0110")).toBe("412010040110");
+    });
+
+    test("normalizes official colon-delimited cadastral id", () => {
+      expect(normalizeCadastralId("78401:101:3143")).toBe("784011013143");
     });
 
     test("preserves already-normalized id", () => {
@@ -31,6 +37,11 @@ describe("parcel domain model (KT-020)", () => {
       expect(isValidCadastralId("12345")).toBe(true);
     });
 
+    test("accepts official colon-delimited ids", () => {
+      expect(isValidCadastralId("41201:004:0110")).toBe(true);
+      expect(isValidCadastralId("78401:101:3143")).toBe(true);
+    });
+
     test("rejects ids with letters", () => {
       expect(isValidCadastralId("12345abc")).toBe(false);
     });
@@ -41,6 +52,7 @@ describe("parcel domain model (KT-020)", () => {
 
     test("normalizes before validating", () => {
       expect(isValidCadastralId(" 12345-6789 ")).toBe(true);
+      expect(isValidCadastralId(" 41201:004:0110 ")).toBe(true);
     });
   });
 
@@ -112,10 +124,51 @@ describe("parcel domain model (KT-020)", () => {
       expect(result.errors.some((e) => e.field === "geometry")).toBe(true);
     });
 
+    test("rejects empty coordinates for Polygon", () => {
+      const result = validateParcel(makeParcel({ geometry: { type: "Polygon", coordinates: [] } }));
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "geometry.coordinates")).toBe(true);
+    });
+
+    test("rejects mismatched MultiPolygon nesting", () => {
+      const result = validateParcel(
+        makeParcel({
+          geometry: {
+            type: "MultiPolygon",
+            coordinates: [
+              [
+                [0, 0],
+                [1, 0],
+                [1, 1],
+                [0, 1],
+                [0, 0],
+              ],
+            ],
+          },
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "geometry.coordinates")).toBe(true);
+    });
+
     test("requires geometryCrs", () => {
       const result = validateParcel(makeParcel({ geometryCrs: "" }));
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.field === "geometryCrs")).toBe(true);
+    });
+
+    test("rejects unsupported geometryCrs", () => {
+      const result = validateParcel(makeParcel({ geometryCrs: "EPSG:banana" }));
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "geometryCrs")).toBe(true);
+    });
+
+    test("accepts supported geometryCrs values", () => {
+      const epsg4326 = validateParcel(makeParcel({ geometryCrs: "EPSG:4326" }));
+      expect(epsg4326.valid).toBe(true);
+
+      const epsg3301 = validateParcel(makeParcel({ geometryCrs: "EPSG:3301" }));
+      expect(epsg3301.valid).toBe(true);
     });
 
     test("warns when computed area is non-positive", () => {
@@ -138,6 +191,55 @@ describe("parcel domain model (KT-020)", () => {
       );
       expect(result.valid).toBe(false);
       expect(result.errors.filter((e) => e.field.startsWith("source."))).toHaveLength(5);
+    });
+
+    test("rejects invalid retrievedAt timestamp", () => {
+      const result = validateParcel(
+        makeParcel({ source: { ...makeParcel().source, retrievedAt: "not-a-date" } })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "source.retrievedAt")).toBe(true);
+    });
+
+    test("rejects invalid sourceEffectiveAt timestamp", () => {
+      const result = validateParcel(
+        makeParcel({
+          source: {
+            ...makeParcel().source,
+            sourceEffectiveAt: "not-a-date",
+          },
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "source.sourceEffectiveAt")).toBe(true);
+    });
+
+    test("accepts valid sourceEffectiveAt timestamp", () => {
+      const result = validateParcel(
+        makeParcel({
+          source: {
+            ...makeParcel().source,
+            sourceEffectiveAt: "2026-01-01T00:00:00Z",
+          },
+        })
+      );
+      expect(result.valid).toBe(true);
+    });
+
+    test("rejects invalid freshnessState", () => {
+      const result = validateParcel(
+        makeParcel({ freshnessState: "not-a-state" as unknown as FreshnessState })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "freshnessState")).toBe(true);
+    });
+
+    test("accepts all valid freshnessState values", () => {
+      const states: FreshnessState[] = ["fresh", "warning", "stale", "unknown"];
+      for (const state of states) {
+        const result = validateParcel(makeParcel({ freshnessState: state }));
+        expect(result.valid).toBe(true);
+      }
     });
 
     test("warns when contentHash is empty", () => {

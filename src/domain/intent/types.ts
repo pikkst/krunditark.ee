@@ -28,6 +28,8 @@ export const PLANNED_INTENT_CODES = new Set<IntentCode>([
   "existing_building_modification",
 ]);
 
+export const UNSUPPORTED_INTENT_CODES = new Set<IntentCode>(PLANNED_INTENT_CODES);
+
 export const PROFESSIONAL_CONTEXT_CODE: IntentCode = "professional";
 
 export const INTENT_I18N_KEYS: Record<IntentCode, string> = {

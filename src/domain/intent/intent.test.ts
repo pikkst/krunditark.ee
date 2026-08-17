@@ -6,6 +6,7 @@ import {
   validateIntent,
   SUPPORTED_INTENT_CODES,
   PLANNED_INTENT_CODES,
+  UNSUPPORTED_INTENT_CODES,
   PROFESSIONAL_CONTEXT_CODE,
   INTENT_I18N_KEYS,
   type Intent,
@@ -130,6 +131,32 @@ describe("intent domain model (KT-024)", () => {
 
     test("has exactly the planned codes", () => {
       expect(PLANNED_INTENT_CODES.size).toBe(2);
+    });
+  });
+
+  describe("UNSUPPORTED_INTENT_CODES", () => {
+    test("includes pre_purchase (recognized but not supported)", () => {
+      expect(UNSUPPORTED_INTENT_CODES.has("pre_purchase")).toBe(true);
+    });
+
+    test("includes existing_building_modification", () => {
+      expect(UNSUPPORTED_INTENT_CODES.has("existing_building_modification")).toBe(true);
+    });
+
+    test("does not include supported codes", () => {
+      expect(UNSUPPORTED_INTENT_CODES.has("build")).toBe(false);
+      expect(UNSUPPORTED_INTENT_CODES.has("understand_parcel")).toBe(false);
+    });
+
+    test("does not include professional context marker", () => {
+      expect(UNSUPPORTED_INTENT_CODES.has("professional")).toBe(false);
+    });
+
+    test("equals PLANNED_INTENT_CODES contents", () => {
+      expect(UNSUPPORTED_INTENT_CODES.size).toBe(PLANNED_INTENT_CODES.size);
+      for (const code of PLANNED_INTENT_CODES) {
+        expect(UNSUPPORTED_INTENT_CODES.has(code)).toBe(true);
+      }
     });
   });
 

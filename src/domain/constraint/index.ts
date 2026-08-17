@@ -9,6 +9,7 @@ export type {
   MultiPolygonGeometry,
   ConstraintGeometry,
   ConstraintSourceProvenance,
+  ConstraintSourceReference,
   ConstraintFacts,
   Constraint,
   ConstraintValidationError,

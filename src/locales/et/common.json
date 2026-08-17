@@ -44,8 +44,8 @@
   "intent": {
     "build": "Uue hoone ehitus",
     "prePurchase": "Ostukontroll",
-    "understandParcel": "Mõistan krundit",
+    "understandParcel": "Mõistan krunti",
     "existingBuildingModification": "Muudan olemasolevat hoonet",
-    "professional": "Kutsealane"
+    "professional": "Professionaalne"
   }
 }

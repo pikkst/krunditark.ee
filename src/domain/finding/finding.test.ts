@@ -1443,13 +1443,33 @@ describe("finding domain model (KT-023)", () => {
   });
 
   describe("hasProvenance - material finding evidence requirements", () => {
-    test("returns false for material finding with source evidence lacking evidence-level version and empty release sources", () => {
+    test("returns false for material finding with source evidence whose sourceId does not match finding's source", () => {
       const finding = makeValidFinding({
         state: "conflict",
         evidence: [
           {
             evidenceType: "source",
-            source: makeBaseSourceProvenance(),
+            source: { ...makeBaseSourceProvenance(), sourceId: "mismatched.source.id" },
+          } as FindingEvidence,
+        ],
+        dataRelease: {
+          ...makeBaseDataRelease(),
+          sources: {},
+        },
+      });
+      expect(hasProvenance(finding)).toBe(false);
+    });
+
+    test("returns false for material finding with source evidence with mismatched dataset version", () => {
+      const finding = makeValidFinding({
+        state: "conflict",
+        evidence: [
+          {
+            evidenceType: "source",
+            source: {
+              ...makeBaseSourceProvenance(),
+              sourceDatasetVersionId: "dataset-version-2",
+            },
           } as FindingEvidence,
         ],
         dataRelease: {
@@ -1578,6 +1598,53 @@ describe("finding domain model (KT-023)", () => {
         })
       );
       expect(result.valid).toBe(true);
+    });
+
+    test("rejects material finding with mismatched data-release source/version mapping", () => {
+      const result = validateFinding(
+        makeValidFinding({
+          kind: "technical",
+          state: "conflict",
+          evidence: [
+            { evidenceType: "constraint", constraintSnapshotId: "constraint-1" } as FindingEvidence,
+          ],
+          dataRelease: {
+            ...makeBaseDataRelease(),
+            sources: { "unrelated.source": "dataset-version-1" },
+          },
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) => e.field === "evidence" && e.message.includes("verifiable provenance")
+        )
+      ).toBe(true);
+    });
+
+    test("rejects material finding with mismatched version in data-release source", () => {
+      const result = validateFinding(
+        makeValidFinding({
+          kind: "technical",
+          state: "conflict",
+          evidence: [
+            { evidenceType: "constraint", constraintSnapshotId: "constraint-1" } as FindingEvidence,
+          ],
+          dataRelease: {
+            ...makeBaseDataRelease(),
+            sources: {
+              "maru.cadastre.parcels": "dataset-version-2",
+              "maru.planning.spatial": "dataset-version-1",
+            },
+          },
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) => e.field === "evidence" && e.message.includes("verifiable provenance")
+        )
+      ).toBe(true);
     });
   });
 

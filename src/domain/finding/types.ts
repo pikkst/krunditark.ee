@@ -910,11 +910,19 @@ export function validateFinding(finding: Finding): ValidationResult {
     }
   }
 
-  if (isMaterial && finding.evidence.length === 0) {
-    errors.push({
-      field: "evidence",
-      message: "evidence is required for material findings (conflict, condition, or unknown)",
-    });
+  if (isMaterial) {
+    if (finding.evidence.length === 0) {
+      errors.push({
+        field: "evidence",
+        message: "evidence is required for material findings (conflict, condition, or unknown)",
+      });
+    } else if (!hasProvenance(finding)) {
+      errors.push({
+        field: "evidence",
+        message:
+          "material findings require verifiable provenance: source evidence matching the finding's source/version or a data-release source-version mapping that resolves the finding's source",
+      });
+    }
   }
 
   return { valid: errors.length === 0, errors, warnings };
@@ -990,11 +998,35 @@ function validateEvidenceByType(
     }
     case "source": {
       const e = evidence as FindingEvidenceSource;
-      if (!e.sourceSyncRunId && !e.sourceDatasetVersionId) {
+      const hasEvidenceSyncRun =
+        typeof e.sourceSyncRunId === "string" && e.sourceSyncRunId.length > 0;
+      const hasEvidenceDatasetVersion =
+        typeof e.sourceDatasetVersionId === "string" && e.sourceDatasetVersionId.length > 0;
+      if (!hasEvidenceSyncRun && !hasEvidenceDatasetVersion) {
         errors.push({
           field: prefix,
           message: "sourceSyncRunId or sourceDatasetVersionId is required for source evidence",
         });
+      }
+      if (!e.source) {
+        errors.push({
+          field: `${prefix}.source`,
+          message: "source provenance is required for source evidence",
+        });
+      } else {
+        assertNonEmptyString(e.source.sourceId, `${prefix}.source.sourceId`, errors);
+        assertNonEmptyString(
+          e.source.sourceDatasetVersionId,
+          `${prefix}.source.sourceDatasetVersionId`,
+          errors
+        );
+        assertNonEmptyString(e.source.sourceSyncRunId, `${prefix}.source.sourceSyncRunId`, errors);
+        assertNonEmptyString(
+          e.source.normalizerVersion,
+          `${prefix}.source.normalizerVersion`,
+          errors
+        );
+        assertIsoTimestamp(e.source.retrievedAt, `${prefix}.source.retrievedAt`, errors);
       }
       break;
     }
@@ -1104,12 +1136,19 @@ export function hasProvenance(finding: Finding): boolean {
   }
 
   const hasEvidence = finding.evidence.length > 0;
-  const hasSourceEvidence = finding.evidence.some(
-    (e) =>
-      e.evidenceType === "source" &&
-      (Boolean((e as FindingEvidenceSource).sourceDatasetVersionId) ||
-        Boolean((e as FindingEvidenceSource).sourceSyncRunId))
-  );
+  const hasSourceEvidence = finding.evidence.some((e) => {
+    if (e.evidenceType !== "source") {
+      return false;
+    }
+    const se = e as FindingEvidenceSource;
+    if (!se.source) {
+      return false;
+    }
+    return (
+      se.source.sourceId === finding.source.sourceId &&
+      se.source.sourceDatasetVersionId === finding.source.sourceDatasetVersionId
+    );
+  });
   const sources = finding.dataRelease.sources;
   const hasDataReleaseSources =
     isValidSourceManifest(sources) &&

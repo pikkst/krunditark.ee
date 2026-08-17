@@ -198,13 +198,13 @@ Capture:
 
 ## KT-021 — Proposal domain model
 
-- [ ] scenario/structure type.
-- [ ] footprint.
-- [ ] dimensions/area.
-- [ ] height/storeys/use.
-- [ ] orientation.
-- [ ] proposal version.
-- [ ] validation.
+- [x] scenario/structure type.
+- [x] footprint.
+- [x] dimensions/area.
+- [x] height/storeys/use.
+- [x] orientation.
+- [x] proposal version.
+- [x] validation.
 
 ## KT-022 — Normalized spatial constraint model
 

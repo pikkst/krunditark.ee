@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgis/postgis:15-3.4
+        image: postgis/postgis:17-3.4
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -55,8 +55,22 @@ jobs:
           PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U postgres -d krunditark -f supabase/ci-setup.sql
           for f in $(ls supabase/migrations/*.sql | sort); do
             echo "Applying $f"
-            PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U postgres -d krunditark -f "$f"
+            PGPASSWORD=$POSTGRES_PASSWORD ON_ERROR_STOP=1 psql -h localhost -U postgres -d krunditark -f "$f"
           done
+
+      - name: Verify fail-fast migration behavior
+        env:
+          POSTGRES_PASSWORD: postgres
+        run: |
+          set +e
+          PGPASSWORD=$POSTGRES_PASSWORD ON_ERROR_STOP=1 psql -h localhost -U postgres -d krunditark -c "SELECT intentionally_invalid_syntax_to_test_failfast;"
+          EXIT_CODE=$?
+          set -e
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "ERROR: Invalid SQL did not cause psql to exit non-zero"
+            exit 1
+          fi
+          echo "Fail-fast behavior verified: invalid SQL returned non-zero exit code $EXIT_CODE"
 
       - name: Test
         env:

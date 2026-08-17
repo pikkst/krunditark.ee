@@ -136,6 +136,7 @@ Supabase Edge Function secrets are managed through Supabase, not embedded in Pag
 - test migrations against clean local database;
 - apply through Supabase CLI/approved CI deployment process;
 - never copy/paste untracked production-only SQL as the normal workflow.
+- CI and local development target PostgreSQL 17 (matches `supabase/config.toml`).
 
 ### Edge Functions
 

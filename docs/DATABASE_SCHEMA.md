@@ -5,6 +5,7 @@ This document defines the intended PostgreSQL/PostGIS data model. Exact migratio
 ## 1. General conventions
 
 - PostgreSQL through Supabase.
+- Supported PostgreSQL major version: **17** (matches `supabase/config.toml` `[db] major_version`).
 - PostGIS enabled by migration.
 - UUID primary keys for application entities unless an authoritative source identifier is the natural immutable key inside a source-scoped table.
 - `timestamptz` for timestamps.

@@ -3,9 +3,15 @@
 -- a minimal user/admin role model, prevents client-controlled
 -- elevation, and applies RLS.
 
-CREATE TYPE public.user_role AS ENUM ('user', 'admin');
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+        CREATE TYPE public.user_role AS ENUM ('user', 'admin');
+    END IF;
+END;
+$$;
 
-CREATE TABLE public.profiles (
+CREATE TABLE IF NOT EXISTS public.profiles (
     id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     display_name text,
     role public.user_role NOT NULL DEFAULT 'user',
@@ -27,6 +33,8 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW
@@ -42,6 +50,8 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON public.profiles;
 
 CREATE TRIGGER update_profiles_updated_at
   BEFORE UPDATE ON public.profiles
@@ -61,6 +71,8 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS prevent_client_role_change ON public.profiles;
+
 CREATE TRIGGER prevent_client_role_change
   BEFORE UPDATE ON public.profiles
   FOR EACH ROW
@@ -68,10 +80,14 @@ CREATE TRIGGER prevent_client_role_change
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS profiles_select_own ON public.profiles;
+
 CREATE POLICY profiles_select_own ON public.profiles
   FOR SELECT
   TO authenticated
   USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS profiles_update_own ON public.profiles;
 
 CREATE POLICY profiles_update_own ON public.profiles
   FOR UPDATE

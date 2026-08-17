@@ -125,20 +125,28 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS prevent_terminal_child_mutation_source_versions ON analysis.analysis_source_versions;
+
 CREATE TRIGGER prevent_terminal_child_mutation_source_versions
     BEFORE INSERT OR UPDATE OR DELETE ON analysis.analysis_source_versions
     FOR EACH ROW
     EXECUTE FUNCTION analysis.prevent_terminal_child_mutation();
+
+DROP TRIGGER IF EXISTS prevent_terminal_child_mutation_rule_versions ON analysis.analysis_rule_versions;
 
 CREATE TRIGGER prevent_terminal_child_mutation_rule_versions
     BEFORE INSERT OR UPDATE OR DELETE ON analysis.analysis_rule_versions
     FOR EACH ROW
     EXECUTE FUNCTION analysis.prevent_terminal_child_mutation();
 
+DROP TRIGGER IF EXISTS prevent_terminal_child_mutation_findings ON analysis.findings;
+
 CREATE TRIGGER prevent_terminal_child_mutation_findings
     BEFORE INSERT OR UPDATE OR DELETE ON analysis.findings
     FOR EACH ROW
     EXECUTE FUNCTION analysis.prevent_terminal_child_mutation();
+
+DROP TRIGGER IF EXISTS prevent_terminal_child_mutation_finding_evidence ON analysis.finding_evidence;
 
 CREATE TRIGGER prevent_terminal_child_mutation_finding_evidence
     BEFORE INSERT OR UPDATE OR DELETE ON analysis.finding_evidence

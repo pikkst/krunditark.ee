@@ -13,62 +13,104 @@
 
 -- 1. Enums for source and sync state
 
-CREATE TYPE private.source_type AS ENUM (
-    'WFS',
-    'API',
-    'download',
-    'manual_law'
-);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'source_type' AND typnamespace = 'private'::regnamespace) THEN
+        CREATE TYPE private.source_type AS ENUM (
+            'WFS',
+            'API',
+            'download',
+            'manual_law'
+        );
+    END IF;
+END;
+$$;
 
-CREATE TYPE private.refresh_policy AS ENUM (
-    'monthly_snapshot',
-    'weekly_metadata_check',
-    'manual_verified',
-    'live_lookup',
-    'no_replication'
-);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'refresh_policy' AND typnamespace = 'private'::regnamespace) THEN
+        CREATE TYPE private.refresh_policy AS ENUM (
+            'monthly_snapshot',
+            'weekly_metadata_check',
+            'manual_verified',
+            'live_lookup',
+            'no_replication'
+        );
+    END IF;
+END;
+$$;
 
-CREATE TYPE private.sync_trigger_type AS ENUM (
-    'scheduled',
-    'manual',
-    'retry'
-);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'sync_trigger_type' AND typnamespace = 'private'::regnamespace) THEN
+        CREATE TYPE private.sync_trigger_type AS ENUM (
+            'scheduled',
+            'manual',
+            'retry'
+        );
+    END IF;
+END;
+$$;
 
-CREATE TYPE private.sync_status AS ENUM (
-    'queued',
-    'fetching',
-    'validating',
-    'normalizing',
-    'candidate',
-    'completed',
-    'failed',
-    'rejected'
-);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'sync_status' AND typnamespace = 'private'::regnamespace) THEN
+        CREATE TYPE private.sync_status AS ENUM (
+            'queued',
+            'fetching',
+            'validating',
+            'normalizing',
+            'candidate',
+            'completed',
+            'failed',
+            'rejected'
+        );
+    END IF;
+END;
+$$;
 
-CREATE TYPE private.dataset_version_status AS ENUM (
-    'candidate',
-    'verified',
-    'rejected',
-    'retired'
-);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'dataset_version_status' AND typnamespace = 'private'::regnamespace) THEN
+        CREATE TYPE private.dataset_version_status AS ENUM (
+            'candidate',
+            'verified',
+            'rejected',
+            'retired'
+        );
+    END IF;
+END;
+$$;
 
-CREATE TYPE private.release_status AS ENUM (
-    'candidate',
-    'promoted',
-    'rejected',
-    'retired'
-);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'release_status' AND typnamespace = 'private'::regnamespace) THEN
+        CREATE TYPE private.release_status AS ENUM (
+            'candidate',
+            'promoted',
+            'rejected',
+            'retired'
+        );
+    END IF;
+END;
+$$;
 
-CREATE TYPE private.freshness_state AS ENUM (
-    'fresh',
-    'warning',
-    'stale',
-    'unknown'
-);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'freshness_state' AND typnamespace = 'private'::regnamespace) THEN
+        CREATE TYPE private.freshness_state AS ENUM (
+            'fresh',
+            'warning',
+            'stale',
+            'unknown'
+        );
+    END IF;
+END;
+$$;
 
 -- 2. Source definitions
 
-CREATE TABLE private.source_definitions (
+CREATE TABLE IF NOT EXISTS private.source_definitions (
     id text PRIMARY KEY,
     name text NOT NULL,
     authority text NOT NULL,
@@ -96,7 +138,7 @@ CREATE TABLE private.source_definitions (
 
 -- 3. Source sync runs
 
-CREATE TABLE private.source_sync_runs (
+CREATE TABLE IF NOT EXISTS private.source_sync_runs (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     source_id text NOT NULL REFERENCES private.source_definitions(id) ON DELETE RESTRICT,
     trigger_type private.sync_trigger_type NOT NULL,
@@ -136,7 +178,7 @@ CREATE TABLE private.source_sync_runs (
 
 -- 4. Source dataset versions
 
-CREATE TABLE private.source_dataset_versions (
+CREATE TABLE IF NOT EXISTS private.source_dataset_versions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     source_id text NOT NULL REFERENCES private.source_definitions(id) ON DELETE RESTRICT,
     version_key text NOT NULL,
@@ -160,7 +202,7 @@ CREATE TABLE private.source_dataset_versions (
 
 -- 5. Composite data releases
 
-CREATE TABLE private.data_releases (
+CREATE TABLE IF NOT EXISTS private.data_releases (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     release_key text NOT NULL UNIQUE,
     status private.release_status NOT NULL DEFAULT 'candidate',
@@ -173,7 +215,7 @@ CREATE TABLE private.data_releases (
 
 -- 6. Data release source membership
 
-CREATE TABLE private.data_release_sources (
+CREATE TABLE IF NOT EXISTS private.data_release_sources (
     data_release_id uuid NOT NULL REFERENCES private.data_releases(id) ON DELETE CASCADE,
     source_id text NOT NULL REFERENCES private.source_definitions(id) ON DELETE RESTRICT,
     source_dataset_version_id uuid NOT NULL REFERENCES private.source_dataset_versions(id) ON DELETE RESTRICT,
@@ -189,18 +231,18 @@ CREATE TABLE private.data_release_sources (
 
 -- 7. Indexes for common query patterns
 
-CREATE INDEX idx_source_definitions_enabled ON private.source_definitions (enabled) WHERE enabled = true;
-CREATE INDEX idx_source_definitions_next_sync ON private.source_definitions (next_sync_due_at) WHERE enabled = true AND next_sync_due_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_source_definitions_enabled ON private.source_definitions (enabled) WHERE enabled = true;
+CREATE INDEX IF NOT EXISTS idx_source_definitions_next_sync ON private.source_definitions (next_sync_due_at) WHERE enabled = true AND next_sync_due_at IS NOT NULL;
 
-CREATE INDEX idx_source_sync_runs_source_started ON private.source_sync_runs (source_id, started_at DESC);
-CREATE INDEX idx_source_sync_runs_status_started ON private.source_sync_runs (status, started_at);
+CREATE INDEX IF NOT EXISTS idx_source_sync_runs_source_started ON private.source_sync_runs (source_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_source_sync_runs_status_started ON private.source_sync_runs (status, started_at);
 
-CREATE INDEX idx_source_dataset_versions_source_status ON private.source_dataset_versions (source_id, status);
-CREATE INDEX idx_source_dataset_versions_promoted_at ON private.source_dataset_versions (promoted_at) WHERE status = 'verified';
+CREATE INDEX IF NOT EXISTS idx_source_dataset_versions_source_status ON private.source_dataset_versions (source_id, status);
+CREATE INDEX IF NOT EXISTS idx_source_dataset_versions_promoted_at ON private.source_dataset_versions (promoted_at) WHERE status = 'verified';
 
-CREATE INDEX idx_data_releases_status_created ON private.data_releases (status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_data_releases_status_created ON private.data_releases (status, created_at DESC);
 
-CREATE INDEX idx_data_release_sources_source_version ON private.data_release_sources (source_id, source_dataset_version_id);
+CREATE INDEX IF NOT EXISTS idx_data_release_sources_source_version ON private.data_release_sources (source_id, source_dataset_version_id);
 
 -- 8. Grants
 -- Private schema tables are not exposed through the Data API.

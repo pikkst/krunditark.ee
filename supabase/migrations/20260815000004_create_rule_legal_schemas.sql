@@ -16,22 +16,34 @@
 
 -- 1. Enums for rule and legal-change state
 
-CREATE TYPE rules.rule_status AS ENUM (
-    'draft',
-    'verified',
-    'retired'
-);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'rule_status' AND typnamespace = 'rules'::regnamespace) THEN
+        CREATE TYPE rules.rule_status AS ENUM (
+            'draft',
+            'verified',
+            'retired'
+        );
+    END IF;
+END;
+$$;
 
-CREATE TYPE rules.legal_change_candidate_status AS ENUM (
-    'pending',
-    'reviewed',
-    'accepted',
-    'no_rule_change'
-);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'legal_change_candidate_status' AND typnamespace = 'rules'::regnamespace) THEN
+        CREATE TYPE rules.legal_change_candidate_status AS ENUM (
+            'pending',
+            'reviewed',
+            'accepted',
+            'no_rule_change'
+        );
+    END IF;
+END;
+$$;
 
 -- 2. Legal sources
 
-CREATE TABLE rules.legal_sources (
+CREATE TABLE IF NOT EXISTS rules.legal_sources (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     authority text NOT NULL,
     title text NOT NULL,
@@ -57,7 +69,7 @@ CREATE TABLE rules.legal_sources (
 
 -- 3. Legal change candidates
 
-CREATE TABLE rules.legal_change_candidates (
+CREATE TABLE IF NOT EXISTS rules.legal_change_candidates (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     legal_source_id uuid NOT NULL REFERENCES rules.legal_sources(id) ON DELETE RESTRICT,
     previous_legal_source_id uuid NULL REFERENCES rules.legal_sources(id) ON DELETE RESTRICT,
@@ -77,7 +89,7 @@ CREATE TABLE rules.legal_change_candidates (
 
 -- 4. Rule definitions
 
-CREATE TABLE rules.rule_definitions (
+CREATE TABLE IF NOT EXISTS rules.rule_definitions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     code text NOT NULL UNIQUE,
     title text NOT NULL,
@@ -92,7 +104,7 @@ CREATE TABLE rules.rule_definitions (
 
 -- 5. Rule versions
 
-CREATE TABLE rules.rule_versions (
+CREATE TABLE IF NOT EXISTS rules.rule_versions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     rule_definition_id uuid NOT NULL REFERENCES rules.rule_definitions(id) ON DELETE RESTRICT,
     version integer NOT NULL DEFAULT 1,
@@ -113,7 +125,7 @@ CREATE TABLE rules.rule_versions (
 
 -- 6. Rule version sources (many-to-many)
 
-CREATE TABLE rules.rule_version_sources (
+CREATE TABLE IF NOT EXISTS rules.rule_version_sources (
     rule_version_id uuid NOT NULL REFERENCES rules.rule_versions(id) ON DELETE CASCADE,
     legal_source_id uuid NOT NULL REFERENCES rules.legal_sources(id) ON DELETE RESTRICT,
     relationship text NOT NULL DEFAULT 'implements',
@@ -166,6 +178,8 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS prevent_verified_rule_version_mutation ON rules.rule_versions;
+
 CREATE TRIGGER prevent_verified_rule_version_mutation
     BEFORE UPDATE OR DELETE ON rules.rule_versions
     FOR EACH ROW
@@ -201,6 +215,8 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS prevent_verified_source_link_mutation ON rules.rule_version_sources;
+
 CREATE TRIGGER prevent_verified_source_link_mutation
     BEFORE INSERT OR UPDATE OR DELETE ON rules.rule_version_sources
     FOR EACH ROW
@@ -208,22 +224,22 @@ CREATE TRIGGER prevent_verified_source_link_mutation
 
 -- 8. Indexes for common query patterns
 
-CREATE INDEX idx_legal_sources_authority ON rules.legal_sources (authority);
-CREATE INDEX idx_legal_sources_document_identifier ON rules.legal_sources (document_identifier) WHERE document_identifier IS NOT NULL;
-CREATE INDEX idx_legal_sources_effective_from ON rules.legal_sources (effective_from) WHERE effective_from IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_legal_sources_authority ON rules.legal_sources (authority);
+CREATE INDEX IF NOT EXISTS idx_legal_sources_document_identifier ON rules.legal_sources (document_identifier) WHERE document_identifier IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_legal_sources_effective_from ON rules.legal_sources (effective_from) WHERE effective_from IS NOT NULL;
 
-CREATE INDEX idx_legal_change_candidates_legal_source_id ON rules.legal_change_candidates (legal_source_id);
-CREATE INDEX idx_legal_change_candidates_status ON rules.legal_change_candidates (status);
-CREATE INDEX idx_legal_change_candidates_detected_at ON rules.legal_change_candidates (detected_at DESC);
+CREATE INDEX IF NOT EXISTS idx_legal_change_candidates_legal_source_id ON rules.legal_change_candidates (legal_source_id);
+CREATE INDEX IF NOT EXISTS idx_legal_change_candidates_status ON rules.legal_change_candidates (status);
+CREATE INDEX IF NOT EXISTS idx_legal_change_candidates_detected_at ON rules.legal_change_candidates (detected_at DESC);
 
-CREATE INDEX idx_rule_definitions_code ON rules.rule_definitions (code);
-CREATE INDEX idx_rule_definitions_category ON rules.rule_definitions (category);
+CREATE INDEX IF NOT EXISTS idx_rule_definitions_code ON rules.rule_definitions (code);
+CREATE INDEX IF NOT EXISTS idx_rule_definitions_category ON rules.rule_definitions (category);
 
-CREATE INDEX idx_rule_versions_definition_status ON rules.rule_versions (rule_definition_id, status);
-CREATE INDEX idx_rule_versions_status ON rules.rule_versions (status) WHERE status = 'verified';
-CREATE INDEX idx_rule_versions_effective_period ON rules.rule_versions (effective_from, effective_to) WHERE effective_from IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_rule_versions_definition_status ON rules.rule_versions (rule_definition_id, status);
+CREATE INDEX IF NOT EXISTS idx_rule_versions_status ON rules.rule_versions (status) WHERE status = 'verified';
+CREATE INDEX IF NOT EXISTS idx_rule_versions_effective_period ON rules.rule_versions (effective_from, effective_to) WHERE effective_from IS NOT NULL;
 
-CREATE INDEX idx_rule_version_sources_legal_source_id ON rules.rule_version_sources (legal_source_id);
+CREATE INDEX IF NOT EXISTS idx_rule_version_sources_legal_source_id ON rules.rule_version_sources (legal_source_id);
 
 -- 9. Grants
 -- Rules schema tables are internal/administrative. Only service_role (server-side

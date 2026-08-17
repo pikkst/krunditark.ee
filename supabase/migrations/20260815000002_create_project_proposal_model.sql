@@ -5,16 +5,22 @@
 -- Semantic rule: cadastral_id represents a selected parcel, not ownership proof.
 
 -- 1. Create structure_type enum for supported initial categories
-CREATE TYPE public.structure_type AS ENUM (
-    'detached_house',
-    'sauna',
-    'shed',
-    'garage',
-    'auxiliary_building'
-);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'structure_type' AND typnamespace = 'public'::regnamespace) THEN
+        CREATE TYPE public.structure_type AS ENUM (
+            'detached_house',
+            'sauna',
+            'shed',
+            'garage',
+            'auxiliary_building'
+        );
+    END IF;
+END;
+$$;
 
 -- 2. Create projects table
-CREATE TABLE public.projects (
+CREATE TABLE IF NOT EXISTS public.projects (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     name text NOT NULL DEFAULT 'Uus projekt',
@@ -28,7 +34,7 @@ CREATE TABLE public.projects (
 );
 
 -- 3. Create versioned project_proposals table
-CREATE TABLE public.project_proposals (
+CREATE TABLE IF NOT EXISTS public.project_proposals (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id uuid NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
     version integer NOT NULL DEFAULT 1,
@@ -64,10 +70,10 @@ CREATE TABLE public.project_proposals (
 );
 
 -- 4. Indexes
-CREATE INDEX idx_projects_user_id_updated_at ON public.projects (user_id, updated_at DESC);
-CREATE INDEX idx_projects_cadastral_id ON public.projects (cadastral_id);
-CREATE INDEX idx_project_proposals_project_id ON public.project_proposals (project_id);
-CREATE INDEX idx_project_proposals_footprint ON public.project_proposals USING GIST (footprint);
+CREATE INDEX IF NOT EXISTS idx_projects_user_id_updated_at ON public.projects (user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_projects_cadastral_id ON public.projects (cadastral_id);
+CREATE INDEX IF NOT EXISTS idx_project_proposals_project_id ON public.project_proposals (project_id);
+CREATE INDEX IF NOT EXISTS idx_project_proposals_footprint ON public.project_proposals USING GIST (footprint);
 
 -- 5. Triggers
 
@@ -86,12 +92,16 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS prevent_client_user_id_change ON public.projects;
+
 CREATE TRIGGER prevent_client_user_id_change
     BEFORE UPDATE ON public.projects
     FOR EACH ROW
     EXECUTE FUNCTION public.prevent_client_user_id_change();
 
 -- Auto-update updated_at on projects
+DROP TRIGGER IF EXISTS update_projects_updated_at ON public.projects;
+
 CREATE TRIGGER update_projects_updated_at
     BEFORE UPDATE ON public.projects
     FOR EACH ROW
@@ -112,6 +122,8 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS calculate_proposal_area ON public.project_proposals;
+
 CREATE TRIGGER calculate_proposal_area
     BEFORE INSERT OR UPDATE ON public.project_proposals
     FOR EACH ROW
@@ -122,15 +134,21 @@ ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_proposals ENABLE ROW LEVEL SECURITY;
 
 -- Projects: owner CRUD only
+DROP POLICY IF EXISTS projects_select_own ON public.projects;
+
 CREATE POLICY projects_select_own ON public.projects
     FOR SELECT
     TO authenticated
     USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS projects_insert_own ON public.projects;
+
 CREATE POLICY projects_insert_own ON public.projects
     FOR INSERT
     TO authenticated
     WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS projects_update_own ON public.projects;
 
 CREATE POLICY projects_update_own ON public.projects
     FOR UPDATE
@@ -138,12 +156,16 @@ CREATE POLICY projects_update_own ON public.projects
     USING (auth.uid() = user_id)
     WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS projects_delete_own ON public.projects;
+
 CREATE POLICY projects_delete_own ON public.projects
     FOR DELETE
     TO authenticated
     USING (auth.uid() = user_id);
 
 -- Project proposals: access through project ownership
+DROP POLICY IF EXISTS project_proposals_select_own ON public.project_proposals;
+
 CREATE POLICY project_proposals_select_own ON public.project_proposals
     FOR SELECT
     TO authenticated
@@ -155,6 +177,8 @@ CREATE POLICY project_proposals_select_own ON public.project_proposals
         )
     );
 
+DROP POLICY IF EXISTS project_proposals_insert_own ON public.project_proposals;
+
 CREATE POLICY project_proposals_insert_own ON public.project_proposals
     FOR INSERT
     TO authenticated
@@ -165,6 +189,8 @@ CREATE POLICY project_proposals_insert_own ON public.project_proposals
             AND p.user_id = auth.uid()
         )
     );
+
+DROP POLICY IF EXISTS project_proposals_update_own ON public.project_proposals;
 
 CREATE POLICY project_proposals_update_own ON public.project_proposals
     FOR UPDATE
@@ -183,6 +209,8 @@ CREATE POLICY project_proposals_update_own ON public.project_proposals
             AND p.user_id = auth.uid()
         )
     );
+
+DROP POLICY IF EXISTS project_proposals_delete_own ON public.project_proposals;
 
 CREATE POLICY project_proposals_delete_own ON public.project_proposals
     FOR DELETE

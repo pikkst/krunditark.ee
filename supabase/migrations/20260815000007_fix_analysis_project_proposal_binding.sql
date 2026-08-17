@@ -46,6 +46,9 @@ ALTER TABLE analysis.analyses
 -- FK still enforces that the proposal exists for guest analyses.
 
 ALTER TABLE analysis.analyses
+    DROP CONSTRAINT IF EXISTS analyses_proposal_project_fk;
+
+ALTER TABLE analysis.analyses
     ADD CONSTRAINT analyses_proposal_project_fk
         FOREIGN KEY (proposal_id, project_id)
         REFERENCES public.project_proposals(id, project_id);

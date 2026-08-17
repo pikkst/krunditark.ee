@@ -55,17 +55,17 @@ RLS:
 
 ### `public.projects`
 
-| Column                       | Type                 | Notes                                          |
-| ---------------------------- | -------------------- | ---------------------------------------------- |
-| `id`                         | uuid PK              |                                                |
-| `user_id`                    | uuid FK auth.users   | owner                                          |
-| `name`                       | text                 | user label                                     |
-| `cadastral_id`               | text                 | selected parcel, not ownership proof           |
-| `intent_code`                | text/enum nullable   | stable locale-independent user intent (KT-024) |
-| `current_parcel_snapshot_id` | uuid nullable        | latest selected parcel snapshot                |
-| `created_at`                 | timestamptz          |                                                |
-| `updated_at`                 | timestamptz          |                                                |
-| `archived_at`                | timestamptz nullable | optional soft archive                          |
+| Column                       | Type                 | Notes                                                                             |
+| ---------------------------- | -------------------- | --------------------------------------------------------------------------------- |
+| `id`                         | uuid PK              |                                                                                   |
+| `user_id`                    | uuid FK auth.users   | owner                                                                             |
+| `name`                       | text                 | user label                                                                        |
+| `cadastral_id`               | text                 | selected parcel, not ownership proof                                              |
+| `intent_code`                | text/enum nullable   | stable locale-independent user intent (KT-024)                                    |
+| `current_parcel_snapshot_id` | uuid nullable        | latest selected parcel snapshot; FK `geo.parcel_snapshots(id) ON DELETE SET NULL` |
+| `created_at`                 | timestamptz          |                                                                                   |
+| `updated_at`                 | timestamptz          |                                                                                   |
+| `archived_at`                | timestamptz nullable | optional soft archive                                                             |
 
 Indexes:
 
@@ -253,24 +253,40 @@ A promoted release is immutable. Create another release rather than modifying me
 
 The same cadastral unit can change over time. Analyses reference a snapshot bound to a source dataset version.
 
-| Column                      | Type                                          | Notes                                        |
-| --------------------------- | --------------------------------------------- | -------------------------------------------- |
-| `id`                        | uuid PK                                       |                                              |
-| `cadastral_id`              | text                                          | indexed                                      |
-| `source_dataset_version_id` | uuid FK                                       | exact source dataset version                 |
-| `source_sync_run_id`        | uuid FK                                       | provenance convenience                       |
-| `source_object_id`          | text nullable                                 |                                              |
-| `geometry`                  | geometry(MultiPolygon,3301) or Polygon policy | authoritative normalized geometry            |
-| `area_m2_source`            | numeric nullable                              | source-reported                              |
-| `area_m2_geometry`          | numeric                                       | computed                                     |
-| `address_text`              | text nullable                                 |                                              |
-| `land_use_data`             | jsonb                                         | only normalized noncritical extras initially |
-| `source_effective_at`       | timestamptz nullable                          |                                              |
-| `retrieved_at`              | timestamptz                                   |                                              |
-| `normalizer_version`        | text                                          |                                              |
-| `content_hash`              | text                                          | normalized-object change detection           |
+| Column                      | Type                               | Notes                                                                   |
+| --------------------------- | ---------------------------------- | ----------------------------------------------------------------------- |
+| `id`                        | uuid PK                            |                                                                         |
+| `cadastral_id`              | text                               | indexed, max 50 chars                                                   |
+| `source_dataset_version_id` | uuid FK                            | exact source dataset version                                            |
+| `source_sync_run_id`        | uuid FK                            | provenance convenience; must match dataset version's sync run           |
+| `source_object_id`          | text nullable                      | source-scoped object ID, max 200 chars                                  |
+| `geometry`                  | extensions.geometry NOT NULL       | authoritative normalized geometry; SRID 3301; Polygon/MultiPolygon only |
+| `area_m2_source`            | numeric nullable                   | source-reported                                                         |
+| `area_m2_geometry`          | numeric NOT NULL                   | server-calculated from geometry; positive, max 1e9                      |
+| `address_text`              | text nullable                      | max 500 chars                                                           |
+| `land_use_data`             | jsonb NOT NULL DEFAULT '{}'::jsonb | only normalized noncritical extras initially; max 64 KiB                |
+| `source_effective_at`       | timestamptz nullable               |                                                                         |
+| `retrieved_at`              | timestamptz NOT NULL DEFAULT now() |                                                                         |
+| `normalizer_version`        | text NOT NULL                      | max 100 chars                                                           |
+| `content_hash`              | text NOT NULL                      | normalized-object change detection; max 200 chars                       |
 
 Critical facts used by rules should graduate from generic JSON into typed columns/tables when required.
+
+Provenance constraint: `source_sync_run_id` must be the exact sync run that produced `source_dataset_version_id`.
+
+Server-calculated area: `area_m2_geometry` is derived from `geometry` via `geo.st_area_m2` and cannot be overridden by client input.
+
+Append-only immutability: parcel snapshots cannot be updated or deleted after insert. Historical versions are preserved by creating new dataset-version snapshots, not by mutating existing rows.
+
+Snapshot identity/dedupe rules:
+
+- When `source_object_id` is present: unique on `(source_dataset_version_id, source_object_id)`.
+- When `source_object_id` is NULL: unique on `(cadastral_id, source_dataset_version_id)`. Only one canonical snapshot per cadastral unit per dataset version is allowed.
+
+Geometry resource bounds:
+
+- Coordinates must lie within EPSG:3301 Estonia bounds: X in `[350000, 750000]`, Y in `[5500000, 7000000]`.
+- Vertex complexity is limited to 100 000 points per geometry.
 
 GiST index on `geometry`; B-tree on `(cadastral_id, source_dataset_version_id)` and `(cadastral_id, retrieved_at desc)`.
 
@@ -413,22 +429,22 @@ Composite PK.
 
 ### `analysis.analyses`
 
-| Column                     | Type                 | Notes                                                |
-| -------------------------- | -------------------- | ---------------------------------------------------- |
-| `id`                       | uuid PK              |                                                      |
-| `project_id`               | uuid nullable        | guest mode may be future                             |
-| `proposal_id`              | uuid FK              | exact proposal version                               |
-| `parcel_snapshot_id`       | uuid FK              | exact parcel snapshot                                |
-| `data_release_id`          | uuid FK              | exact promoted source composition                    |
-| `requested_by`             | uuid nullable        |                                                      |
-| `status`                   | enum                 | queued/preparing/evaluating/completed/partial/failed |
-| `analysis_profile_version` | text                 | required source/check set                            |
-| `engine_version`           | text                 |                                                      |
-| `input_hash`               | text                 | deterministic request snapshot hash                  |
-| `source_completeness`      | jsonb                | structured category freshness/completeness statuses  |
-| `started_at`               | timestamptz          |                                                      |
-| `completed_at`             | timestamptz nullable |                                                      |
-| `created_at`               | timestamptz          |                                                      |
+| Column                     | Type                 | Notes                                                                |
+| -------------------------- | -------------------- | -------------------------------------------------------------------- |
+| `id`                       | uuid PK              |                                                                      |
+| `project_id`               | uuid nullable        | guest mode may be future                                             |
+| `proposal_id`              | uuid FK              | exact proposal version                                               |
+| `parcel_snapshot_id`       | uuid FK              | exact parcel snapshot; `geo.parcel_snapshots(id) ON DELETE RESTRICT` |
+| `data_release_id`          | uuid FK              | exact promoted source composition                                    |
+| `requested_by`             | uuid nullable        |                                                                      |
+| `status`                   | enum                 | queued/preparing/evaluating/completed/partial/failed                 |
+| `analysis_profile_version` | text                 | required source/check set                                            |
+| `engine_version`           | text                 |                                                                      |
+| `input_hash`               | text                 | deterministic request snapshot hash                                  |
+| `source_completeness`      | jsonb                | structured category freshness/completeness statuses                  |
+| `started_at`               | timestamptz          |                                                                      |
+| `completed_at`             | timestamptz nullable |                                                                      |
+| `created_at`               | timestamptz          |                                                                      |
 
 Completed rows must not have material content overwritten.
 

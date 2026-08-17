@@ -22,15 +22,23 @@ const projectBindingFixPath = join(
   "migrations",
   "20260815000007_fix_analysis_project_proposal_binding.sql"
 );
+const parcelSnapshotPath = join(
+  root,
+  "supabase",
+  "migrations",
+  "20260815000010_create_parcel_snapshots.sql"
+);
 
 const migrationSql = readFileSync(migrationPath, "utf-8");
 const concurrencyFixSql = readFileSync(concurrencyFixPath, "utf-8");
 const projectBindingFixSql = readFileSync(projectBindingFixPath, "utf-8");
+const parcelSnapshotSql = readFileSync(parcelSnapshotPath, "utf-8");
 
 async function applyMigrations(client: Client) {
   await client.query(migrationSql);
   await client.query(concurrencyFixSql);
   await client.query(projectBindingFixSql);
+  await client.query(parcelSnapshotSql);
 }
 
 const DB_TEST_ADVISORY_LOCK = 0xdeadbeef;
@@ -130,17 +138,18 @@ describe("analysis snapshot database regression (KT-016)", () => {
       [userId]
     );
 
+    const { sourceId, sourceVersionId } = await createSourceVersion(client, dataRelease.rows[0].id);
+    const { parcelSnapshotId } = await createParcelSnapshot(client, sourceVersionId);
+    void (await createSourceVersion(client, dataRelease.rows[0].id));
+
     const analysis = await client.query(
       `
       INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
-      VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
+      VALUES ($1, $2, $3, $4, 'v1', 'v1', 'hash')
       RETURNING id
     `,
-      [project.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]
+      [project.rows[0].id, proposal.rows[0].id, parcelSnapshotId, dataRelease.rows[0].id]
     );
-
-    const { sourceId, sourceVersionId } = await createSourceVersion(client, dataRelease.rows[0].id);
-    void (await createSourceVersion(client, dataRelease.rows[0].id));
 
     await client.query(
       `
@@ -207,16 +216,17 @@ describe("analysis snapshot database regression (KT-016)", () => {
       [userId]
     );
 
+    const { sourceId, sourceVersionId } = await createSourceVersion(client, dataRelease.rows[0].id);
+    const { parcelSnapshotId } = await createParcelSnapshot(client, sourceVersionId);
+
     const analysis = await client.query(
       `
       INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
-      VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
+      VALUES ($1, $2, $3, $4, 'v1', 'v1', 'hash')
       RETURNING id
     `,
-      [project.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]
+      [project.rows[0].id, proposal.rows[0].id, parcelSnapshotId, dataRelease.rows[0].id]
     );
-
-    const { sourceId, sourceVersionId } = await createSourceVersion(client, dataRelease.rows[0].id);
 
     await client.query(
       `
@@ -288,16 +298,18 @@ describe("analysis snapshot database regression (KT-016)", () => {
       [userId]
     );
 
+    const { sourceId, sourceVersionId } = await createSourceVersion(client, dataRelease.rows[0].id);
+    const { parcelSnapshotId } = await createParcelSnapshot(client, sourceVersionId);
+
     const analysis = await client.query(
       `
       INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
-      VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
+      VALUES ($1, $2, $3, $4, 'v1', 'v1', 'hash')
       RETURNING id
     `,
-      [project.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]
+      [project.rows[0].id, proposal.rows[0].id, parcelSnapshotId, dataRelease.rows[0].id]
     );
 
-    const { sourceId, sourceVersionId } = await createSourceVersion(client, dataRelease.rows[0].id);
     const { sourceId: otherSourceId, sourceVersionId: otherSourceVersionId } =
       await createSourceVersion(client, dataRelease.rows[0].id);
 
@@ -370,23 +382,29 @@ describe("analysis snapshot database regression (KT-016)", () => {
       [userId]
     );
 
+    const { sourceVersionId } = await createSourceVersion(client, dataRelease.rows[0].id);
+    const { parcelSnapshotId } = await createParcelSnapshot(client, sourceVersionId);
+
     const analysis = await client.query(
       `
       INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
-      VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
+      VALUES ($1, $2, $3, $4, 'v1', 'v1', 'hash')
       RETURNING id
     `,
-      [project.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]
+      [project.rows[0].id, proposal.rows[0].id, parcelSnapshotId, dataRelease.rows[0].id]
     );
 
-    const { sourceId, sourceVersionId } = await createSourceVersion(client, dataRelease.rows[0].id);
+    const { sourceId, sourceVersionId: sourceVersionId2 } = await createSourceVersion(
+      client,
+      dataRelease.rows[0].id
+    );
 
     await client.query(
       `
       INSERT INTO analysis.analysis_source_versions (analysis_id, source_id, source_dataset_version_id)
       VALUES ($1, $2, $3)
     `,
-      [analysis.rows[0].id, sourceId, sourceVersionId]
+      [analysis.rows[0].id, sourceId, sourceVersionId2]
     );
 
     await client.query(
@@ -459,22 +477,39 @@ describe("analysis snapshot database regression (KT-016)", () => {
       [userId]
     );
 
+    const { sourceVersionId: earlyVersionId1 } = await createSourceVersion(
+      client,
+      dataRelease1.rows[0].id
+    );
+    const { parcelSnapshotId: parcelSnapshotId1 } = await createParcelSnapshot(
+      client,
+      earlyVersionId1
+    );
+    const { sourceVersionId: earlyVersionId2 } = await createSourceVersion(
+      client,
+      dataRelease2.rows[0].id
+    );
+    const { parcelSnapshotId: parcelSnapshotId2 } = await createParcelSnapshot(
+      client,
+      earlyVersionId2
+    );
+
     const analysis1 = await client.query(
       `
       INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
-      VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
+      VALUES ($1, $2, $3, $4, 'v1', 'v1', 'hash')
       RETURNING id
     `,
-      [project.rows[0].id, proposal.rows[0].id, dataRelease1.rows[0].id]
+      [project.rows[0].id, proposal.rows[0].id, parcelSnapshotId1, dataRelease1.rows[0].id]
     );
 
     const analysis2 = await client.query(
       `
       INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
-      VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
+      VALUES ($1, $2, $3, $4, 'v1', 'v1', 'hash')
       RETURNING id
     `,
-      [project.rows[0].id, proposal.rows[0].id, dataRelease2.rows[0].id]
+      [project.rows[0].id, proposal.rows[0].id, parcelSnapshotId2, dataRelease2.rows[0].id]
     );
 
     const { sourceId: sourceId1, sourceVersionId: sourceVersionId1 } = await createSourceVersion(
@@ -552,16 +587,18 @@ describe("analysis snapshot database regression (KT-016)", () => {
       [userId]
     );
 
+    const { sourceId, sourceVersionId } = await createSourceVersion(client, dataRelease.rows[0].id);
+    const { parcelSnapshotId } = await createParcelSnapshot(client, sourceVersionId);
+
     const analysis = await client.query(
       `
       INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
-      VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
+      VALUES ($1, $2, $3, $4, 'v1', 'v1', 'hash')
       RETURNING id
     `,
-      [project.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]
+      [project.rows[0].id, proposal.rows[0].id, parcelSnapshotId, dataRelease.rows[0].id]
     );
 
-    const { sourceId, sourceVersionId } = await createSourceVersion(client, dataRelease.rows[0].id);
     const { sourceId: otherSourceId, sourceVersionId: otherSourceVersionId } =
       await createSourceVersion(client, dataRelease.rows[0].id);
 
@@ -628,13 +665,16 @@ describe("analysis snapshot database regression (KT-016)", () => {
       [userId]
     );
 
+    const { sourceVersionId } = await createSourceVersion(client, dataRelease.rows[0].id);
+    const { parcelSnapshotId } = await createParcelSnapshot(client, sourceVersionId);
+
     const analysis = await client.query(
       `
       INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
-      VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
+      VALUES ($1, $2, $3, $4, 'v1', 'v1', 'hash')
       RETURNING id
     `,
-      [project.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]
+      [project.rows[0].id, proposal.rows[0].id, parcelSnapshotId, dataRelease.rows[0].id]
     );
 
     const finding = await client.query(
@@ -774,13 +814,16 @@ describe("analysis snapshot database regression (KT-016)", () => {
       [userId]
     );
 
+    const { sourceVersionId } = await createSourceVersion(client, dataRelease.rows[0].id);
+    const { parcelSnapshotId } = await createParcelSnapshot(client, sourceVersionId);
+
     await expect(
       client.query(
         `
         INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
-        VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
+        VALUES ($1, $2, $3, $4, 'v1', 'v1', 'hash')
       `,
-        [projectA.rows[0].id, proposalInB.rows[0].id, dataRelease.rows[0].id]
+        [projectA.rows[0].id, proposalInB.rows[0].id, parcelSnapshotId, dataRelease.rows[0].id]
       )
     ).rejects.toThrow();
   });
@@ -820,13 +863,16 @@ describe("analysis snapshot database regression (KT-016)", () => {
       [userId]
     );
 
+    const { sourceVersionId } = await createSourceVersion(client, dataRelease.rows[0].id);
+    const { parcelSnapshotId } = await createParcelSnapshot(client, sourceVersionId);
+
     await expect(
       client.query(
         `
         INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
-        VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
+        VALUES ($1, $2, $3, $4, 'v1', 'v1', 'hash')
       `,
-        [null, crypto.randomUUID(), dataRelease.rows[0].id]
+        [null, crypto.randomUUID(), parcelSnapshotId, dataRelease.rows[0].id]
       )
     ).rejects.toThrow();
   });
@@ -875,12 +921,15 @@ describe("analysis snapshot database regression (KT-016)", () => {
       [userId]
     );
 
+    const { sourceVersionId } = await createSourceVersion(client, dataRelease.rows[0].id);
+    const { parcelSnapshotId } = await createParcelSnapshot(client, sourceVersionId);
+
     await client.query(
       `
       INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
-      VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
+      VALUES ($1, $2, $3, $4, 'v1', 'v1', 'hash')
     `,
-      [null, proposal.rows[0].id, dataRelease.rows[0].id]
+      [null, proposal.rows[0].id, parcelSnapshotId, dataRelease.rows[0].id]
     );
   });
 
@@ -928,12 +977,15 @@ describe("analysis snapshot database regression (KT-016)", () => {
       [userId]
     );
 
+    const { sourceVersionId } = await createSourceVersion(client, dataRelease.rows[0].id);
+    const { parcelSnapshotId } = await createParcelSnapshot(client, sourceVersionId);
+
     await client.query(
       `
       INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
-      VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
+      VALUES ($1, $2, $3, $4, 'v1', 'v1', 'hash')
     `,
-      [null, proposal.rows[0].id, dataRelease.rows[0].id]
+      [null, proposal.rows[0].id, parcelSnapshotId, dataRelease.rows[0].id]
     );
   });
 
@@ -998,12 +1050,15 @@ describe("analysis snapshot database regression (KT-016)", () => {
           [userId]
         );
 
+        const { sourceVersionId } = await createSourceVersion(clientA, dataRelease.rows[0].id);
+        const { parcelSnapshotId } = await createParcelSnapshot(clientA, sourceVersionId);
+
         await clientA.query(
           `
           INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
-          VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
+          VALUES ($1, $2, $3, $4, 'v1', 'v1', 'hash')
         `,
-          [projectA.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]
+          [projectA.rows[0].id, proposal.rows[0].id, parcelSnapshotId, dataRelease.rows[0].id]
         );
 
         await expect(
@@ -1077,13 +1132,16 @@ describe("analysis snapshot database regression (KT-016)", () => {
           [userId]
         );
 
+        const { sourceVersionId } = await createSourceVersion(clientA, dataRelease.rows[0].id);
+        const { parcelSnapshotId } = await createParcelSnapshot(clientA, sourceVersionId);
+
         const analysis = await clientA.query(
           `
           INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash)
-          VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')
+          VALUES ($1, $2, $3, $4, 'v1', 'v1', 'hash')
           RETURNING id
         `,
-          [project.rows[0].id, proposal.rows[0].id, dataRelease.rows[0].id]
+          [project.rows[0].id, proposal.rows[0].id, parcelSnapshotId, dataRelease.rows[0].id]
         );
 
         const sourceDef = await clientA.query(
@@ -1161,7 +1219,7 @@ describe("analysis snapshot database regression (KT-016)", () => {
 
 async function createSourceVersion(client: Client, dataReleaseId: string) {
   sourceCounter += 1;
-  const sourceId = `test.source-${sourceCounter}`;
+  const sourceId = `test.source-${sourceCounter}-${crypto.randomUUID().slice(0, 8)}`;
   const sourceDef = await client.query(
     `
     INSERT INTO private.source_definitions (id, name, authority, source_type, base_url, refresh_policy, verification_policy, release_blocking, enabled, normalizer_version)
@@ -1198,6 +1256,24 @@ async function createSourceVersion(client: Client, dataReleaseId: string) {
   );
 
   return { sourceId: sourceDef.rows[0].id, sourceVersionId: sourceVersion.rows[0].id };
+}
+
+let parcelCounter = 0;
+
+async function createParcelSnapshot(client: Client, sourceVersionId: string) {
+  parcelCounter += 1;
+  const cadastralId = `parcel-${parcelCounter}`;
+  const snapshot = await client.query(
+    `
+    INSERT INTO geo.parcel_snapshots (cadastral_id, source_dataset_version_id, source_sync_run_id, source_object_id, geometry, area_m2_source, address_text, normalizer_version, content_hash)
+    SELECT $1, $2, dv.sync_run_id, $3, extensions.ST_SetSRID('POLYGON((350000 5500000, 350100 5500000, 350100 5500100, 350000 5500100, 350000 5500000))'::extensions.geometry, 3301), 10000, 'Test Address ' || $1, 'v1', 'hash-' || $1
+    FROM private.source_dataset_versions dv
+    WHERE dv.id = $2
+    RETURNING id
+  `,
+    [cadastralId, sourceVersionId, `obj-${parcelCounter}`]
+  );
+  return { parcelSnapshotId: snapshot.rows[0].id, cadastralId };
 }
 
 let sourceCounter = 0;

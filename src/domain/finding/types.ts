@@ -300,6 +300,23 @@ function isFiniteCoordinate(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+function isValidSourceManifest(sources: unknown): boolean {
+  if (typeof sources !== "object" || sources === null || Array.isArray(sources)) {
+    return false;
+  }
+  const record = sources as Record<string, unknown>;
+  const keys = Object.keys(record);
+  if (keys.length === 0) {
+    return false;
+  }
+  for (const value of Object.values(record)) {
+    if (typeof value !== "string" || value.length === 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function isIsoTimestamp(value: string): boolean {
   const parsed = Date.parse(value);
   return Number.isFinite(parsed);
@@ -838,6 +855,12 @@ export function validateFinding(finding: Finding): ValidationResult {
     if (finding.dataRelease.promotedAt !== undefined) {
       assertIsoTimestamp(finding.dataRelease.promotedAt, "dataRelease.promotedAt", errors);
     }
+    if (!isValidSourceManifest(finding.dataRelease.sources)) {
+      errors.push({
+        field: "dataRelease.sources",
+        message: "dataRelease.sources must be a non-empty object with non-empty string values",
+      });
+    }
   }
 
   if (finding.nextAction !== undefined) {
@@ -888,9 +911,9 @@ export function validateFinding(finding: Finding): ValidationResult {
   }
 
   if (isMaterial && finding.evidence.length === 0) {
-    warnings.push({
+    errors.push({
       field: "evidence",
-      message: "material findings should have at least one evidence reference for reproducibility",
+      message: "evidence is required for material findings (conflict, condition, or unknown)",
     });
   }
 
@@ -926,6 +949,9 @@ function validateEvidenceByType(
           message: "parcelSnapshotId is required for parcel evidence",
         });
       }
+      if (e.measurement) {
+        validateEvidenceMeasurement(e.measurement, `${prefix}.measurement`, errors);
+      }
       break;
     }
     case "constraint": {
@@ -940,6 +966,9 @@ function validateEvidenceByType(
           message: "constraintSnapshotId is required for constraint evidence",
         });
       }
+      if (e.measurement) {
+        validateEvidenceMeasurement(e.measurement, `${prefix}.measurement`, errors);
+      }
       break;
     }
     case "planning": {
@@ -953,6 +982,9 @@ function validateEvidenceByType(
           field: `${prefix}.planningSnapshotId`,
           message: "planningSnapshotId is required for planning evidence",
         });
+      }
+      if (e.measurement) {
+        validateEvidenceMeasurement(e.measurement, `${prefix}.measurement`, errors);
       }
       break;
     }
@@ -1078,7 +1110,7 @@ export function hasProvenance(finding: Finding): boolean {
       (Boolean((e as FindingEvidenceSource).sourceDatasetVersionId) ||
         Boolean((e as FindingEvidenceSource).sourceSyncRunId))
   );
-  const hasDataReleaseSources = Object.keys(finding.dataRelease.sources).length > 0;
+  const hasDataReleaseSources = isValidSourceManifest(finding.dataRelease.sources);
 
   return hasEvidence && (hasSourceEvidence || hasDataReleaseSources);
 }

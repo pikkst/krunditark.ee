@@ -1511,4 +1511,276 @@ describe("finding domain model (KT-023)", () => {
       expect(hasProvenance(finding)).toBe(true);
     });
   });
+
+  describe("validateFinding - material evidence requirement (review fix 1)", () => {
+    test("rejects material finding with empty evidence as error", () => {
+      const result = validateFinding(
+        makeValidFinding({
+          kind: "technical",
+          state: "conflict",
+          severity: "critical",
+          evidence: [],
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) => e.field === "evidence" && e.message.includes("required for material findings")
+        )
+      ).toBe(true);
+    });
+
+    test("rejects material finding with empty evidence when state is condition", () => {
+      const result = validateFinding(
+        makeValidFinding({
+          kind: "technical",
+          state: "condition",
+          severity: "warning",
+          evidence: [],
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "evidence")).toBe(true);
+    });
+
+    test("rejects material finding with empty evidence when state is unknown", () => {
+      const result = validateFinding(
+        makeValidFinding({
+          kind: "technical",
+          state: "unknown",
+          severity: "info",
+          evidence: [],
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "evidence")).toBe(true);
+    });
+
+    test("accepts clear (non-material) finding with empty evidence", () => {
+      const result = validateFinding(
+        makeValidFinding({
+          kind: "technical",
+          state: "clear",
+          evidence: [],
+        })
+      );
+      expect(result.valid).toBe(true);
+    });
+
+    test("accepts material finding with non-empty evidence", () => {
+      const result = validateFinding(
+        makeValidFinding({
+          kind: "technical",
+          state: "conflict",
+          evidence: [
+            { evidenceType: "constraint", constraintSnapshotId: "constraint-1" } as FindingEvidence,
+          ],
+        })
+      );
+      expect(result.valid).toBe(true);
+    });
+  });
+
+  describe("validateFinding - measurement validation on non-geometry evidence (review fix 2)", () => {
+    test("rejects constraint evidence with malformed measurement", () => {
+      const result = validateFinding(
+        makeValidFinding({
+          kind: "technical",
+          evidence: [
+            {
+              evidenceType: "constraint",
+              constraintSnapshotId: "constraint-1",
+              measurement: { type: "distance", valueM: NaN } as EvidenceMeasurement,
+            } as FindingEvidence,
+          ],
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "evidence[0].measurement.valueM")).toBe(true);
+    });
+
+    test("rejects parcel evidence with malformed measurement", () => {
+      const result = validateFinding(
+        makeValidFinding({
+          kind: "technical",
+          evidence: [
+            {
+              evidenceType: "parcel",
+              parcelSnapshotId: "parcel-1",
+              measurement: {
+                type: "clearance",
+                distanceM: 5,
+                requiredDistanceM: 3,
+                meetsRequirement: "yes" as unknown as boolean,
+              } as EvidenceMeasurement,
+            } as FindingEvidence,
+          ],
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some((e) => e.field === "evidence[0].measurement.meetsRequirement")
+      ).toBe(true);
+    });
+
+    test("rejects planning evidence with unknown measurement type", () => {
+      const result = validateFinding(
+        makeValidFinding({
+          kind: "technical",
+          evidence: [
+            {
+              evidenceType: "planning",
+              planningSnapshotId: "planning-1",
+              measurement: { type: "bogus" } as unknown as EvidenceMeasurement,
+            } as FindingEvidence,
+          ],
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "evidence[0].measurement.type")).toBe(true);
+    });
+
+    test("accepts constraint evidence with valid measurement", () => {
+      const result = validateFinding(
+        makeValidFinding({
+          kind: "technical",
+          evidence: [
+            {
+              evidenceType: "constraint",
+              constraintSnapshotId: "constraint-1",
+              measurement: { type: "distance", valueM: 5.5 },
+            } as FindingEvidence,
+          ],
+        })
+      );
+      expect(result.valid).toBe(true);
+    });
+  });
+
+  describe("validateFinding - dataRelease.sources manifest validation (review fix 3)", () => {
+    test("rejects dataRelease.sources with non-string value", () => {
+      const result = validateFinding(
+        makeValidFinding({
+          dataRelease: {
+            ...makeBaseDataRelease(),
+            sources: { cadastre: 123 as unknown as string },
+          },
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "dataRelease.sources")).toBe(true);
+    });
+
+    test("rejects dataRelease.sources with empty string value", () => {
+      const result = validateFinding(
+        makeValidFinding({
+          dataRelease: {
+            ...makeBaseDataRelease(),
+            sources: { cadastre: "" },
+          },
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "dataRelease.sources")).toBe(true);
+    });
+
+    test("rejects dataRelease.sources with null value", () => {
+      const result = validateFinding(
+        makeValidFinding({
+          dataRelease: {
+            ...makeBaseDataRelease(),
+            sources: null as unknown as Record<string, string>,
+          },
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "dataRelease.sources")).toBe(true);
+    });
+
+    test("rejects dataRelease.sources as array", () => {
+      const result = validateFinding(
+        makeValidFinding({
+          dataRelease: {
+            ...makeBaseDataRelease(),
+            sources: ["invalid"] as unknown as Record<string, string>,
+          },
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "dataRelease.sources")).toBe(true);
+    });
+
+    test("accepts valid dataRelease.sources with multiple entries", () => {
+      const result = validateFinding(
+        makeValidFinding({
+          dataRelease: {
+            ...makeBaseDataRelease(),
+            sources: {
+              cadastre: "dataset-version-1",
+              planning_spatial: "dataset-version-1",
+            },
+          },
+        })
+      );
+      expect(result.valid).toBe(true);
+    });
+  });
+
+  describe("hasProvenance - sources manifest validation (review fix 3)", () => {
+    test("returns false when sources has non-string value", () => {
+      const finding = makeValidFinding({
+        state: "conflict",
+        evidence: [{ evidenceType: "constraint", constraintSnapshotId: "c1" } as FindingEvidence],
+        dataRelease: {
+          ...makeBaseDataRelease(),
+          sources: { unrelated: 123 as unknown as string },
+        },
+      });
+      expect(hasProvenance(finding)).toBe(false);
+    });
+
+    test("returns false when sources has empty string value", () => {
+      const finding = makeValidFinding({
+        state: "conflict",
+        evidence: [{ evidenceType: "constraint", constraintSnapshotId: "c1" } as FindingEvidence],
+        dataRelease: {
+          ...makeBaseDataRelease(),
+          sources: { unrelated: "" },
+        },
+      });
+      expect(hasProvenance(finding)).toBe(false);
+    });
+
+    test("returns false when sources is null", () => {
+      const finding = makeValidFinding({
+        state: "conflict",
+        evidence: [{ evidenceType: "constraint", constraintSnapshotId: "c1" } as FindingEvidence],
+        dataRelease: {
+          ...makeBaseDataRelease(),
+          sources: null as unknown as Record<string, string>,
+        },
+      });
+      expect(hasProvenance(finding)).toBe(false);
+    });
+
+    test("returns false when sources is empty object even with other evidence", () => {
+      const finding = makeValidFinding({
+        state: "conflict",
+        evidence: [{ evidenceType: "constraint", constraintSnapshotId: "c1" } as FindingEvidence],
+        dataRelease: {
+          ...makeBaseDataRelease(),
+          sources: {},
+        },
+      });
+      expect(hasProvenance(finding)).toBe(false);
+    });
+
+    test("returns true when sources has valid non-empty string values", () => {
+      const finding = makeValidFinding({
+        state: "conflict",
+        evidence: [{ evidenceType: "constraint", constraintSnapshotId: "c1" } as FindingEvidence],
+      });
+      expect(hasProvenance(finding)).toBe(true);
+    });
+  });
 });

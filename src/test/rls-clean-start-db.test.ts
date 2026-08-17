@@ -53,6 +53,7 @@ async function cleanStart(client: Client) {
   await client.query("CREATE SCHEMA public");
   await applyAllMigrations(client);
   await client.query("GRANT USAGE ON SCHEMA public TO anon, authenticated");
+  await client.query("GRANT USAGE ON SCHEMA extensions TO authenticated, anon");
 }
 
 describe("RLS clean-start database regression (KT-018)", () => {

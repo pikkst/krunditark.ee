@@ -377,40 +377,64 @@ export function validateConstraint(constraint: Constraint): ConstraintValidation
   if (!constraint.source || typeof constraint.source !== "object") {
     errors.push({ field: "source", message: "source is required" });
   } else {
-    if (!constraint.source.sourceId || typeof constraint.source.sourceId !== "string") {
+    if (
+      !constraint.source.sourceId ||
+      typeof constraint.source.sourceId !== "string" ||
+      constraint.source.sourceId.length === 0
+    ) {
       errors.push({
         field: "source.sourceId",
-        message: "sourceId is required and must be a string",
+        message: "sourceId is required and must be a non-empty string",
       });
     }
-    if (!constraint.source.sourceDatasetVersionId) {
+    if (
+      !constraint.source.sourceDatasetVersionId ||
+      typeof constraint.source.sourceDatasetVersionId !== "string" ||
+      constraint.source.sourceDatasetVersionId.length === 0
+    ) {
       errors.push({
         field: "source.sourceDatasetVersionId",
-        message: "sourceDatasetVersionId is required",
+        message: "sourceDatasetVersionId is required and must be a non-empty string",
       });
     }
-    if (!constraint.source.sourceSyncRunId) {
+    if (
+      !constraint.source.sourceSyncRunId ||
+      typeof constraint.source.sourceSyncRunId !== "string" ||
+      constraint.source.sourceSyncRunId.length === 0
+    ) {
       errors.push({
         field: "source.sourceSyncRunId",
-        message: "sourceSyncRunId is required",
+        message: "sourceSyncRunId is required and must be a non-empty string",
       });
     }
-    if (!constraint.source.sourceObjectId) {
+    if (
+      !constraint.source.sourceObjectId ||
+      typeof constraint.source.sourceObjectId !== "string" ||
+      constraint.source.sourceObjectId.length === 0
+    ) {
       errors.push({
         field: "source.sourceObjectId",
-        message: "sourceObjectId is required",
+        message: "sourceObjectId is required and must be a non-empty string",
       });
     }
-    if (!constraint.source.normalizerVersion) {
+    if (
+      !constraint.source.normalizerVersion ||
+      typeof constraint.source.normalizerVersion !== "string" ||
+      constraint.source.normalizerVersion.length === 0
+    ) {
       errors.push({
         field: "source.normalizerVersion",
-        message: "normalizerVersion is required",
+        message: "normalizerVersion is required and must be a non-empty string",
       });
     }
-    if (!constraint.source.retrievedAt) {
+    if (
+      !constraint.source.retrievedAt ||
+      typeof constraint.source.retrievedAt !== "string" ||
+      constraint.source.retrievedAt.length === 0
+    ) {
       errors.push({
         field: "source.retrievedAt",
-        message: "retrievedAt is required",
+        message: "retrievedAt is required and must be a non-empty string",
       });
     } else if (!isIsoTimestamp(constraint.source.retrievedAt)) {
       errors.push({
@@ -420,31 +444,67 @@ export function validateConstraint(constraint: Constraint): ConstraintValidation
     }
   }
 
-  if (constraint.facts.sourceReference) {
+  if (!constraint.facts || typeof constraint.facts !== "object") {
+    errors.push({ field: "facts", message: "facts is required" });
+  } else if (constraint.facts.sourceReference) {
     const ref = constraint.facts.sourceReference;
-    if (!ref.sourceId || typeof ref.sourceId !== "string") {
+    if (!ref || typeof ref !== "object") {
       errors.push({
-        field: "facts.sourceReference.sourceId",
-        message: "sourceReference.sourceId is required and must be a string",
+        field: "facts.sourceReference",
+        message: "sourceReference must be an object",
       });
-    }
-    if (ref.officialUrl !== undefined && typeof ref.officialUrl !== "string") {
-      errors.push({
-        field: "facts.sourceReference.officialUrl",
-        message: "sourceReference.officialUrl must be a string",
-      });
-    }
-    if (ref.documentIdentifier !== undefined && typeof ref.documentIdentifier !== "string") {
-      errors.push({
-        field: "facts.sourceReference.documentIdentifier",
-        message: "sourceReference.documentIdentifier must be a string",
-      });
-    }
-    if (ref.sectionReference !== undefined && typeof ref.sectionReference !== "string") {
-      errors.push({
-        field: "facts.sourceReference.sectionReference",
-        message: "sourceReference.sectionReference must be a string",
-      });
+    } else {
+      if (!ref.sourceId || typeof ref.sourceId !== "string" || ref.sourceId.length === 0) {
+        errors.push({
+          field: "facts.sourceReference.sourceId",
+          message: "sourceReference.sourceId is required and must be a non-empty string",
+        });
+      }
+      if (
+        ref.legalSourceId !== undefined &&
+        (typeof ref.legalSourceId !== "string" || ref.legalSourceId.length === 0)
+      ) {
+        errors.push({
+          field: "facts.sourceReference.legalSourceId",
+          message: "sourceReference.legalSourceId must be a non-empty string",
+        });
+      }
+      if (
+        ref.authority !== undefined &&
+        (typeof ref.authority !== "string" || ref.authority.length === 0)
+      ) {
+        errors.push({
+          field: "facts.sourceReference.authority",
+          message: "sourceReference.authority must be a non-empty string",
+        });
+      }
+      if (
+        ref.officialUrl !== undefined &&
+        (typeof ref.officialUrl !== "string" || ref.officialUrl.length === 0)
+      ) {
+        errors.push({
+          field: "facts.sourceReference.officialUrl",
+          message: "sourceReference.officialUrl must be a non-empty string",
+        });
+      }
+      if (
+        ref.documentIdentifier !== undefined &&
+        (typeof ref.documentIdentifier !== "string" || ref.documentIdentifier.length === 0)
+      ) {
+        errors.push({
+          field: "facts.sourceReference.documentIdentifier",
+          message: "sourceReference.documentIdentifier must be a non-empty string",
+        });
+      }
+      if (
+        ref.sectionReference !== undefined &&
+        (typeof ref.sectionReference !== "string" || ref.sectionReference.length === 0)
+      ) {
+        errors.push({
+          field: "facts.sourceReference.sectionReference",
+          message: "sourceReference.sectionReference must be a non-empty string",
+        });
+      }
     }
   }
 

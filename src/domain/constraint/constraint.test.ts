@@ -653,5 +653,136 @@ describe("constraint domain model (KT-022)", () => {
       expect(result.valid).toBe(false);
       expect(result.errors.filter((e) => e.field.startsWith("source."))).toHaveLength(6);
     });
+
+    test("rejects non-string sourceDatasetVersionId", () => {
+      const result = validateConstraint(
+        makePoint({
+          source: { ...makePoint().source, sourceDatasetVersionId: 123 as unknown as string },
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "source.sourceDatasetVersionId")).toBe(true);
+    });
+
+    test("rejects non-string sourceSyncRunId", () => {
+      const result = validateConstraint(
+        makePoint({
+          source: { ...makePoint().source, sourceSyncRunId: {} as unknown as string },
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "source.sourceSyncRunId")).toBe(true);
+    });
+
+    test("rejects non-string sourceObjectId", () => {
+      const result = validateConstraint(
+        makePoint({
+          source: { ...makePoint().source, sourceObjectId: null as unknown as string },
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "source.sourceObjectId")).toBe(true);
+    });
+
+    test("rejects non-string normalizerVersion", () => {
+      const result = validateConstraint(
+        makePoint({
+          source: { ...makePoint().source, normalizerVersion: 456 as unknown as string },
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "source.normalizerVersion")).toBe(true);
+    });
+
+    test("rejects non-string retrievedAt", () => {
+      const result = validateConstraint(
+        makePoint({
+          source: { ...makePoint().source, retrievedAt: 789 as unknown as string },
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "source.retrievedAt")).toBe(true);
+    });
+
+    test("returns validation errors instead of throwing when facts is null", () => {
+      const result = validateConstraint(
+        makePoint({
+          facts: null as unknown as Constraint["facts"],
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "facts")).toBe(true);
+    });
+
+    test("returns validation errors instead of throwing when facts is undefined", () => {
+      const result = validateConstraint(
+        makePoint({
+          facts: undefined as unknown as Constraint["facts"],
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "facts")).toBe(true);
+    });
+
+    test("rejects non-string sourceReference.legalSourceId", () => {
+      const result = validateConstraint(
+        makePoint({
+          facts: {
+            sourceReference: {
+              sourceId: "src-1",
+              legalSourceId: 123 as unknown as string,
+            },
+          },
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "facts.sourceReference.legalSourceId")).toBe(
+        true
+      );
+    });
+
+    test("rejects non-string sourceReference.authority", () => {
+      const result = validateConstraint(
+        makePoint({
+          facts: {
+            sourceReference: {
+              sourceId: "src-1",
+              authority: {} as unknown as string,
+            },
+          },
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "facts.sourceReference.authority")).toBe(true);
+    });
+
+    test("rejects empty string sourceReference fields", () => {
+      const result = validateConstraint(
+        makePoint({
+          facts: {
+            sourceReference: {
+              sourceId: "src-1",
+              legalSourceId: "",
+              authority: "",
+              officialUrl: "",
+              documentIdentifier: "",
+              sectionReference: "",
+            },
+          },
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "facts.sourceReference.legalSourceId")).toBe(
+        true
+      );
+      expect(result.errors.some((e) => e.field === "facts.sourceReference.authority")).toBe(true);
+      expect(result.errors.some((e) => e.field === "facts.sourceReference.officialUrl")).toBe(true);
+      expect(
+        result.errors.some((e) => e.field === "facts.sourceReference.documentIdentifier")
+      ).toBe(true);
+      expect(result.errors.some((e) => e.field === "facts.sourceReference.sectionReference")).toBe(
+        true
+      );
+    });
   });
 });

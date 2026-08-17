@@ -1110,7 +1110,11 @@ export function hasProvenance(finding: Finding): boolean {
       (Boolean((e as FindingEvidenceSource).sourceDatasetVersionId) ||
         Boolean((e as FindingEvidenceSource).sourceSyncRunId))
   );
-  const hasDataReleaseSources = isValidSourceManifest(finding.dataRelease.sources);
+  const sources = finding.dataRelease.sources;
+  const hasDataReleaseSources =
+    isValidSourceManifest(sources) &&
+    Boolean(sources[finding.source.sourceId]) &&
+    sources[finding.source.sourceId] === finding.source.sourceDatasetVersionId;
 
   return hasEvidence && (hasSourceEvidence || hasDataReleaseSources);
 }

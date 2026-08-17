@@ -93,8 +93,8 @@ function makeBaseDataRelease(): DataReleaseManifest {
     releasedAt: "2026-08-15T10:00:00Z",
     profile: "consumer-build-v1",
     sources: {
-      cadastre: "dataset-version-1",
-      planning_spatial: "dataset-version-1",
+      "maru.cadastre.parcels": "dataset-version-1",
+      "maru.planning.spatial": "dataset-version-1",
     },
     ruleSetManifestId: "ruleset-1",
   };
@@ -1484,8 +1484,8 @@ describe("finding domain model (KT-023)", () => {
         dataRelease: {
           ...makeBaseDataRelease(),
           sources: {
-            cadastre: "dataset-version-1",
-            restrictions: "dataset-version-2",
+            "maru.cadastre.parcels": "dataset-version-1",
+            "maru.planning.spatial": "dataset-version-1",
           },
         },
       });
@@ -1775,10 +1775,56 @@ describe("finding domain model (KT-023)", () => {
       expect(hasProvenance(finding)).toBe(false);
     });
 
-    test("returns true when sources has valid non-empty string values", () => {
+    test("returns true when sources resolves finding's sourceId to exact dataset version", () => {
       const finding = makeValidFinding({
         state: "conflict",
         evidence: [{ evidenceType: "constraint", constraintSnapshotId: "c1" } as FindingEvidence],
+      });
+      expect(hasProvenance(finding)).toBe(true);
+    });
+
+    test("returns false when dataRelease.sources does not contain finding's sourceId", () => {
+      const finding = makeValidFinding({
+        state: "conflict",
+        evidence: [{ evidenceType: "constraint", constraintSnapshotId: "c1" } as FindingEvidence],
+        dataRelease: {
+          ...makeBaseDataRelease(),
+          sources: { "unrelated.source": "dataset-version-1" },
+        },
+      });
+      expect(hasProvenance(finding)).toBe(false);
+    });
+
+    test("returns false when dataRelease.sources has mismatched version for finding's sourceId", () => {
+      const finding = makeValidFinding({
+        state: "conflict",
+        evidence: [{ evidenceType: "constraint", constraintSnapshotId: "c1" } as FindingEvidence],
+        dataRelease: {
+          ...makeBaseDataRelease(),
+          sources: {
+            "maru.cadastre.parcels": "dataset-version-2",
+            "maru.planning.spatial": "dataset-version-1",
+          },
+        },
+      });
+      expect(hasProvenance(finding)).toBe(false);
+    });
+
+    test("returns true with evidence-level source evidence even when release sources mismatch", () => {
+      const finding = makeValidFinding({
+        state: "conflict",
+        evidence: [
+          {
+            evidenceType: "source",
+            sourceSyncRunId: "sync-1",
+            sourceDatasetVersionId: "dataset-version-1",
+            source: makeBaseSourceProvenance(),
+          } as FindingEvidence,
+        ],
+        dataRelease: {
+          ...makeBaseDataRelease(),
+          sources: { "unrelated.source": "dataset-version-1" },
+        },
       });
       expect(hasProvenance(finding)).toBe(true);
     });

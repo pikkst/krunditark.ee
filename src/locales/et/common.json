@@ -40,5 +40,12 @@
       "officialSource": "Ametlik allikas",
       "openSource": "Ava allikas"
     }
+  },
+  "intent": {
+    "build": "Ehitan uue hooaja",
+    "prePurchase": "Ostukontroll",
+    "understandParcel": "Mõistan krundit",
+    "existingBuildingModification": "Muudan olemasoleva hoonete",
+    "professional": "Kutsealane"
   }
 }

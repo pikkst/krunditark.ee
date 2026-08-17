@@ -52,7 +52,7 @@ describe("analysis snapshot migration (KT-016)", () => {
   });
 
   test("creates analyses table with required columns", () => {
-    expect(sql).toMatch(/CREATE\s+TABLE\s+analysis\.analyses/i);
+    expect(sql).toMatch(/CREATE\s+TABLE\s+(?:IF NOT EXISTS\s+)?analysis\.analyses/i);
     expect(sql).toMatch(/id\s+uuid\s+PRIMARY\s+KEY\s+DEFAULT\s+gen_random_uuid/i);
     expect(sql).toMatch(/project_id\s+uuid\s+NULL/i);
     expect(sql).toMatch(/proposal_id\s+uuid\s+NOT\s+NULL/i);
@@ -73,7 +73,9 @@ describe("analysis snapshot migration (KT-016)", () => {
   });
 
   test("creates analysis_source_versions table with required columns", () => {
-    expect(sql).toMatch(/CREATE\s+TABLE\s+analysis\.analysis_source_versions/i);
+    expect(sql).toMatch(
+      /CREATE\s+TABLE\s+(?:IF NOT EXISTS\s+)?analysis\.analysis_source_versions/i
+    );
     expect(sql).toMatch(/analysis_id\s+uuid\s+NOT\s+NULL\s+REFERENCES\s+analysis\.analyses/i);
     expect(sql).toMatch(
       /source_id\s+text\s+NOT\s+NULL\s+REFERENCES\s+private\.source_definitions/i
@@ -86,7 +88,7 @@ describe("analysis snapshot migration (KT-016)", () => {
   });
 
   test("creates analysis_rule_versions table with required columns", () => {
-    expect(sql).toMatch(/CREATE\s+TABLE\s+analysis\.analysis_rule_versions/i);
+    expect(sql).toMatch(/CREATE\s+TABLE\s+(?:IF NOT EXISTS\s+)?analysis\.analysis_rule_versions/i);
     expect(sql).toMatch(/analysis_id\s+uuid\s+NOT\s+NULL\s+REFERENCES\s+analysis\.analyses/i);
     expect(sql).toMatch(/rule_version_id\s+uuid\s+NOT\s+NULL\s+REFERENCES\s+rules\.rule_versions/i);
     expect(sql).toMatch(/created_at\s+timestamptz\s+NOT\s+NULL\s+DEFAULT\s+now/i);
@@ -94,7 +96,7 @@ describe("analysis snapshot migration (KT-016)", () => {
   });
 
   test("creates findings table with required columns", () => {
-    expect(sql).toMatch(/CREATE\s+TABLE\s+analysis\.findings/i);
+    expect(sql).toMatch(/CREATE\s+TABLE\s+(?:IF NOT EXISTS\s+)?analysis\.findings/i);
     expect(sql).toMatch(/id\s+uuid\s+PRIMARY\s+KEY\s+DEFAULT\s+gen_random_uuid/i);
     expect(sql).toMatch(/analysis_id\s+uuid\s+NOT\s+NULL\s+REFERENCES\s+analysis\.analyses/i);
     expect(sql).toMatch(/rule_version_id\s+uuid\s+NULL\s+REFERENCES\s+rules\.rule_versions/i);
@@ -109,7 +111,7 @@ describe("analysis snapshot migration (KT-016)", () => {
   });
 
   test("creates finding_evidence table with required columns", () => {
-    expect(sql).toMatch(/CREATE\s+TABLE\s+analysis\.finding_evidence/i);
+    expect(sql).toMatch(/CREATE\s+TABLE\s+(?:IF NOT EXISTS\s+)?analysis\.finding_evidence/i);
     expect(sql).toMatch(/id\s+uuid\s+PRIMARY\s+KEY\s+DEFAULT\s+gen_random_uuid/i);
     expect(sql).toMatch(/finding_id\s+uuid\s+NOT\s+NULL\s+REFERENCES\s+analysis\.findings/i);
     expect(sql).toMatch(/evidence_type\s+analysis\.evidence_type\s+NOT\s+NULL/i);
@@ -144,74 +146,76 @@ describe("analysis snapshot migration (KT-016)", () => {
 
   test("creates indexes for analyses queries", () => {
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_analyses_project_id\s+ON\s+analysis\.analyses\s+\(project_id\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_analyses_project_id\s+ON\s+analysis\.analyses\s+\(project_id\)/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_analyses_status_created\s+ON\s+analysis\.analyses\s+\(status\s*,\s*created_at\s+DESC\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_analyses_status_created\s+ON\s+analysis\.analyses\s+\(status\s*,\s*created_at\s+DESC\)/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_analyses_data_release_id\s+ON\s+analysis\.analyses\s+\(data_release_id\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_analyses_data_release_id\s+ON\s+analysis\.analyses\s+\(data_release_id\)/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_analyses_proposal_id\s+ON\s+analysis\.analyses\s+\(proposal_id\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_analyses_proposal_id\s+ON\s+analysis\.analyses\s+\(proposal_id\)/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_analyses_parcel_snapshot_id\s+ON\s+analysis\.analyses\s+\(parcel_snapshot_id\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_analyses_parcel_snapshot_id\s+ON\s+analysis\.analyses\s+\(parcel_snapshot_id\)/i
     );
   });
 
   test("creates indexes for findings queries", () => {
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_findings_analysis_id\s+ON\s+analysis\.findings\s+\(analysis_id\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_findings_analysis_id\s+ON\s+analysis\.findings\s+\(analysis_id\)/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_findings_state\s+ON\s+analysis\.findings\s+\(state\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_findings_state\s+ON\s+analysis\.findings\s+\(state\)/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_findings_severity\s+ON\s+analysis\.findings\s+\(severity\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_findings_severity\s+ON\s+analysis\.findings\s+\(severity\)/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_findings_category\s+ON\s+analysis\.findings\s+\(category\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_findings_category\s+ON\s+analysis\.findings\s+\(category\)/i
     );
-    expect(sql).toMatch(/CREATE\s+INDEX\s+idx_findings_code\s+ON\s+analysis\.findings\s+\(code\)/i);
+    expect(sql).toMatch(
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_findings_code\s+ON\s+analysis\.findings\s+\(code\)/i
+    );
   });
 
   test("creates indexes for finding_evidence queries", () => {
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_finding_evidence_finding_id\s+ON\s+analysis\.finding_evidence\s+\(finding_id\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_finding_evidence_finding_id\s+ON\s+analysis\.finding_evidence\s+\(finding_id\)/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_finding_evidence_evidence_type\s+ON\s+analysis\.finding_evidence\s+\(evidence_type\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_finding_evidence_evidence_type\s+ON\s+analysis\.finding_evidence\s+\(evidence_type\)/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_finding_evidence_parcel_snapshot_id\s+ON\s+analysis\.finding_evidence\s+\(parcel_snapshot_id\)\s+WHERE\s+parcel_snapshot_id\s+IS\s+NOT\s+NULL/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_finding_evidence_parcel_snapshot_id\s+ON\s+analysis\.finding_evidence\s+\(parcel_snapshot_id\)\s+WHERE\s+parcel_snapshot_id\s+IS\s+NOT\s+NULL/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_finding_evidence_constraint_snapshot_id\s+ON\s+analysis\.finding_evidence\s+\(constraint_snapshot_id\)\s+WHERE\s+constraint_snapshot_id\s+IS\s+NOT\s+NULL/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_finding_evidence_constraint_snapshot_id\s+ON\s+analysis\.finding_evidence\s+\(constraint_snapshot_id\)\s+WHERE\s+constraint_snapshot_id\s+IS\s+NOT\s+NULL/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_finding_evidence_planning_snapshot_id\s+ON\s+analysis\.finding_evidence\s+\(planning_snapshot_id\)\s+WHERE\s+planning_snapshot_id\s+IS\s+NOT\s+NULL/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_finding_evidence_planning_snapshot_id\s+ON\s+analysis\.finding_evidence\s+\(planning_snapshot_id\)\s+WHERE\s+planning_snapshot_id\s+IS\s+NOT\s+NULL/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_finding_evidence_legal_source_id\s+ON\s+analysis\.finding_evidence\s+\(legal_source_id\)\s+WHERE\s+legal_source_id\s+IS\s+NOT\s+NULL/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_finding_evidence_legal_source_id\s+ON\s+analysis\.finding_evidence\s+\(legal_source_id\)\s+WHERE\s+legal_source_id\s+IS\s+NOT\s+NULL/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_finding_evidence_source_dataset_version_id\s+ON\s+analysis\.finding_evidence\s+\(source_dataset_version_id\)\s+WHERE\s+source_dataset_version_id\s+IS\s+NOT\s+NULL/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_finding_evidence_source_dataset_version_id\s+ON\s+analysis\.finding_evidence\s+\(source_dataset_version_id\)\s+WHERE\s+source_dataset_version_id\s+IS\s+NOT\s+NULL/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_finding_evidence_geometry\s+ON\s+analysis\.finding_evidence\s+USING\s+GIST\s+\(\s*evidence_geometry\s*\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_finding_evidence_geometry\s+ON\s+analysis\.finding_evidence\s+USING\s+GIST\s+\(\s*evidence_geometry\s*\)/i
     );
   });
 
   test("creates indexes for analysis provenance tables", () => {
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_analysis_source_versions_source_id\s+ON\s+analysis\.analysis_source_versions\s+\(source_id\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_analysis_source_versions_source_id\s+ON\s+analysis\.analysis_source_versions\s+\(source_id\)/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_analysis_source_versions_dataset_version\s+ON\s+analysis\.analysis_source_versions\s+\(source_dataset_version_id\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_analysis_source_versions_dataset_version\s+ON\s+analysis\.analysis_source_versions\s+\(source_dataset_version_id\)/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_analysis_rule_versions_rule_version_id\s+ON\s+analysis\.analysis_rule_versions\s+\(rule_version_id\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_analysis_rule_versions_rule_version_id\s+ON\s+analysis\.analysis_rule_versions\s+\(rule_version_id\)/i
     );
   });
 

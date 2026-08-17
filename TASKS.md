@@ -177,12 +177,12 @@ Capture:
 
 ## KT-018 — Database/RLS clean-start test suite
 
-- [ ] clean migrations.
-- [ ] unauthenticated access.
-- [ ] anonymous Auth ownership behavior.
-- [ ] permanent user isolation.
-- [ ] internal schemas unavailable.
-- [ ] server/admin-only paths.
+- [x] clean migrations.
+- [x] unauthenticated access.
+- [x] anonymous Auth ownership behavior.
+- [x] permanent user isolation.
+- [x] internal schemas unavailable.
+- [x] server/admin-only paths.
 
 ---
 

@@ -77,7 +77,7 @@ describe("source/data-release migration (KT-014)", () => {
   });
 
   test("creates source_definitions table with required columns", () => {
-    expect(sql).toMatch(/CREATE\s+TABLE\s+private\.source_definitions/i);
+    expect(sql).toMatch(/CREATE\s+TABLE\s+(?:IF NOT EXISTS\s+)?private\.source_definitions/i);
     expect(sql).toMatch(/id\s+text\s+PRIMARY\s+KEY/i);
     expect(sql).toMatch(/name\s+text\s+NOT\s+NULL/i);
     expect(sql).toMatch(/authority\s+text\s+NOT\s+NULL/i);
@@ -100,7 +100,7 @@ describe("source/data-release migration (KT-014)", () => {
   });
 
   test("creates source_sync_runs table with required columns", () => {
-    expect(sql).toMatch(/CREATE\s+TABLE\s+private\.source_sync_runs/i);
+    expect(sql).toMatch(/CREATE\s+TABLE\s+(?:IF NOT EXISTS\s+)?private\.source_sync_runs/i);
     expect(sql).toMatch(/id\s+uuid\s+PRIMARY\s+KEY\s+DEFAULT\s+gen_random_uuid/i);
     expect(sql).toMatch(
       /source_id\s+text\s+NOT\s+NULL\s+REFERENCES\s+private\.source_definitions/i
@@ -137,7 +137,7 @@ describe("source/data-release migration (KT-014)", () => {
   });
 
   test("creates source_dataset_versions table with required columns", () => {
-    expect(sql).toMatch(/CREATE\s+TABLE\s+private\.source_dataset_versions/i);
+    expect(sql).toMatch(/CREATE\s+TABLE\s+(?:IF NOT EXISTS\s+)?private\.source_dataset_versions/i);
     expect(sql).toMatch(/id\s+uuid\s+PRIMARY\s+KEY\s+DEFAULT\s+gen_random_uuid/i);
     expect(sql).toMatch(
       /source_id\s+text\s+NOT\s+NULL\s+REFERENCES\s+private\.source_definitions/i
@@ -175,7 +175,7 @@ describe("source/data-release migration (KT-014)", () => {
   });
 
   test("creates data_releases table with required columns", () => {
-    expect(sql).toMatch(/CREATE\s+TABLE\s+private\.data_releases/i);
+    expect(sql).toMatch(/CREATE\s+TABLE\s+(?:IF NOT EXISTS\s+)?private\.data_releases/i);
     expect(sql).toMatch(/id\s+uuid\s+PRIMARY\s+KEY\s+DEFAULT\s+gen_random_uuid/i);
     expect(sql).toMatch(/release_key\s+text\s+NOT\s+NULL\s+UNIQUE/i);
     expect(sql).toMatch(/status\s+private\.release_status\s+NOT\s+NULL\s+DEFAULT\s+'candidate'/i);
@@ -186,7 +186,7 @@ describe("source/data-release migration (KT-014)", () => {
   });
 
   test("creates data_release_sources membership table with required columns", () => {
-    expect(sql).toMatch(/CREATE\s+TABLE\s+private\.data_release_sources/i);
+    expect(sql).toMatch(/CREATE\s+TABLE\s+(?:IF NOT EXISTS\s+)?private\.data_release_sources/i);
     expect(sql).toMatch(
       /data_release_id\s+uuid\s+NOT\s+NULL\s+REFERENCES\s+private\.data_releases/i
     );
@@ -218,40 +218,40 @@ describe("source/data-release migration (KT-014)", () => {
 
   test("creates indexes for source_definitions queries", () => {
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_source_definitions_enabled\s+ON\s+private\.source_definitions\s+\(enabled\)\s+WHERE\s+enabled\s*=\s*true/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_source_definitions_enabled\s+ON\s+private\.source_definitions\s+\(enabled\)\s+WHERE\s+enabled\s*=\s*true/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_source_definitions_next_sync\s+ON\s+private\.source_definitions\s+\(next_sync_due_at\)\s+WHERE\s+enabled\s*=\s+true\s+AND\s+next_sync_due_at\s+IS\s+NOT\s+NULL/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_source_definitions_next_sync\s+ON\s+private\.source_definitions\s+\(next_sync_due_at\)\s+WHERE\s+enabled\s*=\s+true\s+AND\s+next_sync_due_at\s+IS\s+NOT\s+NULL/i
     );
   });
 
   test("creates indexes for source_sync_runs queries", () => {
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_source_sync_runs_source_started\s+ON\s+private\.source_sync_runs\s+\(source_id\s*,\s*started_at\s+DESC\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_source_sync_runs_source_started\s+ON\s+private\.source_sync_runs\s+\(source_id\s*,\s*started_at\s+DESC\)/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_source_sync_runs_status_started\s+ON\s+private\.source_sync_runs\s+\(status\s*,\s*started_at\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_source_sync_runs_status_started\s+ON\s+private\.source_sync_runs\s+\(status\s*,\s*started_at\)/i
     );
   });
 
   test("creates indexes for source_dataset_versions queries", () => {
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_source_dataset_versions_source_status\s+ON\s+private\.source_dataset_versions\s+\(source_id\s*,\s*status\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_source_dataset_versions_source_status\s+ON\s+private\.source_dataset_versions\s+\(source_id\s*,\s*status\)/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_source_dataset_versions_promoted_at\s+ON\s+private\.source_dataset_versions\s+\(promoted_at\)\s+WHERE\s+status\s*=\s*'verified'/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_source_dataset_versions_promoted_at\s+ON\s+private\.source_dataset_versions\s+\(promoted_at\)\s+WHERE\s+status\s*=\s*'verified'/i
     );
   });
 
   test("creates indexes for data_releases queries", () => {
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_data_releases_status_created\s+ON\s+private\.data_releases\s+\(status\s*,\s*created_at\s+DESC\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_data_releases_status_created\s+ON\s+private\.data_releases\s+\(status\s*,\s*created_at\s+DESC\)/i
     );
   });
 
   test("creates index for data_release_sources queries", () => {
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_data_release_sources_source_version\s+ON\s+private\.data_release_sources\s+\(source_id\s*,\s*source_dataset_version_id\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_data_release_sources_source_version\s+ON\s+private\.data_release_sources\s+\(source_id\s*,\s*source_dataset_version_id\)/i
     );
   });
 

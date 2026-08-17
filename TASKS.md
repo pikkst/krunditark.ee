@@ -217,12 +217,12 @@ Capture:
 
 ## KT-023 — Finding/Ehituspass contracts
 
-- [ ] `clear|condition|conflict|unknown`.
-- [ ] severity separate.
-- [ ] provenance required for material findings.
-- [ ] next actions.
-- [ ] completeness/freshness.
-- [ ] data release/rule manifest.
+- [x] `clear|condition|conflict|unknown`.
+- [x] severity separate.
+- [x] provenance required for material findings.
+- [x] next actions.
+- [x] completeness/freshness.
+- [x] data release/rule manifest.
 
 ## KT-024 — User intent model
 

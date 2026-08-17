@@ -3,9 +3,7 @@ import {
   isValidCadastralId,
   validateParcel,
   type Parcel,
-  type ParcelGeometry,
   type SourceProvenance,
-  type GeometryType,
   type FreshnessState,
 } from "./types";
 
@@ -57,7 +55,7 @@ describe("parcel domain model (KT-020)", () => {
   });
 
   describe("validateParcel", () => {
-    const makeParcel = (overrides: Partial<Parcel> = {}): Parcel => ({
+    const makePolygon = (overrides: Partial<Parcel> = {}): Parcel => ({
       id: "parcel-1",
       cadastralId: "1234567890",
       geometry: {
@@ -86,53 +84,238 @@ describe("parcel domain model (KT-020)", () => {
       ...overrides,
     });
 
-    test("returns valid for a complete parcel", () => {
-      const result = validateParcel(makeParcel());
+    const makeMultiPolygon = (overrides: Partial<Parcel> = {}): Parcel => ({
+      id: "parcel-2",
+      cadastralId: "1234567890",
+      geometry: {
+        type: "MultiPolygon",
+        coordinates: [
+          [
+            [
+              [0, 0],
+              [1, 0],
+              [1, 1],
+              [0, 1],
+              [0, 0],
+            ],
+          ],
+          [
+            [
+              [2, 2],
+              [3, 2],
+              [3, 3],
+              [2, 3],
+              [2, 2],
+            ],
+          ],
+        ],
+      },
+      geometryCrs: "EPSG:3301",
+      facts: { areaM2Computed: 2000 },
+      source: {
+        sourceId: "maru.cadastre.parcels",
+        sourceDatasetVersionId: "version-1",
+        sourceSyncRunId: "sync-1",
+        normalizerVersion: "1",
+        retrievedAt: "2026-08-01T00:00:00Z",
+      },
+      freshnessState: "fresh",
+      contentHash: "def456",
+      ...overrides,
+    });
+
+    test("returns valid for a complete Polygon parcel", () => {
+      const result = validateParcel(makePolygon());
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    test("returns valid for a complete MultiPolygon parcel", () => {
+      const result = validateParcel(makeMultiPolygon());
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
 
     test("requires id", () => {
-      const result = validateParcel(makeParcel({ id: "" }));
+      const result = validateParcel(makePolygon({ id: "" }));
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.field === "id")).toBe(true);
     });
 
     test("requires cadastralId", () => {
-      const result = validateParcel(makeParcel({ cadastralId: "" }));
+      const result = validateParcel(makePolygon({ cadastralId: "" }));
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.field === "cadastralId")).toBe(true);
     });
 
     test("requires valid cadastralId format", () => {
-      const result = validateParcel(makeParcel({ cadastralId: "not-a-id" }));
+      const result = validateParcel(makePolygon({ cadastralId: "not-a-id" }));
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.field === "cadastralId")).toBe(true);
     });
 
     test("requires geometry", () => {
-      const result = validateParcel(makeParcel({ geometry: null as unknown as ParcelGeometry }));
+      const result = validateParcel(
+        makePolygon({ geometry: null as unknown as Parcel["geometry"] })
+      );
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.field === "geometry")).toBe(true);
     });
 
     test("requires Polygon or MultiPolygon geometry type", () => {
       const result = validateParcel(
-        makeParcel({ geometry: { type: "LineString" as GeometryType, coordinates: [] } })
+        makePolygon({
+          geometry: { type: "LineString" as Parcel["geometry"]["type"], coordinates: [] },
+        })
       );
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.field === "geometry")).toBe(true);
     });
 
-    test("rejects empty coordinates for Polygon", () => {
-      const result = validateParcel(makeParcel({ geometry: { type: "Polygon", coordinates: [] } }));
+    test("rejects empty Polygon coordinates", () => {
+      const result = validateParcel(
+        makePolygon({
+          geometry: {
+            type: "Polygon",
+            coordinates: [],
+          },
+        })
+      );
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.field === "geometry.coordinates")).toBe(true);
     });
 
-    test("rejects mismatched MultiPolygon nesting", () => {
+    test("rejects Polygon with MultiPolygon nesting (4-D coordinates)", () => {
       const result = validateParcel(
-        makeParcel({
+        makePolygon({
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [
+                  [0, 0],
+                  [1, 0],
+                  [1, 1],
+                  [0, 1],
+                  [0, 0],
+                ],
+              ],
+            ],
+          } as unknown as Parcel["geometry"],
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "geometry.coordinates[0]")).toBe(true);
+    });
+
+    test("rejects Polygon ring with fewer than 4 positions", () => {
+      const result = validateParcel(
+        makePolygon({
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [0, 0],
+                [1, 0],
+                [1, 1],
+              ],
+            ],
+          } as unknown as Parcel["geometry"],
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "geometry.coordinates[0]")).toBe(true);
+    });
+
+    test("rejects Polygon with unclosed ring", () => {
+      const result = validateParcel(
+        makePolygon({
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [0, 0],
+                [1, 0],
+                [1, 1],
+                [0, 1],
+              ],
+            ],
+          } as unknown as Parcel["geometry"],
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "geometry.coordinates[0]")).toBe(true);
+    });
+
+    test("rejects Polygon with non-finite coordinate", () => {
+      const result = validateParcel(
+        makePolygon({
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [0, 0],
+                [1, 0],
+                [1, 1],
+                [0, 1],
+                [NaN, 0],
+              ],
+            ],
+          } as unknown as Parcel["geometry"],
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "geometry.coordinates[0][4][0]")).toBe(true);
+    });
+
+    test("rejects empty MultiPolygon coordinates", () => {
+      const result = validateParcel(
+        makeMultiPolygon({
+          geometry: {
+            type: "MultiPolygon",
+            coordinates: [],
+          } as unknown as Parcel["geometry"],
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "geometry.coordinates")).toBe(true);
+    });
+
+    test("rejects MultiPolygon with empty polygon", () => {
+      const result = validateParcel(
+        makeMultiPolygon({
+          geometry: {
+            type: "MultiPolygon",
+            coordinates: [[]],
+          } as unknown as Parcel["geometry"],
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "geometry.coordinates[0]")).toBe(true);
+    });
+
+    test("rejects MultiPolygon with short ring", () => {
+      const result = validateParcel(
+        makeMultiPolygon({
+          geometry: {
+            type: "MultiPolygon",
+            coordinates: [
+              [
+                [0, 0],
+                [1, 0],
+                [1, 1],
+              ],
+            ],
+          } as unknown as Parcel["geometry"],
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "geometry.coordinates[0][0]")).toBe(true);
+    });
+
+    test("rejects MultiPolygon with unclosed ring", () => {
+      const result = validateParcel(
+        makeMultiPolygon({
           geometry: {
             type: "MultiPolygon",
             coordinates: [
@@ -141,45 +324,67 @@ describe("parcel domain model (KT-020)", () => {
                 [1, 0],
                 [1, 1],
                 [0, 1],
-                [0, 0],
               ],
             ],
-          },
+          } as unknown as Parcel["geometry"],
         })
       );
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.field === "geometry.coordinates")).toBe(true);
+      expect(result.errors.some((e) => e.field === "geometry.coordinates[0][0]")).toBe(true);
+    });
+
+    test("rejects MultiPolygon with non-finite coordinate", () => {
+      const result = validateParcel(
+        makeMultiPolygon({
+          geometry: {
+            type: "MultiPolygon",
+            coordinates: [
+              [
+                [
+                  [0, 0],
+                  [1, 0],
+                  [1, 1],
+                  [0, 1],
+                  [0, Infinity],
+                ],
+              ],
+            ],
+          } as unknown as Parcel["geometry"],
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "geometry.coordinates[0][0][4][1]")).toBe(true);
     });
 
     test("requires geometryCrs", () => {
-      const result = validateParcel(makeParcel({ geometryCrs: "" }));
+      const result = validateParcel(makePolygon({ geometryCrs: "" }));
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.field === "geometryCrs")).toBe(true);
     });
 
     test("rejects unsupported geometryCrs", () => {
-      const result = validateParcel(makeParcel({ geometryCrs: "EPSG:banana" }));
+      const result = validateParcel(makePolygon({ geometryCrs: "EPSG:banana" }));
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.field === "geometryCrs")).toBe(true);
     });
 
     test("accepts supported geometryCrs values", () => {
-      const epsg4326 = validateParcel(makeParcel({ geometryCrs: "EPSG:4326" }));
+      const epsg4326 = validateParcel(makePolygon({ geometryCrs: "EPSG:4326" }));
       expect(epsg4326.valid).toBe(true);
 
-      const epsg3301 = validateParcel(makeParcel({ geometryCrs: "EPSG:3301" }));
+      const epsg3301 = validateParcel(makePolygon({ geometryCrs: "EPSG:3301" }));
       expect(epsg3301.valid).toBe(true);
     });
 
     test("warns when computed area is non-positive", () => {
-      const result = validateParcel(makeParcel({ facts: { areaM2Computed: 0 } }));
+      const result = validateParcel(makePolygon({ facts: { areaM2Computed: 0 } }));
       expect(result.valid).toBe(true);
       expect(result.warnings.some((e) => e.field === "facts.areaM2Computed")).toBe(true);
     });
 
     test("requires source fields", () => {
       const result = validateParcel(
-        makeParcel({
+        makePolygon({
           source: {
             sourceId: "",
             sourceDatasetVersionId: "",
@@ -195,7 +400,7 @@ describe("parcel domain model (KT-020)", () => {
 
     test("rejects invalid retrievedAt timestamp", () => {
       const result = validateParcel(
-        makeParcel({ source: { ...makeParcel().source, retrievedAt: "not-a-date" } })
+        makePolygon({ source: { ...makePolygon().source, retrievedAt: "not-a-date" } })
       );
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.field === "source.retrievedAt")).toBe(true);
@@ -203,9 +408,9 @@ describe("parcel domain model (KT-020)", () => {
 
     test("rejects invalid sourceEffectiveAt timestamp", () => {
       const result = validateParcel(
-        makeParcel({
+        makePolygon({
           source: {
-            ...makeParcel().source,
+            ...makePolygon().source,
             sourceEffectiveAt: "not-a-date",
           },
         })
@@ -216,9 +421,9 @@ describe("parcel domain model (KT-020)", () => {
 
     test("accepts valid sourceEffectiveAt timestamp", () => {
       const result = validateParcel(
-        makeParcel({
+        makePolygon({
           source: {
-            ...makeParcel().source,
+            ...makePolygon().source,
             sourceEffectiveAt: "2026-01-01T00:00:00Z",
           },
         })
@@ -228,7 +433,7 @@ describe("parcel domain model (KT-020)", () => {
 
     test("rejects invalid freshnessState", () => {
       const result = validateParcel(
-        makeParcel({ freshnessState: "not-a-state" as unknown as FreshnessState })
+        makePolygon({ freshnessState: "not-a-state" as unknown as FreshnessState })
       );
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.field === "freshnessState")).toBe(true);
@@ -237,13 +442,13 @@ describe("parcel domain model (KT-020)", () => {
     test("accepts all valid freshnessState values", () => {
       const states: FreshnessState[] = ["fresh", "warning", "stale", "unknown"];
       for (const state of states) {
-        const result = validateParcel(makeParcel({ freshnessState: state }));
+        const result = validateParcel(makePolygon({ freshnessState: state }));
         expect(result.valid).toBe(true);
       }
     });
 
     test("warns when contentHash is empty", () => {
-      const result = validateParcel(makeParcel({ contentHash: "" }));
+      const result = validateParcel(makePolygon({ contentHash: "" }));
       expect(result.valid).toBe(true);
       expect(result.warnings.some((e) => e.field === "contentHash")).toBe(true);
     });

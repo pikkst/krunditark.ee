@@ -1,7 +1,8 @@
 export type {
   CadastralId,
   FreshnessState,
-  GeometryType,
+  PolygonGeometry,
+  MultiPolygonGeometry,
   ParcelGeometry,
   SourceProvenance,
   ParcelFacts,

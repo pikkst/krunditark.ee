@@ -2,12 +2,17 @@ export type CadastralId = string;
 
 export type FreshnessState = "fresh" | "warning" | "stale" | "unknown";
 
-export type GeometryType = "Polygon" | "MultiPolygon";
-
-export interface ParcelGeometry {
-  type: GeometryType;
-  coordinates: number[][][] | number[][][][];
+export interface PolygonGeometry {
+  type: "Polygon";
+  coordinates: number[][][];
 }
+
+export interface MultiPolygonGeometry {
+  type: "MultiPolygon";
+  coordinates: number[][][][];
+}
+
+export type ParcelGeometry = PolygonGeometry | MultiPolygonGeometry;
 
 export interface SourceProvenance {
   sourceId: string;
@@ -61,35 +66,79 @@ export function isValidCadastralId(raw: string): boolean {
   return ESTONIAN_CADASTRAL_PATTERN.test(normalized);
 }
 
-function isIsoTimestamp(value: string): boolean {
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed);
+function isFiniteCoordinate(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
 }
 
-function validateGeometryCoordinates(
-  type: GeometryType,
-  coordinates: number[][][] | number[][][][]
-): ParcelValidationError | undefined {
+function validatePosition(position: unknown, path: string): ParcelValidationError | undefined {
+  if (!Array.isArray(position) || position.length < 2) {
+    return { field: path, message: "position must have at least x and y" };
+  }
+  if (!isFiniteCoordinate(position[0])) {
+    return { field: `${path}[0]`, message: "coordinate must be a finite number" };
+  }
+  if (!isFiniteCoordinate(position[1])) {
+    return { field: `${path}[1]`, message: "coordinate must be a finite number" };
+  }
+  return undefined;
+}
+
+function validateRing(ring: unknown, path: string): ParcelValidationError | undefined {
+  if (!Array.isArray(ring) || ring.length < 4) {
+    return { field: path, message: "ring must have at least 4 positions" };
+  }
+  for (let i = 0; i < ring.length; i++) {
+    const positionError = validatePosition(ring[i], `${path}[${i}]`);
+    if (positionError) {
+      return positionError;
+    }
+  }
+  const first = ring[0] as number[];
+  const last = ring[ring.length - 1] as number[];
+  if (first[0] !== last[0] || first[1] !== last[1]) {
+    return { field: path, message: "ring is not closed" };
+  }
+  return undefined;
+}
+
+function validatePolygonCoordinates(coordinates: unknown): ParcelValidationError | undefined {
   if (!Array.isArray(coordinates) || coordinates.length === 0) {
     return { field: "geometry.coordinates", message: "coordinates must not be empty" };
   }
-
-  if (type === "Polygon") {
-    if (!Array.isArray(coordinates[0][0])) {
-      return { field: "geometry.coordinates", message: "Polygon coordinates must be a ring array" };
+  for (let i = 0; i < coordinates.length; i++) {
+    const ringError = validateRing(coordinates[i], `geometry.coordinates[${i}]`);
+    if (ringError) {
+      return ringError;
     }
   }
+  return undefined;
+}
 
-  if (type === "MultiPolygon") {
-    if (!Array.isArray(coordinates[0][0][0])) {
+function validateMultiPolygonCoordinates(coordinates: unknown): ParcelValidationError | undefined {
+  if (!Array.isArray(coordinates) || coordinates.length === 0) {
+    return { field: "geometry.coordinates", message: "coordinates must not be empty" };
+  }
+  for (let i = 0; i < coordinates.length; i++) {
+    const polygon = coordinates[i];
+    if (!Array.isArray(polygon) || polygon.length === 0) {
       return {
-        field: "geometry.coordinates",
-        message: "MultiPolygon coordinates must be a polygon array",
+        field: `geometry.coordinates[${i}]`,
+        message: "polygon must have at least one ring",
       };
     }
+    for (let j = 0; j < polygon.length; j++) {
+      const ringError = validateRing(polygon[j], `geometry.coordinates[${i}][${j}]`);
+      if (ringError) {
+        return ringError;
+      }
+    }
   }
-
   return undefined;
+}
+
+function isIsoTimestamp(value: string): boolean {
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed);
 }
 
 export function validateParcel(parcel: Parcel): ParcelValidationResult {
@@ -113,12 +162,16 @@ export function validateParcel(parcel: Parcel): ParcelValidationResult {
   }
 
   if (parcel.geometry) {
-    const coordinateError = validateGeometryCoordinates(
-      parcel.geometry.type,
-      parcel.geometry.coordinates
-    );
-    if (coordinateError) {
-      errors.push(coordinateError);
+    if (parcel.geometry.type === "Polygon") {
+      const coordinateError = validatePolygonCoordinates(parcel.geometry.coordinates);
+      if (coordinateError) {
+        errors.push(coordinateError);
+      }
+    } else {
+      const coordinateError = validateMultiPolygonCoordinates(parcel.geometry.coordinates);
+      if (coordinateError) {
+        errors.push(coordinateError);
+      }
     }
   }
 

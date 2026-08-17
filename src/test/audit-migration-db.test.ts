@@ -38,7 +38,12 @@ async function withAdvisoryLock<T>(client: Client, fn: () => Promise<T>): Promis
   try {
     return await fn();
   } finally {
-    await client.query("SELECT pg_advisory_unlock($1)", [DB_TEST_ADVISORY_LOCK]);
+    try {
+      await client.query("SELECT pg_advisory_unlock($1)", [DB_TEST_ADVISORY_LOCK]);
+    } catch {
+      // Transaction may be aborted after a failed assertion;
+      // advisory lock is released automatically on disconnect.
+    }
   }
 }
 

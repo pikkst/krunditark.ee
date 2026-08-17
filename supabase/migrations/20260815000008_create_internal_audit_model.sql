@@ -17,7 +17,7 @@
 
 -- 1. Audit action codes lookup
 
-CREATE TABLE private.audit_action_codes (
+CREATE TABLE IF NOT EXISTS private.audit_action_codes (
     code text PRIMARY KEY,
     description text NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now()
@@ -32,11 +32,12 @@ INSERT INTO private.audit_action_codes (code, description) VALUES
     ('admin.role_changed', 'Admin role changed'),
     ('analysis.invalidated', 'Analysis manually invalidated'),
     ('commerce.refund', 'Refund processed'),
-    ('commerce.manual_entitlement', 'Manual entitlement granted');
+    ('commerce.manual_entitlement', 'Manual entitlement granted')
+ON CONFLICT (code) DO NOTHING;
 
 -- 2. Audit log table
 
-CREATE TABLE private.audit_log (
+CREATE TABLE IF NOT EXISTS private.audit_log (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     actor_user_id uuid NULL,
     actor_type text NOT NULL,
@@ -300,6 +301,8 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS prevent_audit_log_mutation ON private.audit_log;
+
 CREATE TRIGGER prevent_audit_log_mutation
     BEFORE UPDATE OR DELETE ON private.audit_log
     FOR EACH ROW
@@ -327,6 +330,8 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS validate_audit_action_code ON private.audit_log;
+
 CREATE TRIGGER validate_audit_action_code
     BEFORE INSERT ON private.audit_log
     FOR EACH ROW
@@ -334,12 +339,12 @@ CREATE TRIGGER validate_audit_action_code
 
 -- 8. Indexes for common query patterns
 
-CREATE INDEX idx_audit_log_actor_type ON private.audit_log (actor_type);
-CREATE INDEX idx_audit_log_action ON private.audit_log (action);
-CREATE INDEX idx_audit_log_target_type ON private.audit_log (target_type);
-CREATE INDEX idx_audit_log_target_id ON private.audit_log (target_id) WHERE target_id IS NOT NULL;
-CREATE INDEX idx_audit_log_created_at ON private.audit_log (created_at DESC);
-CREATE INDEX idx_audit_log_actor_user_id ON private.audit_log (actor_user_id) WHERE actor_user_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_audit_log_actor_type ON private.audit_log (actor_type);
+CREATE INDEX IF NOT EXISTS idx_audit_log_action ON private.audit_log (action);
+CREATE INDEX IF NOT EXISTS idx_audit_log_target_type ON private.audit_log (target_type);
+CREATE INDEX IF NOT EXISTS idx_audit_log_target_id ON private.audit_log (target_id) WHERE target_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON private.audit_log (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_actor_user_id ON private.audit_log (actor_user_id) WHERE actor_user_id IS NOT NULL;
 
 -- 9. Enable RLS
 --
@@ -349,20 +354,28 @@ CREATE INDEX idx_audit_log_actor_user_id ON private.audit_log (actor_user_id) WH
 ALTER TABLE private.audit_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE private.audit_action_codes ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS audit_log_no_anon ON private.audit_log;
+
 CREATE POLICY audit_log_no_anon ON private.audit_log
     FOR ALL
     TO anon
     USING (false);
+
+DROP POLICY IF EXISTS audit_log_no_authenticated ON private.audit_log;
 
 CREATE POLICY audit_log_no_authenticated ON private.audit_log
     FOR ALL
     TO authenticated
     USING (false);
 
+DROP POLICY IF EXISTS audit_action_codes_no_anon ON private.audit_action_codes;
+
 CREATE POLICY audit_action_codes_no_anon ON private.audit_action_codes
     FOR ALL
     TO anon
     USING (false);
+
+DROP POLICY IF EXISTS audit_action_codes_no_authenticated ON private.audit_action_codes;
 
 CREATE POLICY audit_action_codes_no_authenticated ON private.audit_action_codes
     FOR ALL

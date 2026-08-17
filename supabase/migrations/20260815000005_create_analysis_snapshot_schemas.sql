@@ -19,40 +19,64 @@
 
 -- 1. Enums for analysis state
 
-CREATE TYPE analysis.analysis_status AS ENUM (
-    'queued',
-    'preparing',
-    'evaluating',
-    'completed',
-    'partial',
-    'failed'
-);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'analysis_status' AND typnamespace = 'analysis'::regnamespace) THEN
+        CREATE TYPE analysis.analysis_status AS ENUM (
+            'queued',
+            'preparing',
+            'evaluating',
+            'completed',
+            'partial',
+            'failed'
+        );
+    END IF;
+END;
+$$;
 
-CREATE TYPE analysis.finding_state AS ENUM (
-    'clear',
-    'condition',
-    'conflict',
-    'unknown'
-);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'finding_state' AND typnamespace = 'analysis'::regnamespace) THEN
+        CREATE TYPE analysis.finding_state AS ENUM (
+            'clear',
+            'condition',
+            'conflict',
+            'unknown'
+        );
+    END IF;
+END;
+$$;
 
-CREATE TYPE analysis.finding_severity AS ENUM (
-    'info',
-    'warning',
-    'critical'
-);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'finding_severity' AND typnamespace = 'analysis'::regnamespace) THEN
+        CREATE TYPE analysis.finding_severity AS ENUM (
+            'info',
+            'warning',
+            'critical'
+        );
+    END IF;
+END;
+$$;
 
-CREATE TYPE analysis.evidence_type AS ENUM (
-    'parcel',
-    'constraint',
-    'planning',
-    'source',
-    'legal',
-    'geometry'
-);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'evidence_type' AND typnamespace = 'analysis'::regnamespace) THEN
+        CREATE TYPE analysis.evidence_type AS ENUM (
+            'parcel',
+            'constraint',
+            'planning',
+            'source',
+            'legal',
+            'geometry'
+        );
+    END IF;
+END;
+$$;
 
 -- 2. Analyses
 
-CREATE TABLE analysis.analyses (
+CREATE TABLE IF NOT EXISTS analysis.analyses (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id uuid NULL REFERENCES public.projects(id) ON DELETE SET NULL,
     proposal_id uuid NOT NULL REFERENCES public.project_proposals(id) ON DELETE RESTRICT,
@@ -77,7 +101,7 @@ CREATE TABLE analysis.analyses (
 
 -- 3. Analysis source versions (explicit provenance denormalization)
 
-CREATE TABLE analysis.analysis_source_versions (
+CREATE TABLE IF NOT EXISTS analysis.analysis_source_versions (
     analysis_id uuid NOT NULL REFERENCES analysis.analyses(id) ON DELETE CASCADE,
     source_id text NOT NULL REFERENCES private.source_definitions(id) ON DELETE RESTRICT,
     source_dataset_version_id uuid NOT NULL REFERENCES private.source_dataset_versions(id) ON DELETE RESTRICT,
@@ -87,7 +111,7 @@ CREATE TABLE analysis.analysis_source_versions (
 
 -- 4. Analysis rule versions
 
-CREATE TABLE analysis.analysis_rule_versions (
+CREATE TABLE IF NOT EXISTS analysis.analysis_rule_versions (
     analysis_id uuid NOT NULL REFERENCES analysis.analyses(id) ON DELETE CASCADE,
     rule_version_id uuid NOT NULL REFERENCES rules.rule_versions(id) ON DELETE RESTRICT,
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -96,7 +120,7 @@ CREATE TABLE analysis.analysis_rule_versions (
 
 -- 5. Findings
 
-CREATE TABLE analysis.findings (
+CREATE TABLE IF NOT EXISTS analysis.findings (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     analysis_id uuid NOT NULL REFERENCES analysis.analyses(id) ON DELETE CASCADE,
     rule_version_id uuid NULL REFERENCES rules.rule_versions(id) ON DELETE RESTRICT,
@@ -121,7 +145,7 @@ CREATE TABLE analysis.findings (
 
 -- 6. Finding evidence
 
-CREATE TABLE analysis.finding_evidence (
+CREATE TABLE IF NOT EXISTS analysis.finding_evidence (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     finding_id uuid NOT NULL REFERENCES analysis.findings(id) ON DELETE CASCADE,
     evidence_type analysis.evidence_type NOT NULL,
@@ -149,31 +173,31 @@ CREATE TABLE analysis.finding_evidence (
 -- exist. The columns are present for provenance and will be validated by the
 -- evidence_type check constraint.
 
-CREATE INDEX idx_analyses_project_id ON analysis.analyses (project_id);
-CREATE INDEX idx_analyses_status_created ON analysis.analyses (status, created_at DESC);
-CREATE INDEX idx_analyses_data_release_id ON analysis.analyses (data_release_id);
-CREATE INDEX idx_analyses_proposal_id ON analysis.analyses (proposal_id);
-CREATE INDEX idx_analyses_parcel_snapshot_id ON analysis.analyses (parcel_snapshot_id);
+CREATE INDEX IF NOT EXISTS idx_analyses_project_id ON analysis.analyses (project_id);
+CREATE INDEX IF NOT EXISTS idx_analyses_status_created ON analysis.analyses (status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_analyses_data_release_id ON analysis.analyses (data_release_id);
+CREATE INDEX IF NOT EXISTS idx_analyses_proposal_id ON analysis.analyses (proposal_id);
+CREATE INDEX IF NOT EXISTS idx_analyses_parcel_snapshot_id ON analysis.analyses (parcel_snapshot_id);
 
-CREATE INDEX idx_analysis_source_versions_source_id ON analysis.analysis_source_versions (source_id);
-CREATE INDEX idx_analysis_source_versions_dataset_version ON analysis.analysis_source_versions (source_dataset_version_id);
+CREATE INDEX IF NOT EXISTS idx_analysis_source_versions_source_id ON analysis.analysis_source_versions (source_id);
+CREATE INDEX IF NOT EXISTS idx_analysis_source_versions_dataset_version ON analysis.analysis_source_versions (source_dataset_version_id);
 
-CREATE INDEX idx_analysis_rule_versions_rule_version_id ON analysis.analysis_rule_versions (rule_version_id);
+CREATE INDEX IF NOT EXISTS idx_analysis_rule_versions_rule_version_id ON analysis.analysis_rule_versions (rule_version_id);
 
-CREATE INDEX idx_findings_analysis_id ON analysis.findings (analysis_id);
-CREATE INDEX idx_findings_state ON analysis.findings (state);
-CREATE INDEX idx_findings_severity ON analysis.findings (severity);
-CREATE INDEX idx_findings_category ON analysis.findings (category);
-CREATE INDEX idx_findings_code ON analysis.findings (code);
+CREATE INDEX IF NOT EXISTS idx_findings_analysis_id ON analysis.findings (analysis_id);
+CREATE INDEX IF NOT EXISTS idx_findings_state ON analysis.findings (state);
+CREATE INDEX IF NOT EXISTS idx_findings_severity ON analysis.findings (severity);
+CREATE INDEX IF NOT EXISTS idx_findings_category ON analysis.findings (category);
+CREATE INDEX IF NOT EXISTS idx_findings_code ON analysis.findings (code);
 
-CREATE INDEX idx_finding_evidence_finding_id ON analysis.finding_evidence (finding_id);
-CREATE INDEX idx_finding_evidence_evidence_type ON analysis.finding_evidence (evidence_type);
-CREATE INDEX idx_finding_evidence_parcel_snapshot_id ON analysis.finding_evidence (parcel_snapshot_id) WHERE parcel_snapshot_id IS NOT NULL;
-CREATE INDEX idx_finding_evidence_constraint_snapshot_id ON analysis.finding_evidence (constraint_snapshot_id) WHERE constraint_snapshot_id IS NOT NULL;
-CREATE INDEX idx_finding_evidence_planning_snapshot_id ON analysis.finding_evidence (planning_snapshot_id) WHERE planning_snapshot_id IS NOT NULL;
-CREATE INDEX idx_finding_evidence_legal_source_id ON analysis.finding_evidence (legal_source_id) WHERE legal_source_id IS NOT NULL;
-CREATE INDEX idx_finding_evidence_source_dataset_version_id ON analysis.finding_evidence (source_dataset_version_id) WHERE source_dataset_version_id IS NOT NULL;
-CREATE INDEX idx_finding_evidence_geometry ON analysis.finding_evidence USING GIST (evidence_geometry);
+CREATE INDEX IF NOT EXISTS idx_finding_evidence_finding_id ON analysis.finding_evidence (finding_id);
+CREATE INDEX IF NOT EXISTS idx_finding_evidence_evidence_type ON analysis.finding_evidence (evidence_type);
+CREATE INDEX IF NOT EXISTS idx_finding_evidence_parcel_snapshot_id ON analysis.finding_evidence (parcel_snapshot_id) WHERE parcel_snapshot_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_finding_evidence_constraint_snapshot_id ON analysis.finding_evidence (constraint_snapshot_id) WHERE constraint_snapshot_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_finding_evidence_planning_snapshot_id ON analysis.finding_evidence (planning_snapshot_id) WHERE planning_snapshot_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_finding_evidence_legal_source_id ON analysis.finding_evidence (legal_source_id) WHERE legal_source_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_finding_evidence_source_dataset_version_id ON analysis.finding_evidence (source_dataset_version_id) WHERE source_dataset_version_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_finding_evidence_geometry ON analysis.finding_evidence USING GIST (evidence_geometry);
 
 -- 7. Provenance validation triggers
 --
@@ -202,6 +226,8 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+DROP TRIGGER IF EXISTS validate_source_version_membership ON analysis.analysis_source_versions;
 
 CREATE TRIGGER validate_source_version_membership
     BEFORE INSERT OR UPDATE ON analysis.analysis_source_versions
@@ -274,6 +300,8 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+DROP TRIGGER IF EXISTS validate_evidence_source_provenance ON analysis.finding_evidence;
 
 CREATE TRIGGER validate_evidence_source_provenance
     BEFORE INSERT OR UPDATE ON analysis.finding_evidence
@@ -387,20 +415,28 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS prevent_terminal_child_mutation_source_versions ON analysis.analysis_source_versions;
+
 CREATE TRIGGER prevent_terminal_child_mutation_source_versions
     BEFORE INSERT OR UPDATE OR DELETE ON analysis.analysis_source_versions
     FOR EACH ROW
     EXECUTE FUNCTION analysis.prevent_terminal_child_mutation();
+
+DROP TRIGGER IF EXISTS prevent_terminal_child_mutation_rule_versions ON analysis.analysis_rule_versions;
 
 CREATE TRIGGER prevent_terminal_child_mutation_rule_versions
     BEFORE INSERT OR UPDATE OR DELETE ON analysis.analysis_rule_versions
     FOR EACH ROW
     EXECUTE FUNCTION analysis.prevent_terminal_child_mutation();
 
+DROP TRIGGER IF EXISTS prevent_terminal_child_mutation_findings ON analysis.findings;
+
 CREATE TRIGGER prevent_terminal_child_mutation_findings
     BEFORE INSERT OR UPDATE OR DELETE ON analysis.findings
     FOR EACH ROW
     EXECUTE FUNCTION analysis.prevent_terminal_child_mutation();
+
+DROP TRIGGER IF EXISTS prevent_terminal_child_mutation_finding_evidence ON analysis.finding_evidence;
 
 CREATE TRIGGER prevent_terminal_child_mutation_finding_evidence
     BEFORE INSERT OR UPDATE OR DELETE ON analysis.finding_evidence
@@ -437,6 +473,8 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS prevent_completed_analysis_mutation ON analysis.analyses;
+
 CREATE TRIGGER prevent_completed_analysis_mutation
     BEFORE UPDATE OR DELETE ON analysis.analyses
     FOR EACH ROW
@@ -451,6 +489,8 @@ ALTER TABLE analysis.findings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE analysis.finding_evidence ENABLE ROW LEVEL SECURITY;
 
 -- Analyses: owner can read/write their own analyses through project ownership
+DROP POLICY IF EXISTS analyses_select_own ON analysis.analyses;
+
 CREATE POLICY analyses_select_own ON analysis.analyses
     FOR SELECT
     TO authenticated
@@ -462,6 +502,8 @@ CREATE POLICY analyses_select_own ON analysis.analyses
         )
     );
 
+DROP POLICY IF EXISTS analyses_insert_own ON analysis.analyses;
+
 CREATE POLICY analyses_insert_own ON analysis.analyses
     FOR INSERT
     TO authenticated
@@ -472,6 +514,8 @@ CREATE POLICY analyses_insert_own ON analysis.analyses
             AND p.user_id = auth.uid()
         )
     );
+
+DROP POLICY IF EXISTS analyses_update_own ON analysis.analyses;
 
 CREATE POLICY analyses_update_own ON analysis.analyses
     FOR UPDATE
@@ -491,6 +535,8 @@ CREATE POLICY analyses_update_own ON analysis.analyses
         )
     );
 
+DROP POLICY IF EXISTS analyses_delete_own ON analysis.analyses;
+
 CREATE POLICY analyses_delete_own ON analysis.analyses
     FOR DELETE
     TO authenticated
@@ -503,6 +549,8 @@ CREATE POLICY analyses_delete_own ON analysis.analyses
     );
 
 -- Analysis source versions: access through analysis/project ownership
+DROP POLICY IF EXISTS analysis_source_versions_select_own ON analysis.analysis_source_versions;
+
 CREATE POLICY analysis_source_versions_select_own ON analysis.analysis_source_versions
     FOR SELECT
     TO authenticated
@@ -515,6 +563,8 @@ CREATE POLICY analysis_source_versions_select_own ON analysis.analysis_source_ve
         )
     );
 
+DROP POLICY IF EXISTS analysis_source_versions_insert_own ON analysis.analysis_source_versions;
+
 CREATE POLICY analysis_source_versions_insert_own ON analysis.analysis_source_versions
     FOR INSERT
     TO authenticated
@@ -526,6 +576,8 @@ CREATE POLICY analysis_source_versions_insert_own ON analysis.analysis_source_ve
             AND p.user_id = auth.uid()
         )
     );
+
+DROP POLICY IF EXISTS analysis_source_versions_delete_own ON analysis.analysis_source_versions;
 
 CREATE POLICY analysis_source_versions_delete_own ON analysis.analysis_source_versions
     FOR DELETE
@@ -540,6 +592,8 @@ CREATE POLICY analysis_source_versions_delete_own ON analysis.analysis_source_ve
     );
 
 -- Analysis rule versions: access through analysis/project ownership
+DROP POLICY IF EXISTS analysis_rule_versions_select_own ON analysis.analysis_rule_versions;
+
 CREATE POLICY analysis_rule_versions_select_own ON analysis.analysis_rule_versions
     FOR SELECT
     TO authenticated
@@ -552,6 +606,8 @@ CREATE POLICY analysis_rule_versions_select_own ON analysis.analysis_rule_versio
         )
     );
 
+DROP POLICY IF EXISTS analysis_rule_versions_insert_own ON analysis.analysis_rule_versions;
+
 CREATE POLICY analysis_rule_versions_insert_own ON analysis.analysis_rule_versions
     FOR INSERT
     TO authenticated
@@ -563,6 +619,8 @@ CREATE POLICY analysis_rule_versions_insert_own ON analysis.analysis_rule_versio
             AND p.user_id = auth.uid()
         )
     );
+
+DROP POLICY IF EXISTS analysis_rule_versions_delete_own ON analysis.analysis_rule_versions;
 
 CREATE POLICY analysis_rule_versions_delete_own ON analysis.analysis_rule_versions
     FOR DELETE
@@ -577,6 +635,8 @@ CREATE POLICY analysis_rule_versions_delete_own ON analysis.analysis_rule_versio
     );
 
 -- Findings: access through analysis/project ownership
+DROP POLICY IF EXISTS findings_select_own ON analysis.findings;
+
 CREATE POLICY findings_select_own ON analysis.findings
     FOR SELECT
     TO authenticated
@@ -589,6 +649,8 @@ CREATE POLICY findings_select_own ON analysis.findings
         )
     );
 
+DROP POLICY IF EXISTS findings_insert_own ON analysis.findings;
+
 CREATE POLICY findings_insert_own ON analysis.findings
     FOR INSERT
     TO authenticated
@@ -600,6 +662,8 @@ CREATE POLICY findings_insert_own ON analysis.findings
             AND p.user_id = auth.uid()
         )
     );
+
+DROP POLICY IF EXISTS findings_delete_own ON analysis.findings;
 
 CREATE POLICY findings_delete_own ON analysis.findings
     FOR DELETE
@@ -614,6 +678,8 @@ CREATE POLICY findings_delete_own ON analysis.findings
     );
 
 -- Finding evidence: access through finding/analysis/project ownership
+DROP POLICY IF EXISTS finding_evidence_select_own ON analysis.finding_evidence;
+
 CREATE POLICY finding_evidence_select_own ON analysis.finding_evidence
     FOR SELECT
     TO authenticated
@@ -627,6 +693,8 @@ CREATE POLICY finding_evidence_select_own ON analysis.finding_evidence
         )
     );
 
+DROP POLICY IF EXISTS finding_evidence_insert_own ON analysis.finding_evidence;
+
 CREATE POLICY finding_evidence_insert_own ON analysis.finding_evidence
     FOR INSERT
     TO authenticated
@@ -639,6 +707,8 @@ CREATE POLICY finding_evidence_insert_own ON analysis.finding_evidence
             AND p.user_id = auth.uid()
         )
     );
+
+DROP POLICY IF EXISTS finding_evidence_delete_own ON analysis.finding_evidence;
 
 CREATE POLICY finding_evidence_delete_own ON analysis.finding_evidence
     FOR DELETE

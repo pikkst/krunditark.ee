@@ -1,9 +1,13 @@
 /// <reference types="vitest" />
-import { render, screen } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import App from "./App";
 
 describe("App", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   it("renders the landing page with default locale via deep link", () => {
     render(
       <MemoryRouter initialEntries={["/et/landing"]}>
@@ -57,6 +61,71 @@ describe("App", () => {
   it("falls back unknown routes to et landing", () => {
     render(
       <MemoryRouter initialEntries={["/et/unknown-route"]}>
+        <App />
+      </MemoryRouter>
+    );
+    expect(screen.getByRole("heading", { name: "Krunditark" })).toBeDefined();
+  });
+
+  it("renders deep links under a non-root deployment base path", () => {
+    render(
+      <MemoryRouter initialEntries={["/krunditark.ee/et/landing"]} basename="/krunditark.ee/">
+        <App />
+      </MemoryRouter>
+    );
+    expect(screen.getByRole("heading", { name: "Krunditark" })).toBeDefined();
+  });
+
+  it("renders root redirect under a non-root deployment base path", () => {
+    render(
+      <MemoryRouter initialEntries={["/krunditark.ee/"]} basename="/krunditark.ee/">
+        <App />
+      </MemoryRouter>
+    );
+    expect(screen.getByRole("heading", { name: "Krunditark" })).toBeDefined();
+  });
+
+  it("supports locale switching under a non-root deployment base path", async () => {
+    const { userEvent } = await import("@testing-library/user-event");
+    render(
+      <MemoryRouter initialEntries={["/krunditark.ee/et/landing"]} basename="/krunditark.ee/">
+        <App />
+      </MemoryRouter>
+    );
+
+    const localeSelect = screen.getByRole("combobox", { name: /keel/i });
+    await userEvent.selectOptions(localeSelect, "ru");
+
+    expect(screen.getByRole("heading", { name: "Krunditark" })).toBeDefined();
+  });
+
+  it("redirects invalid locale under a non-root deployment base path", () => {
+    render(
+      <MemoryRouter initialEntries={["/krunditark.ee/fr/landing"]} basename="/krunditark.ee/">
+        <App />
+      </MemoryRouter>
+    );
+    expect(screen.getByRole("heading", { name: "Krunditark" })).toBeDefined();
+  });
+
+  it("renders all supported locales under a non-root deployment base path", () => {
+    for (const locale of ["et", "ru", "en"] as const) {
+      render(
+        <MemoryRouter
+          initialEntries={[`/krunditark.ee/${locale}/landing`]}
+          basename="/krunditark.ee/"
+        >
+          <App />
+        </MemoryRouter>
+      );
+      expect(screen.getByRole("heading", { name: "Krunditark" })).toBeDefined();
+      cleanup();
+    }
+  });
+
+  it("safely redirects malformed locale without throwing", () => {
+    render(
+      <MemoryRouter initialEntries={["/krunditark.ee/[invalid/landing"]} basename="/krunditark.ee/">
         <App />
       </MemoryRouter>
     );

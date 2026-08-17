@@ -3,6 +3,7 @@ import { useNavigate, useParams, useLocation, Outlet } from "react-router-dom";
 import { I18nextProvider } from "react-i18next";
 import i18n, { setAppLocale } from "./index";
 import { AppLocale, DEFAULT_LOCALE, isValidAppLocale } from "./types";
+import { stripBasePath } from "../basePath";
 
 const LOCALE_STORAGE_KEY = "krunditark-locale";
 
@@ -17,6 +18,10 @@ export function useLocale() {
     throw new Error("useLocale must be used within LocaleProvider");
   }
   return context;
+}
+
+function getPathSegments(pathname: string): string[] {
+  return pathname.split("/").filter(Boolean);
 }
 
 export default function LocaleProvider() {
@@ -41,15 +46,21 @@ export default function LocaleProvider() {
 
   useEffect(() => {
     if (urlLocale && !isValidAppLocale(urlLocale)) {
-      const rest = location.pathname.replace(/^\/(et|ru|en)(\/|$)/, "") || "landing";
-      navigate(`/${DEFAULT_LOCALE}/${rest}`, { replace: true });
+      const segments = getPathSegments(stripBasePath(location.pathname));
+      segments[0] = DEFAULT_LOCALE;
+      navigate(`/${segments.join("/") || "landing"}`, { replace: true });
     }
   }, [urlLocale, navigate, location.pathname]);
 
   const changeLocale = useCallback(
     (newLocale: AppLocale) => {
-      const rest = location.pathname.replace(/^\/(et|ru|en)(\/|$)/, "") || "landing";
-      navigate(`/${newLocale}/${rest}`, { replace: true });
+      const segments = getPathSegments(stripBasePath(location.pathname));
+      if (segments.length === 0 || !isValidAppLocale(segments[0])) {
+        segments.unshift(newLocale);
+      } else {
+        segments[0] = newLocale;
+      }
+      navigate(`/${segments.join("/") || "landing"}`, { replace: true });
     },
     [navigate, location.pathname]
   );

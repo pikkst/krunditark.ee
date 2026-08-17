@@ -40,5 +40,12 @@
       "officialSource": "Официальный источник",
       "openSource": "Открыть источник"
     }
+  },
+  "intent": {
+    "build": "Строю новый дом",
+    "prePurchase": "Просмотр перед покупкой",
+    "understandParcel": "Изучить участок",
+    "existingBuildingModification": "Изменить существующее здание",
+    "professional": "Профессионал"
   }
 }

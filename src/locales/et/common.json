@@ -40,5 +40,12 @@
       "officialSource": "Ametlik allikas",
       "openSource": "Ava allikas"
     }
+  },
+  "intent": {
+    "build": "Uue hoone ehitus",
+    "prePurchase": "Ostukontroll",
+    "understandParcel": "Mõistan krunti",
+    "existingBuildingModification": "Muudan olemasolevat hoonet",
+    "professional": "Professionaalne"
   }
 }

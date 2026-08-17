@@ -54,16 +54,17 @@ RLS:
 
 ### `public.projects`
 
-| Column                       | Type                 | Notes                                |
-| ---------------------------- | -------------------- | ------------------------------------ |
-| `id`                         | uuid PK              |                                      |
-| `user_id`                    | uuid FK auth.users   | owner                                |
-| `name`                       | text                 | user label                           |
-| `cadastral_id`               | text                 | selected parcel, not ownership proof |
-| `current_parcel_snapshot_id` | uuid nullable        | latest selected parcel snapshot      |
-| `created_at`                 | timestamptz          |                                      |
-| `updated_at`                 | timestamptz          |                                      |
-| `archived_at`                | timestamptz nullable | optional soft archive                |
+| Column                       | Type                 | Notes                                          |
+| ---------------------------- | -------------------- | ---------------------------------------------- |
+| `id`                         | uuid PK              |                                                |
+| `user_id`                    | uuid FK auth.users   | owner                                          |
+| `name`                       | text                 | user label                                     |
+| `cadastral_id`               | text                 | selected parcel, not ownership proof           |
+| `intent_code`                | text/enum nullable   | stable locale-independent user intent (KT-024) |
+| `current_parcel_snapshot_id` | uuid nullable        | latest selected parcel snapshot                |
+| `created_at`                 | timestamptz          |                                                |
+| `updated_at`                 | timestamptz          |                                                |
+| `archived_at`                | timestamptz nullable | optional soft archive                          |
 
 Indexes:
 
@@ -74,6 +75,20 @@ RLS:
 
 - owner CRUD only;
 - admin access through verified server path only.
+
+#### Intent codes
+
+The `intent_code` enum on `public.projects` records the user's declared workflow intent. Codes are stable, locale-independent identifiers; translated labels are resolved through i18n keys in the application layer. Codes are classified by implementation status:
+
+| Code                             | Meaning                                         | Status    |
+| -------------------------------- | ----------------------------------------------- | --------- |
+| `build`                          | Build a new structure                           | supported |
+| `understand_parcel`              | Understand parcel and constraints (no building) | supported |
+| `pre_purchase`                   | Pre-purchase parcel check                       | planned   |
+| `existing_building_modification` | Modify existing building (placeholder)          | planned   |
+| `professional`                   | Professional context marker                     | context   |
+
+Supported codes have a fully implemented workflow. Planned codes are recognized (valid `IntentCode` values) but their full workflow is not yet implemented — the system should present these as upcoming/unavailable rather than proceeding to full analysis. The `professional` code is a context marker rather than a primary workflow intent.
 
 ### `public.project_proposals`
 

@@ -40,5 +40,12 @@
       "officialSource": "Official source",
       "openSource": "Open source"
     }
+  },
+  "intent": {
+    "build": "Build a new structure",
+    "prePurchase": "Pre-purchase check",
+    "understandParcel": "Understand the parcel",
+    "existingBuildingModification": "Modify existing building",
+    "professional": "Professional mode"
   }
 }

@@ -228,13 +228,25 @@ Capture:
 
 Stable codes:
 
-- [ ] build/new structure.
-- [ ] pre-purchase.
-- [ ] understand parcel.
-- [ ] existing-building modification placeholder for later.
-- [ ] professional context marker where useful.
+- [x] build/new structure.
+- [x] pre-purchase.
+- [x] understand parcel.
+- [x] existing-building modification placeholder for later.
+- [x] professional context marker where useful.
 
 Do not mix translated labels into domain identifiers.
+
+Acceptance:
+
+- [x] stable locale-independent `IntentCode` type in domain layer;
+- [x] validation function `validateIntent` with typed errors;
+- [x] `normalizeIntentCode` for user input normalization;
+- [x] supported/unsupported code sets exported;
+- [x] i18n key mapping for all codes;
+- [x] DB enum type + `projects.intent_code` column with CHECK constraint;
+- [x] migration idempotent and included in clean-start suite;
+- [x] tests pass;
+- [x] ET/RU/EN locale keys added.
 
 ---
 

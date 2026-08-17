@@ -62,16 +62,16 @@ describe("parcel domain model (KT-020)", () => {
         type: "Polygon",
         coordinates: [
           [
-            [0, 0],
-            [1, 0],
-            [1, 1],
-            [0, 1],
-            [0, 0],
+            [650000, 6600000],
+            [651000, 6600000],
+            [651000, 6601000],
+            [650000, 6601000],
+            [650000, 6600000],
           ],
         ],
       },
       geometryCrs: "EPSG:3301",
-      facts: { areaM2Computed: 1000 },
+      facts: { areaM2Computed: 100000 },
       source: {
         sourceId: "maru.cadastre.parcels",
         sourceDatasetVersionId: "version-1",
@@ -92,26 +92,26 @@ describe("parcel domain model (KT-020)", () => {
         coordinates: [
           [
             [
-              [0, 0],
-              [1, 0],
-              [1, 1],
-              [0, 1],
-              [0, 0],
+              [650000, 6600000],
+              [651000, 6600000],
+              [651000, 6601000],
+              [650000, 6601000],
+              [650000, 6600000],
             ],
           ],
           [
             [
-              [2, 2],
-              [3, 2],
-              [3, 3],
-              [2, 3],
-              [2, 2],
+              [652000, 6602000],
+              [653000, 6602000],
+              [653000, 6603000],
+              [652000, 6603000],
+              [652000, 6602000],
             ],
           ],
         ],
       },
       geometryCrs: "EPSG:3301",
-      facts: { areaM2Computed: 2000 },
+      facts: { areaM2Computed: 200000 },
       source: {
         sourceId: "maru.cadastre.parcels",
         sourceDatasetVersionId: "version-1",
@@ -121,6 +121,35 @@ describe("parcel domain model (KT-020)", () => {
       },
       freshnessState: "fresh",
       contentHash: "def456",
+      ...overrides,
+    });
+
+    const makeEstoniaPolygon4326 = (overrides: Partial<Parcel> = {}): Parcel => ({
+      id: "parcel-3",
+      cadastralId: "1234567890",
+      geometry: {
+        type: "Polygon",
+        coordinates: [
+          [
+            [24.6, 59.3],
+            [24.8, 59.3],
+            [24.8, 59.5],
+            [24.6, 59.5],
+            [24.6, 59.3],
+          ],
+        ],
+      },
+      geometryCrs: "EPSG:4326",
+      facts: { areaM2Computed: 1000 },
+      source: {
+        sourceId: "maru.cadastre.parcels",
+        sourceDatasetVersionId: "version-1",
+        sourceSyncRunId: "sync-1",
+        normalizerVersion: "1",
+        retrievedAt: "2026-08-01T00:00:00Z",
+      },
+      freshnessState: "fresh",
+      contentHash: "ghi789",
       ...overrides,
     });
 
@@ -193,11 +222,11 @@ describe("parcel domain model (KT-020)", () => {
             coordinates: [
               [
                 [
-                  [0, 0],
-                  [1, 0],
-                  [1, 1],
-                  [0, 1],
-                  [0, 0],
+                  [650000, 6600000],
+                  [651000, 6600000],
+                  [651000, 6601000],
+                  [650000, 6601000],
+                  [650000, 6600000],
                 ],
               ],
             ],
@@ -215,9 +244,9 @@ describe("parcel domain model (KT-020)", () => {
             type: "Polygon",
             coordinates: [
               [
-                [0, 0],
-                [1, 0],
-                [1, 1],
+                [650000, 6600000],
+                [651000, 6600000],
+                [651000, 6601000],
               ],
             ],
           } as unknown as Parcel["geometry"],
@@ -234,10 +263,10 @@ describe("parcel domain model (KT-020)", () => {
             type: "Polygon",
             coordinates: [
               [
-                [0, 0],
-                [1, 0],
-                [1, 1],
-                [0, 1],
+                [650000, 6600000],
+                [651000, 6600000],
+                [651000, 6601000],
+                [650000, 6601000],
               ],
             ],
           } as unknown as Parcel["geometry"],
@@ -254,11 +283,11 @@ describe("parcel domain model (KT-020)", () => {
             type: "Polygon",
             coordinates: [
               [
-                [0, 0],
-                [1, 0],
-                [1, 1],
-                [0, 1],
-                [NaN, 0],
+                [650000, 6600000],
+                [651000, 6600000],
+                [651000, 6601000],
+                [650000, 6601000],
+                [NaN, 6600000],
               ],
             ],
           } as unknown as Parcel["geometry"],
@@ -301,9 +330,9 @@ describe("parcel domain model (KT-020)", () => {
             type: "MultiPolygon",
             coordinates: [
               [
-                [0, 0],
-                [1, 0],
-                [1, 1],
+                [650000, 6600000],
+                [651000, 6600000],
+                [651000, 6601000],
               ],
             ],
           } as unknown as Parcel["geometry"],
@@ -320,10 +349,10 @@ describe("parcel domain model (KT-020)", () => {
             type: "MultiPolygon",
             coordinates: [
               [
-                [0, 0],
-                [1, 0],
-                [1, 1],
-                [0, 1],
+                [650000, 6600000],
+                [651000, 6600000],
+                [651000, 6601000],
+                [650500, 6600500],
               ],
             ],
           } as unknown as Parcel["geometry"],
@@ -341,11 +370,11 @@ describe("parcel domain model (KT-020)", () => {
             coordinates: [
               [
                 [
-                  [0, 0],
-                  [1, 0],
-                  [1, 1],
-                  [0, 1],
-                  [0, Infinity],
+                  [650000, 6600000],
+                  [651000, 6600000],
+                  [651000, 6601000],
+                  [650000, 6601000],
+                  [650000, Infinity],
                 ],
               ],
             ],
@@ -354,6 +383,114 @@ describe("parcel domain model (KT-020)", () => {
       );
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.field === "geometry.coordinates[0][0][4][1]")).toBe(true);
+    });
+
+    test("rejects EPSG:4326 coordinate with longitude > 180", () => {
+      const result = validateParcel(
+        makeEstoniaPolygon4326({
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [999, 59.4],
+                [999, 59.4],
+                [999, 59.4],
+                [999, 59.4],
+                [999, 59.4],
+              ],
+            ],
+          } as unknown as Parcel["geometry"],
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "geometry.coordinates[0][0][0]")).toBe(true);
+    });
+
+    test("rejects EPSG:4326 coordinate with latitude > 90", () => {
+      const result = validateParcel(
+        makeEstoniaPolygon4326({
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [24.7, 999],
+                [24.7, 999],
+                [24.7, 999],
+                [24.7, 999],
+                [24.7, 999],
+              ],
+            ],
+          } as unknown as Parcel["geometry"],
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "geometry.coordinates[0][0][1]")).toBe(true);
+    });
+
+    test("rejects EPSG:4326 coordinate with negative out-of-range latitude", () => {
+      const result = validateParcel(
+        makeEstoniaPolygon4326({
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [24.7, -999],
+                [24.7, -999],
+                [24.7, -999],
+                [24.7, -999],
+                [24.7, -999],
+              ],
+            ],
+          } as unknown as Parcel["geometry"],
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "geometry.coordinates[0][0][1]")).toBe(true);
+    });
+
+    test("rejects EPSG:3301 coordinate outside Estonian bounds", () => {
+      const result = validateParcel(
+        makePolygon({
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [0, 0],
+                [1000, 0],
+                [1000, 1000],
+                [0, 1000],
+                [0, 0],
+              ],
+            ],
+          } as unknown as Parcel["geometry"],
+        })
+      );
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) => e.field.startsWith("geometry.coordinates[0][") && e.field.endsWith("][0]")
+        )
+      ).toBe(true);
+    });
+
+    test("accepts EPSG:4326 coordinate at valid boundary", () => {
+      const result = validateParcel(
+        makeEstoniaPolygon4326({
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [-180, -90],
+                [180, -90],
+                [180, 90],
+                [-180, 90],
+                [-180, -90],
+              ],
+            ],
+          } as unknown as Parcel["geometry"],
+        })
+      );
+      expect(result.valid).toBe(true);
     });
 
     test("requires geometryCrs", () => {
@@ -369,7 +506,7 @@ describe("parcel domain model (KT-020)", () => {
     });
 
     test("accepts supported geometryCrs values", () => {
-      const epsg4326 = validateParcel(makePolygon({ geometryCrs: "EPSG:4326" }));
+      const epsg4326 = validateParcel(makeEstoniaPolygon4326({ geometryCrs: "EPSG:4326" }));
       expect(epsg4326.valid).toBe(true);
 
       const epsg3301 = validateParcel(makePolygon({ geometryCrs: "EPSG:3301" }));

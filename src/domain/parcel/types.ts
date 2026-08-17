@@ -57,6 +57,18 @@ const ESTONIAN_CADASTRAL_PATTERN = /^\d{4,20}$/;
 const SUPPORTED_CRS = new Set(["EPSG:3301", "EPSG:4326"]);
 const VALID_FRESHNESS_STATES = new Set<FreshnessState>(["fresh", "warning", "stale", "unknown"]);
 
+interface CoordinateBounds {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
+const SUPPORTED_CRS_BOUNDS: Record<string, CoordinateBounds> = {
+  "EPSG:4326": { minX: -180, maxX: 180, minY: -90, maxY: 90 },
+  "EPSG:3301": { minX: 200000, maxX: 900000, minY: 6300000, maxY: 7800000 },
+};
+
 export function normalizeCadastralId(raw: string): CadastralId {
   return raw.trim().replace(/[:\-.\s]/g, "");
 }
@@ -70,7 +82,11 @@ function isFiniteCoordinate(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-function validatePosition(position: unknown, path: string): ParcelValidationError | undefined {
+function validatePosition(
+  position: unknown,
+  path: string,
+  bounds: CoordinateBounds
+): ParcelValidationError | undefined {
   if (!Array.isArray(position) || position.length < 2) {
     return { field: path, message: "position must have at least x and y" };
   }
@@ -80,15 +96,31 @@ function validatePosition(position: unknown, path: string): ParcelValidationErro
   if (!isFiniteCoordinate(position[1])) {
     return { field: `${path}[1]`, message: "coordinate must be a finite number" };
   }
+  if (position[0] < bounds.minX || position[0] > bounds.maxX) {
+    return {
+      field: `${path}[0]`,
+      message: `coordinate x out of valid range [${bounds.minX}, ${bounds.maxX}]`,
+    };
+  }
+  if (position[1] < bounds.minY || position[1] > bounds.maxY) {
+    return {
+      field: `${path}[1]`,
+      message: `coordinate y out of valid range [${bounds.minY}, ${bounds.maxY}]`,
+    };
+  }
   return undefined;
 }
 
-function validateRing(ring: unknown, path: string): ParcelValidationError | undefined {
+function validateRing(
+  ring: unknown,
+  path: string,
+  bounds: CoordinateBounds
+): ParcelValidationError | undefined {
   if (!Array.isArray(ring) || ring.length < 4) {
     return { field: path, message: "ring must have at least 4 positions" };
   }
   for (let i = 0; i < ring.length; i++) {
-    const positionError = validatePosition(ring[i], `${path}[${i}]`);
+    const positionError = validatePosition(ring[i], `${path}[${i}]`, bounds);
     if (positionError) {
       return positionError;
     }
@@ -101,12 +133,15 @@ function validateRing(ring: unknown, path: string): ParcelValidationError | unde
   return undefined;
 }
 
-function validatePolygonCoordinates(coordinates: unknown): ParcelValidationError | undefined {
+function validatePolygonCoordinates(
+  coordinates: unknown,
+  bounds: CoordinateBounds
+): ParcelValidationError | undefined {
   if (!Array.isArray(coordinates) || coordinates.length === 0) {
     return { field: "geometry.coordinates", message: "coordinates must not be empty" };
   }
   for (let i = 0; i < coordinates.length; i++) {
-    const ringError = validateRing(coordinates[i], `geometry.coordinates[${i}]`);
+    const ringError = validateRing(coordinates[i], `geometry.coordinates[${i}]`, bounds);
     if (ringError) {
       return ringError;
     }
@@ -114,7 +149,10 @@ function validatePolygonCoordinates(coordinates: unknown): ParcelValidationError
   return undefined;
 }
 
-function validateMultiPolygonCoordinates(coordinates: unknown): ParcelValidationError | undefined {
+function validateMultiPolygonCoordinates(
+  coordinates: unknown,
+  bounds: CoordinateBounds
+): ParcelValidationError | undefined {
   if (!Array.isArray(coordinates) || coordinates.length === 0) {
     return { field: "geometry.coordinates", message: "coordinates must not be empty" };
   }
@@ -127,7 +165,7 @@ function validateMultiPolygonCoordinates(coordinates: unknown): ParcelValidation
       };
     }
     for (let j = 0; j < polygon.length; j++) {
-      const ringError = validateRing(polygon[j], `geometry.coordinates[${i}][${j}]`);
+      const ringError = validateRing(polygon[j], `geometry.coordinates[${i}][${j}]`, bounds);
       if (ringError) {
         return ringError;
       }
@@ -162,15 +200,21 @@ export function validateParcel(parcel: Parcel): ParcelValidationResult {
   }
 
   if (parcel.geometry) {
-    if (parcel.geometry.type === "Polygon") {
-      const coordinateError = validatePolygonCoordinates(parcel.geometry.coordinates);
-      if (coordinateError) {
-        errors.push(coordinateError);
-      }
-    } else {
-      const coordinateError = validateMultiPolygonCoordinates(parcel.geometry.coordinates);
-      if (coordinateError) {
-        errors.push(coordinateError);
+    const bounds = SUPPORTED_CRS_BOUNDS[parcel.geometryCrs];
+    if (bounds) {
+      if (parcel.geometry.type === "Polygon") {
+        const coordinateError = validatePolygonCoordinates(parcel.geometry.coordinates, bounds);
+        if (coordinateError) {
+          errors.push(coordinateError);
+        }
+      } else {
+        const coordinateError = validateMultiPolygonCoordinates(
+          parcel.geometry.coordinates,
+          bounds
+        );
+        if (coordinateError) {
+          errors.push(coordinateError);
+        }
       }
     }
   }

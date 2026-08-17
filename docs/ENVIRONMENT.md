@@ -149,6 +149,34 @@ CI should not need production secrets for:
 - unit tests;
 - static build if publishable preview values can be safely provided.
 
+### Database version alignment
+
+The CI PostgreSQL service image must match the Supabase project target declared in `supabase/config.toml`:
+
+- `supabase/config.toml` `[db] major_version = 17`
+- CI service image: `postgis/postgis:17-3.4`
+
+Do not introduce a version drift between local Supabase config, CI, and the production Supabase project without an explicit documented compatibility exception.
+
+### Clean-start migration contract
+
+CI applies the full migration chain to an empty database before running tests. This guarantees:
+
+- every migration runs against a clean state;
+- RLS/database regression tests execute after successful migration setup;
+- a SQL error in any migration fails the step and workflow immediately.
+
+Fail-fast is enforced by `psql` with `ON_ERROR_STOP=1`. An isolated regression step verifies that intentionally invalid SQL returns a non-zero exit code.
+
+### Migration/RLS tests in CI
+
+After the clean-start migration step, CI runs:
+
+- migration/RLS unit tests (`npm run test`);
+- an isolated fail-fast verification step.
+
+Tests and build do not execute after a failed migration setup because GitHub Actions stops the job on step failure.
+
 Deployment variables/secrets should be scoped to the workflow/environment that needs them.
 
 Gemini live integration tests, if ever added, must be explicitly separated from ordinary PR CI and use a non-production restricted key.

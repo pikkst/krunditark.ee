@@ -30,7 +30,7 @@ RETURNS uuid
 LANGUAGE sql
 STABLE
 AS $$
-    SELECT NULL::uuid;
+    SELECT (current_setting('request.jwt.claims', true)::jsonb ->> 'sub')::uuid;
 $$;
 
 -- Create roles expected by migration grants

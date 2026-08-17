@@ -23,7 +23,7 @@ describe("profiles/role migration (KT-012)", () => {
   });
 
   test("creates profiles table keyed to auth.users", () => {
-    expect(sql).toMatch(/CREATE\s+TABLE\s+public\.profiles/i);
+    expect(sql).toMatch(/CREATE\s+TABLE\s+(?:IF NOT EXISTS\s+)?public\.profiles/i);
     expect(sql).toMatch(/id\s+uuid\s+PRIMARY\s+KEY\s+REFERENCES\s+auth\.users/i);
     expect(sql).toMatch(/ON\s+DELETE\s+CASCADE/i);
   });

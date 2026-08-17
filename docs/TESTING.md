@@ -46,6 +46,8 @@ Network-free:
 - immutable snapshots;
 - source/rule/data release relations;
 - commerce uniqueness/idempotency when enabled.
+- clean-start regression: drop all schemas, re-run migrations, verify tables/RLS/policies/grants from scratch (`rls-clean-start-migration.test.ts`).
+- live database regression: advisory-lock isolated clean-start + immutability/provenance checks (`rls-clean-start-db.test.ts`, requires `DATABASE_URL`).
 
 ### Edge Function/API integration
 

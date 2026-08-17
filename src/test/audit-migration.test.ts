@@ -17,7 +17,7 @@ describe("internal audit model migration (KT-017)", () => {
   });
 
   test("creates audit_action_codes lookup table with required codes", () => {
-    expect(sql).toMatch(/CREATE\s+TABLE\s+private\.audit_action_codes/i);
+    expect(sql).toMatch(/CREATE\s+TABLE\s+(?:IF NOT EXISTS\s+)?private\.audit_action_codes/i);
     expect(sql).toMatch(/code\s+text\s+PRIMARY\s+KEY/i);
     expect(sql).toMatch(/description\s+text\s+NOT\s+NULL/i);
     expect(sql).toMatch(/'rule\.verify'/i);
@@ -32,7 +32,7 @@ describe("internal audit model migration (KT-017)", () => {
   });
 
   test("creates audit_log table with required columns", () => {
-    expect(sql).toMatch(/CREATE\s+TABLE\s+private\.audit_log/i);
+    expect(sql).toMatch(/CREATE\s+TABLE\s+(?:IF NOT EXISTS\s+)?private\.audit_log/i);
     expect(sql).toMatch(/id\s+uuid\s+PRIMARY\s+KEY\s+DEFAULT\s+gen_random_uuid/i);
     expect(sql).toMatch(/actor_user_id\s+uuid\s+NULL/i);
     expect(sql).toMatch(/actor_type\s+text\s+NOT\s+NULL/i);
@@ -169,22 +169,22 @@ describe("internal audit model migration (KT-017)", () => {
 
   test("creates indexes for audit log queries", () => {
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_audit_log_actor_type\s+ON\s+private\.audit_log\s+\(\s*actor_type\s*\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_audit_log_actor_type\s+ON\s+private\.audit_log\s+\(\s*actor_type\s*\)/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_audit_log_action\s+ON\s+private\.audit_log\s+\(\s*action\s*\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_audit_log_action\s+ON\s+private\.audit_log\s+\(\s*action\s*\)/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_audit_log_target_type\s+ON\s+private\.audit_log\s+\(\s*target_type\s*\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_audit_log_target_type\s+ON\s+private\.audit_log\s+\(\s*target_type\s*\)/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_audit_log_target_id\s+ON\s+private\.audit_log\s+\(\s*target_id\s*\)\s+WHERE\s+target_id\s+IS\s+NOT\s+NULL/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_audit_log_target_id\s+ON\s+private\.audit_log\s+\(\s*target_id\s*\)\s+WHERE\s+target_id\s+IS\s+NOT\s+NULL/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_audit_log_created_at\s+ON\s+private\.audit_log\s+\(\s*created_at\s+DESC\s*\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_audit_log_created_at\s+ON\s+private\.audit_log\s+\(\s*created_at\s+DESC\s*\)/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_audit_log_actor_user_id\s+ON\s+private\.audit_log\s+\(\s*actor_user_id\s*\)\s+WHERE\s+actor_user_id\s+IS\s+NOT\s+NULL/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_audit_log_actor_user_id\s+ON\s+private\.audit_log\s+\(\s*actor_user_id\s*\)\s+WHERE\s+actor_user_id\s+IS\s+NOT\s+NULL/i
     );
   });
 

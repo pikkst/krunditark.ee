@@ -32,7 +32,7 @@ describe("rule/legal migration (KT-015)", () => {
   });
 
   test("creates legal_sources table with required columns", () => {
-    expect(sql).toMatch(/CREATE\s+TABLE\s+rules\.legal_sources/i);
+    expect(sql).toMatch(/CREATE\s+TABLE\s+(?:IF NOT EXISTS\s+)?rules\.legal_sources/i);
     expect(sql).toMatch(/id\s+uuid\s+PRIMARY\s+KEY\s+DEFAULT\s+gen_random_uuid/i);
     expect(sql).toMatch(/authority\s+text\s+NOT\s+NULL/i);
     expect(sql).toMatch(/title\s+text\s+NOT\s+NULL/i);
@@ -47,7 +47,7 @@ describe("rule/legal migration (KT-015)", () => {
   });
 
   test("creates legal_change_candidates table with required columns", () => {
-    expect(sql).toMatch(/CREATE\s+TABLE\s+rules\.legal_change_candidates/i);
+    expect(sql).toMatch(/CREATE\s+TABLE\s+(?:IF NOT EXISTS\s+)?rules\.legal_change_candidates/i);
     expect(sql).toMatch(/id\s+uuid\s+PRIMARY\s+KEY\s+DEFAULT\s+gen_random_uuid/i);
     expect(sql).toMatch(/legal_source_id\s+uuid\s+NOT\s+NULL\s+REFERENCES\s+rules\.legal_sources/i);
     expect(sql).toMatch(
@@ -67,7 +67,7 @@ describe("rule/legal migration (KT-015)", () => {
   });
 
   test("creates rule_definitions table with required columns", () => {
-    expect(sql).toMatch(/CREATE\s+TABLE\s+rules\.rule_definitions/i);
+    expect(sql).toMatch(/CREATE\s+TABLE\s+(?:IF NOT EXISTS\s+)?rules\.rule_definitions/i);
     expect(sql).toMatch(/id\s+uuid\s+PRIMARY\s+KEY\s+DEFAULT\s+gen_random_uuid/i);
     expect(sql).toMatch(/code\s+text\s+NOT\s+NULL\s+UNIQUE/i);
     expect(sql).toMatch(/title\s+text\s+NOT\s+NULL/i);
@@ -77,7 +77,7 @@ describe("rule/legal migration (KT-015)", () => {
   });
 
   test("creates rule_versions table with required columns", () => {
-    expect(sql).toMatch(/CREATE\s+TABLE\s+rules\.rule_versions/i);
+    expect(sql).toMatch(/CREATE\s+TABLE\s+(?:IF NOT EXISTS\s+)?rules\.rule_versions/i);
     expect(sql).toMatch(/id\s+uuid\s+PRIMARY\s+KEY\s+DEFAULT\s+gen_random_uuid/i);
     expect(sql).toMatch(
       /rule_definition_id\s+uuid\s+NOT\s+NULL\s+REFERENCES\s+rules\.rule_definitions/i
@@ -93,7 +93,7 @@ describe("rule/legal migration (KT-015)", () => {
   });
 
   test("creates rule_version_sources join table with required columns", () => {
-    expect(sql).toMatch(/CREATE\s+TABLE\s+rules\.rule_version_sources/i);
+    expect(sql).toMatch(/CREATE\s+TABLE\s+(?:IF NOT EXISTS\s+)?rules\.rule_version_sources/i);
     expect(sql).toMatch(/rule_version_id\s+uuid\s+NOT\s+NULL\s+REFERENCES\s+rules\.rule_versions/i);
     expect(sql).toMatch(/legal_source_id\s+uuid\s+NOT\s+NULL\s+REFERENCES\s+rules\.legal_sources/i);
     expect(sql).toMatch(/relationship\s+text\s+NOT\s+NULL\s+DEFAULT\s+'implements'/i);
@@ -121,52 +121,52 @@ describe("rule/legal migration (KT-015)", () => {
 
   test("creates indexes for legal_sources queries", () => {
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_legal_sources_authority\s+ON\s+rules\.legal_sources\s+\(authority\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_legal_sources_authority\s+ON\s+rules\.legal_sources\s+\(authority\)/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_legal_sources_document_identifier\s+ON\s+rules\.legal_sources\s+\(document_identifier\)\s+WHERE\s+document_identifier\s+IS\s+NOT\s+NULL/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_legal_sources_document_identifier\s+ON\s+rules\.legal_sources\s+\(document_identifier\)\s+WHERE\s+document_identifier\s+IS\s+NOT\s+NULL/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_legal_sources_effective_from\s+ON\s+rules\.legal_sources\s+\(effective_from\)\s+WHERE\s+effective_from\s+IS\s+NOT\s+NULL/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_legal_sources_effective_from\s+ON\s+rules\.legal_sources\s+\(effective_from\)\s+WHERE\s+effective_from\s+IS\s+NOT\s+NULL/i
     );
   });
 
   test("creates indexes for legal_change_candidates queries", () => {
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_legal_change_candidates_legal_source_id\s+ON\s+rules\.legal_change_candidates\s+\(legal_source_id\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_legal_change_candidates_legal_source_id\s+ON\s+rules\.legal_change_candidates\s+\(legal_source_id\)/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_legal_change_candidates_status\s+ON\s+rules\.legal_change_candidates\s+\(status\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_legal_change_candidates_status\s+ON\s+rules\.legal_change_candidates\s+\(status\)/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_legal_change_candidates_detected_at\s+ON\s+rules\.legal_change_candidates\s+\(detected_at\s+DESC\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_legal_change_candidates_detected_at\s+ON\s+rules\.legal_change_candidates\s+\(detected_at\s+DESC\)/i
     );
   });
 
   test("creates indexes for rule_definitions queries", () => {
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_rule_definitions_code\s+ON\s+rules\.rule_definitions\s+\(code\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_rule_definitions_code\s+ON\s+rules\.rule_definitions\s+\(code\)/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_rule_definitions_category\s+ON\s+rules\.rule_definitions\s+\(category\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_rule_definitions_category\s+ON\s+rules\.rule_definitions\s+\(category\)/i
     );
   });
 
   test("creates indexes for rule_versions queries", () => {
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_rule_versions_definition_status\s+ON\s+rules\.rule_versions\s+\(rule_definition_id\s*,\s*status\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_rule_versions_definition_status\s+ON\s+rules\.rule_versions\s+\(rule_definition_id\s*,\s*status\)/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_rule_versions_status\s+ON\s+rules\.rule_versions\s+\(status\)\s+WHERE\s+status\s*=\s*'verified'/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_rule_versions_status\s+ON\s+rules\.rule_versions\s+\(status\)\s+WHERE\s+status\s*=\s*'verified'/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_rule_versions_effective_period\s+ON\s+rules\.rule_versions\s+\(effective_from\s*,\s*effective_to\)\s+WHERE\s+effective_from\s+IS\s+NOT\s+NULL/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_rule_versions_effective_period\s+ON\s+rules\.rule_versions\s+\(effective_from\s*,\s*effective_to\)\s+WHERE\s+effective_from\s+IS\s+NOT\s+NULL/i
     );
   });
 
   test("creates index for rule_version_sources queries", () => {
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_rule_version_sources_legal_source_id\s+ON\s+rules\.rule_version_sources\s+\(legal_source_id\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_rule_version_sources_legal_source_id\s+ON\s+rules\.rule_version_sources\s+\(legal_source_id\)/i
     );
   });
 

@@ -30,7 +30,7 @@ describe("project/proposal migration (KT-013)", () => {
   });
 
   test("creates projects table with required columns", () => {
-    expect(sql).toMatch(/CREATE\s+TABLE\s+public\.projects/i);
+    expect(sql).toMatch(/CREATE\s+TABLE\s+(?:IF NOT EXISTS\s+)?public\.projects/i);
     expect(sql).toMatch(/id\s+uuid\s+PRIMARY\s+KEY\s+DEFAULT\s+gen_random_uuid/i);
     expect(sql).toMatch(/user_id\s+uuid\s+NOT\s+NULL\s+REFERENCES\s+auth\.users/i);
     expect(sql).toMatch(/ON\s+DELETE\s+CASCADE/i);
@@ -43,7 +43,7 @@ describe("project/proposal migration (KT-013)", () => {
   });
 
   test("creates project_proposals table with required columns", () => {
-    expect(sql).toMatch(/CREATE\s+TABLE\s+public\.project_proposals/i);
+    expect(sql).toMatch(/CREATE\s+TABLE\s+(?:IF NOT EXISTS\s+)?public\.project_proposals/i);
     expect(sql).toMatch(/project_id\s+uuid\s+NOT\s+NULL\s+REFERENCES\s+public\.projects/i);
     expect(sql).toMatch(/version\s+integer\s+NOT\s+NULL\s+DEFAULT\s+1/i);
     expect(sql).toMatch(/structure_type\s+public\.structure_type\s+NOT\s+NULL/i);
@@ -64,16 +64,16 @@ describe("project/proposal migration (KT-013)", () => {
 
   test("creates indexes for common query patterns", () => {
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_projects_user_id_updated_at\s+ON\s+public\.projects\s+\(user_id,\s*updated_at\s+DESC\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_projects_user_id_updated_at\s+ON\s+public\.projects\s+\(user_id,\s*updated_at\s+DESC\)/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_projects_cadastral_id\s+ON\s+public\.projects\s+\(cadastral_id\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_projects_cadastral_id\s+ON\s+public\.projects\s+\(cadastral_id\)/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_project_proposals_project_id\s+ON\s+public\.project_proposals\s+\(project_id\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_project_proposals_project_id\s+ON\s+public\.project_proposals\s+\(project_id\)/i
     );
     expect(sql).toMatch(
-      /CREATE\s+INDEX\s+idx_project_proposals_footprint\s+ON\s+public\.project_proposals\s+USING\s+GIST\s+\(footprint\)/i
+      /CREATE\s+INDEX\s+(?:IF NOT EXISTS\s+)?idx_project_proposals_footprint\s+ON\s+public\.project_proposals\s+USING\s+GIST\s+\(footprint\)/i
     );
   });
 

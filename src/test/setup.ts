@@ -1,4 +1,7 @@
+import dotenv from "dotenv";
 import "@testing-library/jest-dom";
+
+dotenv.config({ path: [".env", ".env.local", ".env.test"] });
 
 if (typeof HTMLDialogElement !== "undefined") {
   const originalShowModal = HTMLDialogElement.prototype.showModal;

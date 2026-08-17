@@ -2,9 +2,10 @@ import {
   isValidIntentCode,
   normalizeIntentCode,
   isIntentSupported,
+  isIntentPlanned,
   validateIntent,
   SUPPORTED_INTENT_CODES,
-  UNSUPPORTED_INTENT_CODES,
+  PLANNED_INTENT_CODES,
   PROFESSIONAL_CONTEXT_CODE,
   INTENT_I18N_KEYS,
   type Intent,
@@ -15,11 +16,11 @@ describe("intent domain model (KT-024)", () => {
   describe("isValidIntentCode", () => {
     test("accepts all supported intent codes", () => {
       expect(isValidIntentCode("build")).toBe(true);
-      expect(isValidIntentCode("pre_purchase")).toBe(true);
       expect(isValidIntentCode("understand_parcel")).toBe(true);
     });
 
-    test("accepts unsupported/placeholder codes", () => {
+    test("accepts planned/placeholder codes", () => {
+      expect(isValidIntentCode("pre_purchase")).toBe(true);
       expect(isValidIntentCode("existing_building_modification")).toBe(true);
     });
 
@@ -76,42 +77,59 @@ describe("intent domain model (KT-024)", () => {
       expect(normalizeIntentCode("  pre-purchase  ")).toBe("pre_purchase");
     });
 
+    test("normalizes case to lowercase", () => {
+      expect(normalizeIntentCode("Build")).toBe("build");
+      expect(normalizeIntentCode("BUILD")).toBe("build");
+      expect(normalizeIntentCode("Understand_Parcel")).toBe("understand_parcel");
+    });
+
     test("returns undefined for unsupported input", () => {
       expect(normalizeIntentCode("factory")).toBeUndefined();
       expect(normalizeIntentCode("renovate")).toBeUndefined();
       expect(normalizeIntentCode("")).toBeUndefined();
     });
-
-    test("returns undefined for case variations that do not match", () => {
-      expect(normalizeIntentCode("Build")).toBe("build");
-      expect(normalizeIntentCode("BUILD")).toBe("build");
-    });
   });
 
   describe("SUPPORTED_INTENT_CODES", () => {
-    test("includes all fully supported intent codes", () => {
+    test("includes only fully supported intent codes", () => {
       expect(SUPPORTED_INTENT_CODES.has("build")).toBe(true);
-      expect(SUPPORTED_INTENT_CODES.has("pre_purchase")).toBe(true);
       expect(SUPPORTED_INTENT_CODES.has("understand_parcel")).toBe(true);
     });
 
-    test("does not include unsupported codes", () => {
+    test("does not include planned codes", () => {
+      expect(SUPPORTED_INTENT_CODES.has("pre_purchase")).toBe(false);
       expect(SUPPORTED_INTENT_CODES.has("existing_building_modification")).toBe(false);
+    });
+
+    test("does not include professional context marker", () => {
       expect(SUPPORTED_INTENT_CODES.has("professional")).toBe(false);
     });
 
     test("has exactly the supported codes", () => {
-      expect(SUPPORTED_INTENT_CODES.size).toBe(3);
+      expect(SUPPORTED_INTENT_CODES.size).toBe(2);
     });
   });
 
-  describe("UNSUPPORTED_INTENT_CODES", () => {
-    test("includes existing_building_modification as placeholder", () => {
-      expect(UNSUPPORTED_INTENT_CODES.has("existing_building_modification")).toBe(true);
+  describe("PLANNED_INTENT_CODES", () => {
+    test("includes pre_purchase as planned (recognized but not yet implemented)", () => {
+      expect(PLANNED_INTENT_CODES.has("pre_purchase")).toBe(true);
     });
 
-    test("does not include professional (context marker, not unsupported)", () => {
-      expect(UNSUPPORTED_INTENT_CODES.has("professional")).toBe(false);
+    test("includes existing_building_modification as placeholder", () => {
+      expect(PLANNED_INTENT_CODES.has("existing_building_modification")).toBe(true);
+    });
+
+    test("does not include supported codes", () => {
+      expect(PLANNED_INTENT_CODES.has("build")).toBe(false);
+      expect(PLANNED_INTENT_CODES.has("understand_parcel")).toBe(false);
+    });
+
+    test("does not include professional context marker", () => {
+      expect(PLANNED_INTENT_CODES.has("professional")).toBe(false);
+    });
+
+    test("has exactly the planned codes", () => {
+      expect(PLANNED_INTENT_CODES.size).toBe(2);
     });
   });
 
@@ -175,8 +193,11 @@ describe("intent domain model (KT-024)", () => {
   describe("isIntentSupported", () => {
     test("returns true for supported codes", () => {
       expect(isIntentSupported("build")).toBe(true);
-      expect(isIntentSupported("pre_purchase")).toBe(true);
       expect(isIntentSupported("understand_parcel")).toBe(true);
+    });
+
+    test("returns false for planned codes (pre_purchase is not yet implemented)", () => {
+      expect(isIntentSupported("pre_purchase")).toBe(false);
     });
 
     test("returns false for unsupported placeholder codes", () => {
@@ -185,6 +206,22 @@ describe("intent domain model (KT-024)", () => {
 
     test("returns false for professional context marker", () => {
       expect(isIntentSupported("professional")).toBe(false);
+    });
+  });
+
+  describe("isIntentPlanned", () => {
+    test("returns true for planned codes", () => {
+      expect(isIntentPlanned("pre_purchase")).toBe(true);
+      expect(isIntentPlanned("existing_building_modification")).toBe(true);
+    });
+
+    test("returns false for supported codes", () => {
+      expect(isIntentPlanned("build")).toBe(false);
+      expect(isIntentPlanned("understand_parcel")).toBe(false);
+    });
+
+    test("returns false for professional context marker", () => {
+      expect(isIntentPlanned("professional")).toBe(false);
     });
   });
 
@@ -215,14 +252,79 @@ describe("intent domain model (KT-024)", () => {
       }
     });
 
-    test("returns valid for unsupported placeholder code", () => {
-      const result = validateIntent(makeValidIntent({ code: "existing_building_modification" }));
-      expect(result.valid).toBe(true);
+    test("returns valid for planned codes (recognized, not supported)", () => {
+      for (const code of PLANNED_INTENT_CODES) {
+        const result = validateIntent(makeValidIntent({ code }));
+        expect(result.valid).toBe(true);
+      }
     });
 
     test("returns valid for professional context code", () => {
       const result = validateIntent(makeValidIntent({ code: "professional" }));
       expect(result.valid).toBe(true);
+    });
+
+    test("rejects null input", () => {
+      const result = validateIntent(null);
+      expect(result.valid).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].field).toBe("intent");
+    });
+
+    test("rejects undefined input", () => {
+      const result = validateIntent(undefined);
+      expect(result.valid).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].field).toBe("intent");
+    });
+
+    test("rejects non-object input (number)", () => {
+      const result = validateIntent(123);
+      expect(result.valid).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].field).toBe("intent");
+    });
+
+    test("rejects non-object input (string)", () => {
+      const result = validateIntent("build");
+      expect(result.valid).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].field).toBe("intent");
+    });
+
+    test("rejects array input", () => {
+      const result = validateIntent([{ code: "build" }]);
+      expect(result.valid).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].field).toBe("intent");
+    });
+
+    test("rejects empty object (missing code)", () => {
+      const result = validateIntent({});
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "code")).toBe(true);
+    });
+
+    test("rejects non-string code at runtime", () => {
+      const result = validateIntent({ code: 123, createdAt: "2026-08-15T00:00:00Z" });
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "code")).toBe(true);
+    });
+
+    test("rejects non-string createdAt at runtime", () => {
+      const result = validateIntent({ code: "build", createdAt: 1234567890 });
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "createdAt")).toBe(true);
+    });
+
+    test("rejects non-string updatedAt at runtime", () => {
+      const result = validateIntent({
+        code: "build",
+        createdAt: "2026-08-15T00:00:00Z",
+        updatedAt: 1234567890,
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "updatedAt")).toBe(true);
     });
 
     test("requires code", () => {

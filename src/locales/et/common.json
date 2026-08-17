@@ -42,10 +42,10 @@
     }
   },
   "intent": {
-    "build": "Ehitan uue hooaja",
+    "build": "Uue hoone ehitus",
     "prePurchase": "Ostukontroll",
     "understandParcel": "Mõistan krundit",
-    "existingBuildingModification": "Muudan olemasoleva hoonete",
+    "existingBuildingModification": "Muudan olemasolevat hoonet",
     "professional": "Kutsealane"
   }
 }

@@ -78,17 +78,17 @@ RLS:
 
 #### Intent codes
 
-The `intent_code` enum on `public.projects` records the user's declared workflow intent. Codes are stable, locale-independent identifiers; translated labels are resolved through i18n keys in the application layer. Supported codes:
+The `intent_code` enum on `public.projects` records the user's declared workflow intent. Codes are stable, locale-independent identifiers; translated labels are resolved through i18n keys in the application layer. Codes are classified by implementation status:
 
-| Code                             | Meaning                                         | Supported |
+| Code                             | Meaning                                         | Status    |
 | -------------------------------- | ----------------------------------------------- | --------- |
-| `build`                          | Build a new structure                           | yes       |
-| `pre_purchase`                   | Pre-purchase parcel check                       | yes       |
-| `understand_parcel`              | Understand parcel and constraints (no building) | yes       |
-| `existing_building_modification` | Modify existing building (placeholder)          | no        |
+| `build`                          | Build a new structure                           | supported |
+| `understand_parcel`              | Understand parcel and constraints (no building) | supported |
+| `pre_purchase`                   | Pre-purchase parcel check                       | planned   |
+| `existing_building_modification` | Modify existing building (placeholder)          | planned   |
 | `professional`                   | Professional context marker                     | context   |
 
-The `existing_building_modification` code is an explicitly unsupported placeholder. The `professional` code is a context marker rather than a primary workflow intent.
+Supported codes have a fully implemented workflow. Planned codes are recognized (valid `IntentCode` values) but their full workflow is not yet implemented — the system should present these as upcoming/unavailable rather than proceeding to full analysis. The `professional` code is a context marker rather than a primary workflow intent.
 
 ### `public.project_proposals`
 

@@ -210,18 +210,29 @@ describe("RLS clean-start database regression (KT-018)", () => {
       ]
     );
 
-    const anonProject = await client.query(
-      `INSERT INTO public.projects (user_id, name, cadastral_id) VALUES ($1, 'AnonProject', '11111') RETURNING id`,
-      [anonUserId]
+    const permanentProject = await client.query(
+      `INSERT INTO public.projects (user_id, name, cadastral_id) VALUES ($1, 'PermanentProject', '22222') RETURNING id`,
+      [permanentUserId]
     );
 
     await client.query(
       `INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2) VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100) RETURNING id`,
-      [anonProject.rows[0].id]
+      [permanentProject.rows[0].id]
     );
 
     await client.query("SET ROLE authenticated");
     await client.query(`SET request.jwt.claims = '${JSON.stringify({ sub: anonUserId })}'`);
+
+    const ownProject = await client.query(
+      `INSERT INTO public.projects (user_id, name, cadastral_id) VALUES ($1, 'AnonProject', '11111') RETURNING id`,
+      [anonUserId]
+    );
+    expect(ownProject.rows).toHaveLength(1);
+
+    await client.query(
+      `INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2) VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100) RETURNING id`,
+      [ownProject.rows[0].id]
+    );
 
     const ownProjects = await client.query("SELECT * FROM public.projects WHERE user_id = $1", [
       anonUserId,

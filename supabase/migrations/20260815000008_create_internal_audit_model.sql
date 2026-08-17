@@ -148,19 +148,19 @@ AS $$
 DECLARE
     v_text text;
 BEGIN
-    IF p_key IN ('rule_version_id', 'implementation_key', 'source_id', 'dataset_version_id', 'target_user_id', 'analysis_id', 'order_id', 'user_id') THEN
+    IF p_key IN ('rule_version_id', 'dataset_version_id', 'target_user_id', 'analysis_id', 'order_id', 'user_id') THEN
         IF jsonb_typeof(p_value) != 'string' THEN
             RETURN false;
         END IF;
         v_text := trim(both '"' from p_value::text);
         RETURN v_text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
     END IF;
+    IF p_key IN ('implementation_key', 'source_id', 'annotation', 'reason', 'entitlement_type') THEN
+        RETURN jsonb_typeof(p_value) = 'string' AND trim(both '"' from p_value::text) != '';
+    END IF;
     IF p_key IN ('new_role', 'old_role') THEN
         RETURN jsonb_typeof(p_value) = 'string'
             AND trim(both '"' from p_value::text) IN ('user', 'admin');
-    END IF;
-    IF p_key IN ('annotation', 'reason', 'entitlement_type') THEN
-        RETURN jsonb_typeof(p_value) = 'string' AND trim(both '"' from p_value::text) != '';
     END IF;
     IF p_key = 'amount' THEN
         IF jsonb_typeof(p_value) = 'number' THEN

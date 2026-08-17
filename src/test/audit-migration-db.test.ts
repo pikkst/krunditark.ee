@@ -105,7 +105,7 @@ describe("internal audit model database regression (KT-017)", () => {
         userId,
         JSON.stringify({
           rule_version_id: crypto.randomUUID(),
-          implementation_key: crypto.randomUUID(),
+          implementation_key: "impl-1",
         }),
       ]
     );
@@ -138,7 +138,7 @@ describe("internal audit model database regression (KT-017)", () => {
         userId,
         JSON.stringify({
           rule_version_id: crypto.randomUUID(),
-          implementation_key: crypto.randomUUID(),
+          implementation_key: "impl-1",
         }),
       ]
     );
@@ -190,20 +190,20 @@ describe("internal audit model database regression (KT-017)", () => {
       switch (action) {
         case "rule.verify":
           metadata.rule_version_id = crypto.randomUUID();
-          metadata.implementation_key = crypto.randomUUID();
+          metadata.implementation_key = "impl-1";
           break;
         case "rule.retire":
           metadata.rule_version_id = crypto.randomUUID();
           break;
         case "source.promote":
-          metadata.source_id = crypto.randomUUID();
+          metadata.source_id = "src-1";
           metadata.dataset_version_id = crypto.randomUUID();
           break;
         case "source.disable":
-          metadata.source_id = crypto.randomUUID();
+          metadata.source_id = "src-1";
           break;
         case "source.manual_refresh":
-          metadata.source_id = crypto.randomUUID();
+          metadata.source_id = "src-1";
           break;
         case "admin.role_changed":
           metadata.target_user_id = crypto.randomUUID();
@@ -278,7 +278,7 @@ describe("internal audit model database regression (KT-017)", () => {
           crypto.randomUUID(),
           JSON.stringify({
             rule_version_id: crypto.randomUUID(),
-            implementation_key: crypto.randomUUID(),
+            implementation_key: "impl-1",
             authorization: "Bearer secret",
           }),
         ]
@@ -300,7 +300,7 @@ describe("internal audit model database regression (KT-017)", () => {
           crypto.randomUUID(),
           JSON.stringify({
             rule_version_id: crypto.randomUUID(),
-            implementation_key: crypto.randomUUID(),
+            implementation_key: "impl-1",
             notes: "use token=abc123 for debug",
           }),
         ]
@@ -322,7 +322,7 @@ describe("internal audit model database regression (KT-017)", () => {
           crypto.randomUUID(),
           JSON.stringify({
             rule_version_id: crypto.randomUUID(),
-            implementation_key: crypto.randomUUID(),
+            implementation_key: "impl-1",
             access_codes: ["bearer abc123", "token def456"],
           }),
         ]
@@ -344,7 +344,7 @@ describe("internal audit model database regression (KT-017)", () => {
           crypto.randomUUID(),
           JSON.stringify({
             rule_version_id: crypto.randomUUID(),
-            implementation_key: crypto.randomUUID(),
+            implementation_key: "impl-1",
             notes: "Bearer abc123",
           }),
         ]
@@ -366,7 +366,7 @@ describe("internal audit model database regression (KT-017)", () => {
           crypto.randomUUID(),
           JSON.stringify({
             rule_version_id: crypto.randomUUID(),
-            implementation_key: crypto.randomUUID(),
+            implementation_key: "impl-1",
             authorization: { value: "abc123" },
           }),
         ]
@@ -388,7 +388,7 @@ describe("internal audit model database regression (KT-017)", () => {
           crypto.randomUUID(),
           JSON.stringify({
             rule_version_id: crypto.randomUUID(),
-            implementation_key: crypto.randomUUID(),
+            implementation_key: "impl-1",
             token: ["abc123"],
           }),
         ]
@@ -410,7 +410,7 @@ describe("internal audit model database regression (KT-017)", () => {
           crypto.randomUUID(),
           JSON.stringify({
             rule_version_id: crypto.randomUUID(),
-            implementation_key: crypto.randomUUID(),
+            implementation_key: "impl-1",
             "x-api-key": "secret",
           }),
         ]
@@ -432,7 +432,7 @@ describe("internal audit model database regression (KT-017)", () => {
           crypto.randomUUID(),
           JSON.stringify({
             rule_version_id: crypto.randomUUID(),
-            implementation_key: crypto.randomUUID(),
+            implementation_key: "impl-1",
             "private-key": "secret",
           }),
         ]
@@ -454,7 +454,7 @@ describe("internal audit model database regression (KT-017)", () => {
           crypto.randomUUID(),
           JSON.stringify({
             rule_version_id: crypto.randomUUID(),
-            implementation_key: crypto.randomUUID(),
+            implementation_key: "impl-1",
             Authorization: "Bearer secret",
           }),
         ]
@@ -476,7 +476,7 @@ describe("internal audit model database regression (KT-017)", () => {
           crypto.randomUUID(),
           JSON.stringify({
             rule_version_id: "not-a-uuid",
-            implementation_key: crypto.randomUUID(),
+            implementation_key: "impl-1",
           }),
         ]
       )
@@ -561,7 +561,7 @@ describe("internal audit model database regression (KT-017)", () => {
         `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', $2::jsonb)`,
         [
           crypto.randomUUID(),
-          JSON.stringify({ rule_version_id: true, implementation_key: crypto.randomUUID() }),
+          JSON.stringify({ rule_version_id: true, implementation_key: "impl-1" }),
         ]
       )
     ).rejects.toThrow("rule.verify has invalid type for field rule_version_id");
@@ -735,7 +735,7 @@ describe("internal audit model database regression (KT-017)", () => {
         crypto.randomUUID(),
         JSON.stringify({
           rule_version_id: crypto.randomUUID(),
-          implementation_key: crypto.randomUUID(),
+          implementation_key: "impl-1",
         }),
       ]
     );
@@ -760,7 +760,7 @@ describe("internal audit model database regression (KT-017)", () => {
         crypto.randomUUID(),
         JSON.stringify({
           rule_version_id: crypto.randomUUID(),
-          implementation_key: crypto.randomUUID(),
+          implementation_key: "impl-1",
         }),
       ]
     );

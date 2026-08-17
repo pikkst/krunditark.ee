@@ -197,45 +197,45 @@ describe("RLS clean-start database regression (KT-018)", () => {
       await cleanStart(client);
     });
 
-    const userIdA = crypto.randomUUID();
-    const userIdB = crypto.randomUUID();
+    const anonUserId = crypto.randomUUID();
+    const permanentUserId = crypto.randomUUID();
 
     await client.query(
-      `INSERT INTO auth.users (id, email, role, is_sso_user, is_anonymous) VALUES ($1, $2, 'authenticated', false, false), ($3, $4, 'authenticated', false, false)`,
+      `INSERT INTO auth.users (id, email, role, is_sso_user, is_anonymous) VALUES ($1, $2, 'authenticated', false, true), ($3, $4, 'authenticated', false, false)`,
       [
-        userIdA,
-        `anon-owner-${userIdA.slice(0, 8)}@example.com`,
-        userIdB,
-        `anon-other-${userIdB.slice(0, 8)}@example.com`,
+        anonUserId,
+        `anon-${anonUserId.slice(0, 8)}@example.com`,
+        permanentUserId,
+        `permanent-${permanentUserId.slice(0, 8)}@example.com`,
       ]
     );
 
-    const projectA = await client.query(
-      `INSERT INTO public.projects (user_id, name, cadastral_id) VALUES ($1, 'AnonA', '11111') RETURNING id`,
-      [userIdA]
+    const anonProject = await client.query(
+      `INSERT INTO public.projects (user_id, name, cadastral_id) VALUES ($1, 'AnonProject', '11111') RETURNING id`,
+      [anonUserId]
     );
 
     await client.query(
       `INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2) VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100) RETURNING id`,
-      [projectA.rows[0].id]
+      [anonProject.rows[0].id]
     );
 
     await client.query("SET ROLE authenticated");
-    await client.query(`SET request.jwt.claims = '${JSON.stringify({ sub: userIdA })}'`);
+    await client.query(`SET request.jwt.claims = '${JSON.stringify({ sub: anonUserId })}'`);
 
     const ownProjects = await client.query("SELECT * FROM public.projects WHERE user_id = $1", [
-      userIdA,
+      anonUserId,
     ]);
     expect(ownProjects.rows).toHaveLength(1);
 
     const ownProposals = await client.query(
       `SELECT pp.* FROM public.project_proposals pp JOIN public.projects p ON p.id = pp.project_id WHERE p.user_id = $1`,
-      [userIdA]
+      [anonUserId]
     );
     expect(ownProposals.rows).toHaveLength(1);
 
     const otherProjects = await client.query("SELECT * FROM public.projects WHERE user_id = $1", [
-      userIdB,
+      permanentUserId,
     ]);
     expect(otherProjects.rows).toHaveLength(0);
 
@@ -293,6 +293,33 @@ describe("RLS clean-start database regression (KT-018)", () => {
     ]);
     expect(bAnalysis.rows).toHaveLength(0);
 
+    await client.query("SAVEPOINT write_project");
+    await expect(
+      client.query(
+        "INSERT INTO public.projects (user_id, name, cadastral_id) VALUES ($1, 'Hacked', '99999') RETURNING id",
+        [userIdB]
+      )
+    ).rejects.toThrow();
+    await client.query("ROLLBACK TO SAVEPOINT write_project");
+
+    await client.query("SAVEPOINT write_proposal");
+    await expect(
+      client.query(
+        "INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2) VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100) RETURNING id",
+        [projectB.rows[0].id]
+      )
+    ).rejects.toThrow();
+    await client.query("ROLLBACK TO SAVEPOINT write_proposal");
+
+    await client.query("SAVEPOINT write_analysis");
+    await expect(
+      client.query(
+        `INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash) VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash')`,
+        [projectB.rows[0].id, proposalB.rows[0].id, dataRelease.rows[0].id]
+      )
+    ).rejects.toThrow();
+    await client.query("ROLLBACK TO SAVEPOINT write_analysis");
+
     await client.query("RESET ROLE");
   });
 
@@ -312,15 +339,30 @@ describe("RLS clean-start database regression (KT-018)", () => {
     expect(authenticatedPrivateRulesGrants.rows.length).toBe(0);
   });
 
-  runTest("internal schemas are not exposed through Data API", async () => {
+  runTest("Data API exposes only public schemas", async () => {
     await withAdvisoryLock(client, async () => {
       await cleanStart(client);
     });
 
-    const privateRulesUsage = await client.query(
-      `SELECT n.nspname FROM pg_namespace n WHERE has_schema_privilege('authenticated', n.oid, 'USAGE') AND n.nspname IN ('private', 'rules')`
+    const internalUsage = await client.query(
+      `SELECT n.nspname FROM pg_namespace n WHERE has_schema_privilege('authenticated', n.oid, 'USAGE') AND n.nspname IN ('private', 'rules', 'geo')`
     );
-    expect(privateRulesUsage.rows.length).toBe(0);
+    expect(internalUsage.rows.length).toBe(0);
+  });
+
+  runTest("supabase config.toml Data API schemas exclude internal schemas", async () => {
+    const configPath = join(root, "supabase", "config.toml");
+    const config = readFileSync(configPath, "utf-8");
+
+    const apiSchemasMatch = config.match(/schemas\s*=\s*\[([^\]]+)\]/s);
+    expect(apiSchemasMatch).not.toBeNull();
+
+    const apiSchemas = apiSchemasMatch![1]
+      .split(",")
+      .map((s) => s.trim().replace(/^"|"$/g, ""))
+      .filter(Boolean);
+
+    expect(apiSchemas).toEqual(["public", "graphql_public"]);
   });
 
   runTest("authenticated client cannot perform server/admin-only operations", async () => {

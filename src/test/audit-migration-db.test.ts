@@ -184,21 +184,21 @@ describe("internal audit model database regression (KT-017)", () => {
       const metadata: Record<string, string> = {};
       switch (action) {
         case "rule.verify":
-          metadata.rule_version_id = "rv-1";
-          metadata.implementation_key = "impl-1";
+          metadata.rule_version_id = crypto.randomUUID();
+          metadata.implementation_key = crypto.randomUUID();
           break;
         case "rule.retire":
-          metadata.rule_version_id = "rv-1";
+          metadata.rule_version_id = crypto.randomUUID();
           break;
         case "source.promote":
-          metadata.source_id = "src-1";
-          metadata.dataset_version_id = "dv-1";
+          metadata.source_id = crypto.randomUUID();
+          metadata.dataset_version_id = crypto.randomUUID();
           break;
         case "source.disable":
-          metadata.source_id = "src-1";
+          metadata.source_id = crypto.randomUUID();
           break;
         case "source.manual_refresh":
-          metadata.source_id = "src-1";
+          metadata.source_id = crypto.randomUUID();
           break;
         case "admin.role_changed":
           metadata.target_user_id = crypto.randomUUID();
@@ -210,7 +210,7 @@ describe("internal audit model database regression (KT-017)", () => {
           metadata.annotation = "manual review required";
           break;
         case "commerce.refund":
-          metadata.order_id = "order-1";
+          metadata.order_id = crypto.randomUUID();
           metadata.amount = "100.00";
           metadata.reason = "customer request";
           break;
@@ -238,10 +238,10 @@ describe("internal audit model database regression (KT-017)", () => {
 
     await expect(
       client.query(
-        `SELECT private.log_audit_event($1, 'system', 'analysis.invalidated', 'analysis', 'analysis-id', '{"analysis_id": $2}'::jsonb)`,
-        [crypto.randomUUID(), crypto.randomUUID()]
+        `SELECT private.log_audit_event($1, 'system', 'analysis.invalidated', 'analysis', 'analysis-id', $2::jsonb)`,
+        [crypto.randomUUID(), JSON.stringify({ analysis_id: crypto.randomUUID() })]
       )
-    ).rejects.toThrow("analysis.invalidated has invalid type for field analysis_id");
+    ).rejects.toThrow("analysis.invalidated requires annotation in metadata");
   });
 
   runTest("rejects metadata missing required fields for admin.role_changed", async () => {
@@ -253,10 +253,10 @@ describe("internal audit model database regression (KT-017)", () => {
 
     await expect(
       client.query(
-        `SELECT private.log_audit_event($1, 'system', 'admin.role_changed', 'profile', 'profile-id', '{"target_user_id": $2}'::jsonb)`,
-        [crypto.randomUUID(), crypto.randomUUID()]
+        `SELECT private.log_audit_event($1, 'system', 'admin.role_changed', 'profile', 'profile-id', $2::jsonb)`,
+        [crypto.randomUUID(), JSON.stringify({ target_user_id: crypto.randomUUID() })]
       )
-    ).rejects.toThrow("admin.role_changed has invalid type for field target_user_id");
+    ).rejects.toThrow("admin.role_changed requires new_role in metadata");
   });
 
   runTest("rejects metadata with forbidden credential keys", async () => {
@@ -466,8 +466,14 @@ describe("internal audit model database regression (KT-017)", () => {
 
     await expect(
       client.query(
-        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": "not-a-uuid", "implementation_key": "impl-1"}'::jsonb)`,
-        [crypto.randomUUID()]
+        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', $2::jsonb)`,
+        [
+          crypto.randomUUID(),
+          JSON.stringify({
+            rule_version_id: "not-a-uuid",
+            implementation_key: crypto.randomUUID(),
+          }),
+        ]
       )
     ).rejects.toThrow("rule.verify has invalid type for field rule_version_id");
   });
@@ -547,8 +553,11 @@ describe("internal audit model database regression (KT-017)", () => {
 
     await expect(
       client.query(
-        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', '{"rule_version_id": true, "implementation_key": "impl-1"}'::jsonb)`,
-        [crypto.randomUUID()]
+        `SELECT private.log_audit_event($1, 'system', 'rule.verify', 'rule_version', 'test-rule', $2::jsonb)`,
+        [
+          crypto.randomUUID(),
+          JSON.stringify({ rule_version_id: true, implementation_key: crypto.randomUUID() }),
+        ]
       )
     ).rejects.toThrow("rule.verify has invalid type for field rule_version_id");
   });
@@ -586,7 +595,7 @@ describe("internal audit model database regression (KT-017)", () => {
           JSON.stringify({ analysis_id: crypto.randomUUID(), annotation: "   " }),
         ]
       )
-    ).rejects.toThrow("analysis.invalidated has invalid type for field analysis_id");
+    ).rejects.toThrow("analysis.invalidated requires annotation in metadata");
   });
 
   runTest("rejects object value for required scalar field", async () => {
@@ -619,7 +628,7 @@ describe("internal audit model database regression (KT-017)", () => {
           JSON.stringify({ target_user_id: crypto.randomUUID(), new_role: [], old_role: "user" }),
         ]
       )
-    ).rejects.toThrow("admin.role_changed has invalid type for field target_user_id");
+    ).rejects.toThrow("admin.role_changed requires new_role in metadata");
   });
 
   runTest("rejects metadata with null required values for analysis.invalidated", async () => {
@@ -654,7 +663,7 @@ describe("internal audit model database regression (KT-017)", () => {
             JSON.stringify({ analysis_id: crypto.randomUUID(), annotation: "" }),
           ]
         )
-      ).rejects.toThrow("analysis.invalidated has invalid type for field analysis_id");
+      ).rejects.toThrow("analysis.invalidated requires annotation in metadata");
     }
   );
 
@@ -673,7 +682,7 @@ describe("internal audit model database regression (KT-017)", () => {
           JSON.stringify({ target_user_id: crypto.randomUUID(), new_role: null, old_role: "user" }),
         ]
       )
-    ).rejects.toThrow("admin.role_changed has invalid type for field target_user_id");
+    ).rejects.toThrow("admin.role_changed requires new_role in metadata");
   });
 
   runTest("rejects metadata with empty string required values for commerce.refund", async () => {
@@ -691,7 +700,7 @@ describe("internal audit model database regression (KT-017)", () => {
           JSON.stringify({ order_id: crypto.randomUUID(), amount: "", reason: "customer request" }),
         ]
       )
-    ).rejects.toThrow("commerce.refund has invalid type for field order_id");
+    ).rejects.toThrow("commerce.refund requires amount in metadata");
   });
 
   runTest("rejects direct INSERT with unknown action code", async () => {

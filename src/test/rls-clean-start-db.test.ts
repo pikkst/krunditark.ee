@@ -38,10 +38,21 @@ async function withAdvisoryLock<T>(client: Client, fn: () => Promise<T>): Promis
     try {
       await client.query("SELECT pg_advisory_unlock($1)", [DB_TEST_ADVISORY_LOCK]);
     } catch {
-      // Transaction may be aborted after a failed assertion;
-      // advisory lock is released automatically on disconnect.
+      await client.query("ROLLBACK");
     }
   }
+}
+
+async function cleanStart(client: Client) {
+  await client.query("DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users");
+  await client.query("DROP SCHEMA IF EXISTS public CASCADE");
+  await client.query("DROP SCHEMA IF EXISTS geo CASCADE");
+  await client.query("DROP SCHEMA IF EXISTS rules CASCADE");
+  await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
+  await client.query("DROP SCHEMA IF EXISTS private CASCADE");
+  await client.query("CREATE SCHEMA public");
+  await applyAllMigrations(client);
+  await client.query("GRANT USAGE ON SCHEMA public TO anon, authenticated");
 }
 
 describe("RLS clean-start database regression (KT-018)", () => {
@@ -76,18 +87,21 @@ describe("RLS clean-start database regression (KT-018)", () => {
 
   runTest("applies all migrations to a clean database", async () => {
     await withAdvisoryLock(client, async () => {
-      await client.query("DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users");
-      await client.query("DROP SCHEMA IF EXISTS public CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS geo CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS rules CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-      await client.query("CREATE SCHEMA public");
-      await client.query("CREATE SCHEMA geo");
-      await client.query("CREATE SCHEMA rules");
-      await client.query("CREATE SCHEMA analysis");
-      await client.query("CREATE SCHEMA private");
-      await applyAllMigrations(client);
+      await cleanStart(client);
+    });
+
+    await expect(
+      client.query(
+        "SELECT nspname FROM pg_namespace WHERE nspname IN ('public', 'geo', 'rules', 'analysis', 'private') ORDER BY nspname"
+      )
+    ).resolves.toMatchObject({
+      rows: expect.arrayContaining([
+        expect.objectContaining({ nspname: "public" }),
+        expect.objectContaining({ nspname: "geo" }),
+        expect.objectContaining({ nspname: "rules" }),
+        expect.objectContaining({ nspname: "analysis" }),
+        expect.objectContaining({ nspname: "private" }),
+      ]),
     });
 
     const tables = await client.query(
@@ -110,18 +124,7 @@ describe("RLS clean-start database regression (KT-018)", () => {
 
   runTest("RLS is enabled on all client-accessible tables", async () => {
     await withAdvisoryLock(client, async () => {
-      await client.query("DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users");
-      await client.query("DROP SCHEMA IF EXISTS public CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS geo CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS rules CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-      await client.query("CREATE SCHEMA public");
-      await client.query("CREATE SCHEMA geo");
-      await client.query("CREATE SCHEMA rules");
-      await client.query("CREATE SCHEMA analysis");
-      await client.query("CREATE SCHEMA private");
-      await applyAllMigrations(client);
+      await cleanStart(client);
     });
 
     const rlsTables = await client.query(
@@ -145,18 +148,7 @@ describe("RLS clean-start database regression (KT-018)", () => {
 
   runTest("RLS policies exist with expected names", async () => {
     await withAdvisoryLock(client, async () => {
-      await client.query("DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users");
-      await client.query("DROP SCHEMA IF EXISTS public CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS geo CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS rules CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-      await client.query("CREATE SCHEMA public");
-      await client.query("CREATE SCHEMA geo");
-      await client.query("CREATE SCHEMA rules");
-      await client.query("CREATE SCHEMA analysis");
-      await client.query("CREATE SCHEMA private");
-      await applyAllMigrations(client);
+      await cleanStart(client);
     });
 
     const policies = await client.query(
@@ -177,70 +169,188 @@ describe("RLS clean-start database regression (KT-018)", () => {
     expect(policyNames).toContain("audit_log_no_authenticated");
   });
 
+  runTest("unauthenticated users cannot access protected rows", async () => {
+    await withAdvisoryLock(client, async () => {
+      await cleanStart(client);
+    });
+
+    const userId = crypto.randomUUID();
+    await client.query(
+      `INSERT INTO auth.users (id, email, role, is_sso_user, is_anonymous) VALUES ($1, $2, 'authenticated', false, false)`,
+      [userId, `rls-test-${userId.slice(0, 8)}@example.com`]
+    );
+
+    await client.query(
+      `INSERT INTO public.projects (user_id, name, cadastral_id) VALUES ($1, 'Secret', '12345') RETURNING id`,
+      [userId]
+    );
+
+    await client.query("SET ROLE anon");
+    await client.query("SAVEPOINT anon_select");
+    await expect(client.query("SELECT * FROM public.projects")).rejects.toThrow();
+    await client.query("ROLLBACK TO SAVEPOINT anon_select");
+    await client.query("RESET ROLE");
+  });
+
+  runTest("anonymous Auth users can access only their own project data", async () => {
+    await withAdvisoryLock(client, async () => {
+      await cleanStart(client);
+    });
+
+    const userIdA = crypto.randomUUID();
+    const userIdB = crypto.randomUUID();
+
+    await client.query(
+      `INSERT INTO auth.users (id, email, role, is_sso_user, is_anonymous) VALUES ($1, $2, 'authenticated', false, false), ($3, $4, 'authenticated', false, false)`,
+      [
+        userIdA,
+        `anon-owner-${userIdA.slice(0, 8)}@example.com`,
+        userIdB,
+        `anon-other-${userIdB.slice(0, 8)}@example.com`,
+      ]
+    );
+
+    const projectA = await client.query(
+      `INSERT INTO public.projects (user_id, name, cadastral_id) VALUES ($1, 'AnonA', '11111') RETURNING id`,
+      [userIdA]
+    );
+
+    await client.query(
+      `INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2) VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100) RETURNING id`,
+      [projectA.rows[0].id]
+    );
+
+    await client.query("SET ROLE authenticated");
+    await client.query(`SET request.jwt.claims = '${JSON.stringify({ sub: userIdA })}'`);
+
+    const ownProjects = await client.query("SELECT * FROM public.projects WHERE user_id = $1", [
+      userIdA,
+    ]);
+    expect(ownProjects.rows).toHaveLength(1);
+
+    const ownProposals = await client.query(
+      `SELECT pp.* FROM public.project_proposals pp JOIN public.projects p ON p.id = pp.project_id WHERE p.user_id = $1`,
+      [userIdA]
+    );
+    expect(ownProposals.rows).toHaveLength(1);
+
+    const otherProjects = await client.query("SELECT * FROM public.projects WHERE user_id = $1", [
+      userIdB,
+    ]);
+    expect(otherProjects.rows).toHaveLength(0);
+
+    await client.query("RESET ROLE");
+  });
+
+  runTest("permanent user A cannot access user B project or analysis data", async () => {
+    await withAdvisoryLock(client, async () => {
+      await cleanStart(client);
+    });
+
+    const userIdA = crypto.randomUUID();
+    const userIdB = crypto.randomUUID();
+
+    await client.query(
+      `INSERT INTO auth.users (id, email, role, is_sso_user, is_anonymous) VALUES ($1, $2, 'authenticated', false, false), ($3, $4, 'authenticated', false, false)`,
+      [
+        userIdA,
+        `user-a-${userIdA.slice(0, 8)}@example.com`,
+        userIdB,
+        `user-b-${userIdB.slice(0, 8)}@example.com`,
+      ]
+    );
+
+    const projectB = await client.query(
+      `INSERT INTO public.projects (user_id, name, cadastral_id) VALUES ($1, 'UserB', '22222') RETURNING id`,
+      [userIdB]
+    );
+
+    const proposalB = await client.query(
+      `INSERT INTO public.project_proposals (project_id, structure_type, footprint, footprint_area_m2) VALUES ($1, 'detached_house', ST_SetSRID('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'::extensions.geometry, 3301), 100) RETURNING id`,
+      [projectB.rows[0].id]
+    );
+
+    const dataRelease = await client.query(
+      `INSERT INTO private.data_releases (release_key, status) VALUES ($1, 'promoted') RETURNING id`,
+      [`isolation-release-${userIdA.slice(0, 8)}`]
+    );
+
+    const analysisB = await client.query(
+      `INSERT INTO analysis.analyses (project_id, proposal_id, parcel_snapshot_id, data_release_id, analysis_profile_version, engine_version, input_hash) VALUES ($1, $2, gen_random_uuid(), $3, 'v1', 'v1', 'hash') RETURNING id`,
+      [projectB.rows[0].id, proposalB.rows[0].id, dataRelease.rows[0].id]
+    );
+
+    await client.query("SET ROLE authenticated");
+    await client.query(`SET request.jwt.claims = '${JSON.stringify({ sub: userIdA })}'`);
+
+    const bProject = await client.query("SELECT * FROM public.projects WHERE user_id = $1", [
+      userIdB,
+    ]);
+    expect(bProject.rows).toHaveLength(0);
+
+    const bAnalysis = await client.query("SELECT * FROM analysis.analyses WHERE id = $1", [
+      analysisB.rows[0].id,
+    ]);
+    expect(bAnalysis.rows).toHaveLength(0);
+
+    await client.query("RESET ROLE");
+  });
+
   runTest("internal schemas have no grants to anon or authenticated", async () => {
     await withAdvisoryLock(client, async () => {
-      await client.query("DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users");
-      await client.query("DROP SCHEMA IF EXISTS public CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS geo CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS rules CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-      await client.query("CREATE SCHEMA public");
-      await client.query("CREATE SCHEMA geo");
-      await client.query("CREATE SCHEMA rules");
-      await client.query("CREATE SCHEMA analysis");
-      await client.query("CREATE SCHEMA private");
-      await applyAllMigrations(client);
+      await cleanStart(client);
     });
 
     const anonGrants = await client.query(
-      `SELECT grantee, privilege_type FROM information_schema.role_table_grants WHERE table_schema IN ('private', 'rules') AND grantee IN ('anon', 'authenticated')`
+      `SELECT grantee, privilege_type FROM information_schema.role_table_grants WHERE table_schema IN ('private', 'rules', 'analysis', 'geo') AND grantee = 'anon'`
     );
     expect(anonGrants.rows.length).toBe(0);
+
+    const authenticatedPrivateRulesGrants = await client.query(
+      `SELECT grantee, privilege_type FROM information_schema.role_table_grants WHERE table_schema IN ('private', 'rules') AND grantee = 'authenticated'`
+    );
+    expect(authenticatedPrivateRulesGrants.rows.length).toBe(0);
   });
 
-  runTest("server/admin path (service_role) can access internal schemas", async () => {
+  runTest("internal schemas are not exposed through Data API", async () => {
     await withAdvisoryLock(client, async () => {
-      await client.query("DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users");
-      await client.query("DROP SCHEMA IF EXISTS public CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS geo CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS rules CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-      await client.query("CREATE SCHEMA public");
-      await client.query("CREATE SCHEMA geo");
-      await client.query("CREATE SCHEMA rules");
-      await client.query("CREATE SCHEMA analysis");
-      await client.query("CREATE SCHEMA private");
-      await applyAllMigrations(client);
+      await cleanStart(client);
+    });
+
+    const privateRulesUsage = await client.query(
+      `SELECT n.nspname FROM pg_namespace n WHERE has_schema_privilege('authenticated', n.oid, 'USAGE') AND n.nspname IN ('private', 'rules')`
+    );
+    expect(privateRulesUsage.rows.length).toBe(0);
+  });
+
+  runTest("authenticated client cannot perform server/admin-only operations", async () => {
+    await withAdvisoryLock(client, async () => {
+      await cleanStart(client);
     });
 
     await client.query("SET ROLE service_role");
-
     const sourceDef = await client.query(
       `INSERT INTO private.source_definitions (id, name, authority, source_type, base_url, refresh_policy, verification_policy, release_blocking, enabled, normalizer_version) VALUES ($1, 'Test', 'Test', 'WFS', 'https://example.com', 'monthly_snapshot', 'automatic_quality_gates', true, true, 'v1') RETURNING id`,
-      ["test.service-role-access"]
+      ["test.server-path"]
     );
+    expect(sourceDef.rows[0].id).toBe("test.server-path");
+    await client.query("RESET ROLE");
 
-    expect(sourceDef.rows[0].id).toBe("test.service-role-access");
-
+    await client.query("SET ROLE authenticated");
+    await client.query("SAVEPOINT authenticated_insert");
+    await expect(
+      client.query(
+        "INSERT INTO private.source_definitions (id, name, authority, source_type, base_url, refresh_policy, verification_policy, release_blocking, enabled, normalizer_version) VALUES ($1, 'Test', 'Test', 'WFS', 'https://example.com', 'monthly_snapshot', 'automatic_quality_gates', true, true, 'v1') RETURNING id",
+        ["test.authenticated-denied"]
+      )
+    ).rejects.toThrow();
+    await client.query("ROLLBACK TO SAVEPOINT authenticated_insert");
     await client.query("RESET ROLE");
   });
 
   runTest("profiles trigger prevents client role change", async () => {
     await withAdvisoryLock(client, async () => {
-      await client.query("DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users");
-      await client.query("DROP SCHEMA IF EXISTS public CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS geo CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS rules CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-      await client.query("CREATE SCHEMA public");
-      await client.query("CREATE SCHEMA geo");
-      await client.query("CREATE SCHEMA rules");
-      await client.query("CREATE SCHEMA analysis");
-      await client.query("CREATE SCHEMA private");
-      await applyAllMigrations(client);
+      await cleanStart(client);
     });
 
     const trigger = await client.query(
@@ -256,18 +366,7 @@ describe("RLS clean-start database regression (KT-018)", () => {
 
   runTest("projects trigger prevents client user_id change", async () => {
     await withAdvisoryLock(client, async () => {
-      await client.query("DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users");
-      await client.query("DROP SCHEMA IF EXISTS public CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS geo CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS rules CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-      await client.query("CREATE SCHEMA public");
-      await client.query("CREATE SCHEMA geo");
-      await client.query("CREATE SCHEMA rules");
-      await client.query("CREATE SCHEMA analysis");
-      await client.query("CREATE SCHEMA private");
-      await applyAllMigrations(client);
+      await cleanStart(client);
     });
 
     const trigger = await client.query(
@@ -283,18 +382,7 @@ describe("RLS clean-start database regression (KT-018)", () => {
 
   runTest("profiles are created automatically for new auth users", async () => {
     await withAdvisoryLock(client, async () => {
-      await client.query("DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users");
-      await client.query("DROP SCHEMA IF EXISTS public CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS geo CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS rules CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-      await client.query("CREATE SCHEMA public");
-      await client.query("CREATE SCHEMA geo");
-      await client.query("CREATE SCHEMA rules");
-      await client.query("CREATE SCHEMA analysis");
-      await client.query("CREATE SCHEMA private");
-      await applyAllMigrations(client);
+      await cleanStart(client);
     });
 
     const userId = crypto.randomUUID();
@@ -311,18 +399,7 @@ describe("RLS clean-start database regression (KT-018)", () => {
 
   runTest("completed analysis is immutable", async () => {
     await withAdvisoryLock(client, async () => {
-      await client.query("DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users");
-      await client.query("DROP SCHEMA IF EXISTS public CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS geo CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS rules CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-      await client.query("CREATE SCHEMA public");
-      await client.query("CREATE SCHEMA geo");
-      await client.query("CREATE SCHEMA rules");
-      await client.query("CREATE SCHEMA analysis");
-      await client.query("CREATE SCHEMA private");
-      await applyAllMigrations(client);
+      await cleanStart(client);
     });
 
     const userId = crypto.randomUUID();
@@ -372,18 +449,7 @@ describe("RLS clean-start database regression (KT-018)", () => {
 
   runTest("rule versions enforce verified/retired immutability", async () => {
     await withAdvisoryLock(client, async () => {
-      await client.query("DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users");
-      await client.query("DROP SCHEMA IF EXISTS public CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS geo CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS rules CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-      await client.query("CREATE SCHEMA public");
-      await client.query("CREATE SCHEMA geo");
-      await client.query("CREATE SCHEMA rules");
-      await client.query("CREATE SCHEMA analysis");
-      await client.query("CREATE SCHEMA private");
-      await applyAllMigrations(client);
+      await cleanStart(client);
     });
 
     await client.query("SET ROLE service_role");
@@ -417,18 +483,7 @@ describe("RLS clean-start database regression (KT-018)", () => {
 
   runTest("analysis child rows are protected for terminal analyses", async () => {
     await withAdvisoryLock(client, async () => {
-      await client.query("DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users");
-      await client.query("DROP SCHEMA IF EXISTS public CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS geo CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS rules CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-      await client.query("CREATE SCHEMA public");
-      await client.query("CREATE SCHEMA geo");
-      await client.query("CREATE SCHEMA rules");
-      await client.query("CREATE SCHEMA analysis");
-      await client.query("CREATE SCHEMA private");
-      await applyAllMigrations(client);
+      await cleanStart(client);
     });
 
     const userId = crypto.randomUUID();
@@ -516,18 +571,7 @@ describe("RLS clean-start database regression (KT-018)", () => {
 
   runTest("audit log is immutable and uses canonical writer", async () => {
     await withAdvisoryLock(client, async () => {
-      await client.query("DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users");
-      await client.query("DROP SCHEMA IF EXISTS public CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS geo CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS rules CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-      await client.query("CREATE SCHEMA public");
-      await client.query("CREATE SCHEMA geo");
-      await client.query("CREATE SCHEMA rules");
-      await client.query("CREATE SCHEMA analysis");
-      await client.query("CREATE SCHEMA private");
-      await applyAllMigrations(client);
+      await cleanStart(client);
     });
 
     const userId = crypto.randomUUID();
@@ -562,18 +606,7 @@ describe("RLS clean-start database regression (KT-018)", () => {
 
   runTest("analysis provenance validates data release membership", async () => {
     await withAdvisoryLock(client, async () => {
-      await client.query("DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users");
-      await client.query("DROP SCHEMA IF EXISTS public CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS geo CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS rules CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-      await client.query("CREATE SCHEMA public");
-      await client.query("CREATE SCHEMA geo");
-      await client.query("CREATE SCHEMA rules");
-      await client.query("CREATE SCHEMA analysis");
-      await client.query("CREATE SCHEMA private");
-      await applyAllMigrations(client);
+      await cleanStart(client);
     });
 
     const userId = crypto.randomUUID();
@@ -659,18 +692,7 @@ describe("RLS clean-start database regression (KT-018)", () => {
 
   runTest("rejects mismatched project and proposal", async () => {
     await withAdvisoryLock(client, async () => {
-      await client.query("DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users");
-      await client.query("DROP SCHEMA IF EXISTS public CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS geo CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS rules CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS analysis CASCADE");
-      await client.query("DROP SCHEMA IF EXISTS private CASCADE");
-      await client.query("CREATE SCHEMA public");
-      await client.query("CREATE SCHEMA geo");
-      await client.query("CREATE SCHEMA rules");
-      await client.query("CREATE SCHEMA analysis");
-      await client.query("CREATE SCHEMA private");
-      await applyAllMigrations(client);
+      await cleanStart(client);
     });
 
     const userId = crypto.randomUUID();

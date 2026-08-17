@@ -4,6 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Krunditark</title>
+    <script>
+      window.__SKIP_REACT_MOUNT__ = (function () {
+        const path = window.location.pathname;
+        const assetPattern =
+          /\/(assets|static)\/|\.(js|css|png|jpg|jpeg|svg|ico|gif|webp|woff2?|ttf|eot|map|json)$/i;
+        return assetPattern.test(path);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

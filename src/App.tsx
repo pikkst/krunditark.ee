@@ -1,10 +1,12 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { useEffect } from "react";
+import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import LocaleProvider from "./lib/i18n/LocaleProvider";
 import AppShell from "./app/layout/AppShell";
 import LandingPage from "./features/landing/LandingPage";
 import { DEFAULT_LOCALE, isValidAppLocale } from "./lib/i18n/types";
 
 function RootRedirect() {
+  const navigate = useNavigate();
   const stored = localStorage.getItem("krunditark-locale");
   const browserLang =
     typeof navigator !== "undefined" ? navigator.language.split("-")[0] : DEFAULT_LOCALE;
@@ -15,7 +17,11 @@ function RootRedirect() {
         ? browserLang
         : DEFAULT_LOCALE;
 
-  return <Navigate to={`/${initial}/landing`} replace />;
+  useEffect(() => {
+    navigate(initial, { replace: true });
+  }, [initial, navigate]);
+
+  return null;
 }
 
 export default function App() {
@@ -29,7 +35,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="landing" replace />} />
         </Route>
       </Route>
-      <Route path="*" element={<Navigate to="/et/landing" replace />} />
+      <Route path="*" element={<Navigate to={`${DEFAULT_LOCALE}/landing`} replace />} />
     </Routes>
   );
 }

@@ -75,7 +75,19 @@ Production frontend is served from Cloudflare Pages with clean BrowserRouter pat
 
 Static assets (JS, CSS, images) are served directly and are not rewritten.
 
-For the preview stage on GitHub Pages, the repository-path base (`VITE_BASE_PATH=/krunditark.ee/`) is used with clean routes. GitHub Pages deep links may require the repository-path prefix.
+For the preview stage on GitHub Pages, the repository-path base (`VITE_BASE_PATH=/krunditark.ee/`) is used with clean routes. React Router is configured with a `basename` derived from `VITE_BASE_PATH`, so the same route definitions work for both production (`/`) and preview (`/krunditark.ee/`).
+
+### GitHub Pages deep-link strategy
+
+GitHub Pages serves static files and returns 404 for unknown paths. To support direct navigation and hard refresh on locale-prefixed preview URLs, the build output includes a `404.html` file that is a copy of `index.html`. When a deep link such as `/krunditark.ee/et/landing` is requested, GitHub Pages serves `404.html`, React Router mounts at the requested URL, and the configured `basename` strips the repository path before matching routes.
+
+This preserves clean BrowserRouter URLs in production without reintroducing hash routing.
+
+### Locale and base-path behavior
+
+- Root locale detection/redirect (`/`) respects the configured base path.
+- Locale switching preserves the current deployment base path and the active application route.
+- Vite asset URLs continue to resolve correctly under both `/` and `/krunditark.ee/` builds because they are generated from the same `VITE_BASE_PATH` value.
 
 Do not make route format part of core domain IDs/API.
 

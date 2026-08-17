@@ -190,11 +190,11 @@ Capture:
 
 ## KT-020 — Parcel domain model
 
-- [ ] cadastral ID.
-- [ ] official address/basic facts.
-- [ ] geometry.
-- [ ] source dataset/version/freshness.
-- [ ] provider-independent.
+- [x] cadastral ID.
+- [x] official address/basic facts.
+- [x] geometry.
+- [x] source dataset/version/freshness.
+- [x] provider-independent.
 
 ## KT-021 — Proposal domain model
 

@@ -208,12 +208,12 @@ Capture:
 
 ## KT-022 — Normalized spatial constraint model
 
-- [ ] source-scoped stable object ID.
-- [ ] category/subcategory.
-- [ ] geometry/impact geometry.
-- [ ] exact dataset version.
-- [ ] effective/freshness metadata.
-- [ ] source/legal references.
+- [x] source-scoped stable object ID.
+- [x] category/subcategory.
+- [x] geometry/impact geometry.
+- [x] exact dataset version.
+- [x] effective/freshness metadata.
+- [x] source/legal references.
 
 ## KT-023 — Finding/Ehituspass contracts
 

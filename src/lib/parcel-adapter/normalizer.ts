@@ -29,6 +29,7 @@ const SUPPORTED_CRS_BOUNDS: Record<string, CoordinateBounds> = {
 
 const ISO_TIMESTAMP_REGEX =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+const ISO_TIMESTAMP_OFFSET_REGEX = /[+-](\d{2}):(\d{2})$/;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -168,16 +169,6 @@ function isValidIsoTimestamp(value: string): boolean {
     return false;
   }
 
-  const offsetHour = Number(match[7]);
-  const offsetMinute = Number(match[8]);
-
-  if (offsetHour > 23) {
-    return false;
-  }
-  if (offsetMinute > 59) {
-    return false;
-  }
-
   const year = Number(match[1]);
   const month = Number(match[2]);
   const day = Number(match[3]);
@@ -187,14 +178,27 @@ function isValidIsoTimestamp(value: string): boolean {
 
   const date = new Date(year, month - 1, day, hour, minute, second);
 
-  return (
-    date.getFullYear() === year &&
-    date.getMonth() === month - 1 &&
-    date.getDate() === day &&
-    date.getHours() === hour &&
-    date.getMinutes() === minute &&
-    date.getSeconds() === second
-  );
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day ||
+    date.getHours() !== hour ||
+    date.getMinutes() !== minute ||
+    date.getSeconds() !== second
+  ) {
+    return false;
+  }
+
+  const offsetMatch = ISO_TIMESTAMP_OFFSET_REGEX.exec(value);
+  if (offsetMatch) {
+    const offsetHour = Number(offsetMatch[1]);
+    const offsetMinute = Number(offsetMatch[2]);
+    if (offsetHour > 23 || offsetMinute > 59) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function validateOptionalString(value: unknown, field: string): string | undefined {

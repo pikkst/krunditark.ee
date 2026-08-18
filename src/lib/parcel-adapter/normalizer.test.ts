@@ -975,7 +975,11 @@ describe("parseProviderParcel (KT-028 runtime boundary)", () => {
       const result = parseProviderParcel(payload);
       expect(result.valid).toBe(false);
       if (!result.valid) {
-        expect(result.errors.some((e) => e.field === "source.retrievedAt")).toBe(true);
+        expect(
+          result.errors.some(
+            (e) => e.code === "INVALID_TIMESTAMP" && e.field === "source.retrievedAt"
+          )
+        ).toBe(true);
       }
     });
 
@@ -987,7 +991,11 @@ describe("parseProviderParcel (KT-028 runtime boundary)", () => {
       const result = parseProviderParcel(payload);
       expect(result.valid).toBe(false);
       if (!result.valid) {
-        expect(result.errors.some((e) => e.field === "source.retrievedAt")).toBe(true);
+        expect(
+          result.errors.some(
+            (e) => e.code === "INVALID_TIMESTAMP" && e.field === "source.retrievedAt"
+          )
+        ).toBe(true);
       }
     });
 

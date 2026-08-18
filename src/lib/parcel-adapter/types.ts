@@ -9,6 +9,11 @@ export type ParcelParseErrorCode =
   | "MISSING_CRS"
   | "UNSUPPORTED_CRS"
   | "NON_FINITE_NUMERIC"
+  | "MISSING_FACTS"
+  | "MISSING_FACTS_AREA_SQM"
+  | "INVALID_FACTS_AREA_SQM"
+  | "INVALID_FACTS_ADDRESS_TEXT"
+  | "INVALID_FACTS_LAND_USE_DATA"
   | "MISSING_SOURCE"
   | "MISSING_SOURCE_ID"
   | "MISSING_DATASET_VERSION"
@@ -17,6 +22,7 @@ export type ParcelParseErrorCode =
   | "MISSING_RETRIEVED_AT"
   | "INVALID_TIMESTAMP"
   | "INVALID_FRESHNESS"
+  | "INVALID_OPTIONAL_FIELD"
   | "DOMAIN_VALIDATION_FAILED";
 
 export interface ParcelParseError {
@@ -28,6 +34,12 @@ export interface ParcelParseError {
 export interface ProviderParcelGeometryRaw {
   type: unknown;
   coordinates: unknown;
+}
+
+export interface ProviderParcelFactsRaw {
+  areaSqm?: unknown;
+  addressText?: unknown;
+  landUseData?: unknown;
 }
 
 export interface ProviderParcelSourceRaw {
@@ -44,12 +56,35 @@ export interface ProviderParcelDTO {
   cadastralNumber: unknown;
   geometry: ProviderParcelGeometryRaw;
   crs?: unknown;
-  areaSqm?: unknown;
-  addressText?: unknown;
-  landUseData?: unknown;
+  facts: ProviderParcelFactsRaw;
   source: ProviderParcelSourceRaw;
   freshness?: unknown;
   contentHash?: unknown;
+}
+
+export interface ValidatedProviderParcelDTO {
+  cadastralNumber: string;
+  geometry: {
+    type: "Polygon" | "MultiPolygon";
+    coordinates: number[][][] | number[][][][];
+  };
+  crs: string;
+  facts: {
+    areaSqm: number;
+    addressText?: string;
+    landUseData?: Record<string, unknown>;
+  };
+  source: {
+    id: string;
+    datasetVersion: string;
+    syncRun: string;
+    objectId: string;
+    normalizerVersion: string;
+    retrievedAt: string;
+    effectiveAt?: string;
+  };
+  freshness: "fresh" | "warning" | "stale" | "unknown";
+  contentHash: string;
 }
 
 export interface ParcelParseSuccess {

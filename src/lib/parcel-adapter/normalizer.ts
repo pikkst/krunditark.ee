@@ -4,7 +4,12 @@ import {
   isValidCadastralId,
   validateParcel,
 } from "../../domain/parcel/types";
-import type { ParcelParseError, ParcelParseErrorCode, ParcelParseResult } from "./types";
+import type {
+  ParcelParseError,
+  ParcelParseErrorCode,
+  ParcelParseResult,
+  ValidatedProviderParcelDTO,
+} from "./types";
 
 const SUPPORTED_CRS = new Set(["EPSG:3301", "EPSG:4326"]);
 
@@ -21,6 +26,9 @@ const SUPPORTED_CRS_BOUNDS: Record<string, CoordinateBounds> = {
   "EPSG:4326": { minX: -180, maxX: 180, minY: -90, maxY: 90 },
   "EPSG:3301": { minX: 200000, maxX: 900000, minY: 6300000, maxY: 7800000 },
 };
+
+const ISO_TIMESTAMP_REGEX =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -43,8 +51,8 @@ function validatePosition(
   path: string,
   bounds: CoordinateBounds
 ): ParcelParseError | undefined {
-  if (!Array.isArray(position) || position.length < 2) {
-    return parseError("INVALID_COORDINATES", path, "position must have at least x and y");
+  if (!Array.isArray(position) || position.length !== 2) {
+    return parseError("INVALID_COORDINATES", path, "position must have exactly 2 ordinates");
   }
   if (!isFiniteNumber(position[0])) {
     return parseError("INVALID_COORDINATES", `${path}[0]`, "coordinate must be a finite number");
@@ -154,9 +162,93 @@ function validateCoordinates(
   return undefined;
 }
 
-function isValidTimestamp(value: string): boolean {
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed);
+function isValidIsoTimestamp(value: string): boolean {
+  const match = ISO_TIMESTAMP_REGEX.exec(value);
+  if (!match) {
+    return false;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+
+  const date = new Date(year, month - 1, day, hour, minute, second);
+
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day &&
+    date.getHours() === hour &&
+    date.getMinutes() === minute &&
+    date.getSeconds() === second
+  );
+}
+
+function validateOptionalString(value: unknown, field: string): string | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (!isString(value)) {
+    throw parseError("INVALID_OPTIONAL_FIELD", field, `${field} must be a string when provided`);
+  }
+  return value;
+}
+
+function buildValidatedDTO(raw: Record<string, unknown>): ValidatedProviderParcelDTO {
+  const cadastralNumber = raw.cadastralNumber as string;
+  const typedGeometry = raw.geometry as Record<string, unknown>;
+  const geometryType = typedGeometry.type as "Polygon" | "MultiPolygon";
+  const coordinates =
+    typedGeometry.coordinates as ValidatedProviderParcelDTO["geometry"]["coordinates"];
+  const crs = raw.crs as string;
+
+  const rawFacts = raw.facts as Record<string, unknown>;
+  const areaSqm = rawFacts.areaSqm as number;
+  const addressText = validateOptionalString(rawFacts.addressText, "facts.addressText");
+  const landUseData = rawFacts.landUseData as Record<string, unknown> | undefined;
+
+  const typedSource = raw.source as Record<string, unknown>;
+  const sourceId = typedSource.id as string;
+  const datasetVersion = typedSource.datasetVersion as string;
+  const syncRun = typedSource.syncRun as string;
+  const objectId = validateOptionalString(typedSource.objectId, "source.objectId") ?? "";
+  const normalizerVersion = typedSource.normalizerVersion as string;
+  const retrievedAt = typedSource.retrievedAt as string;
+  const effectiveAt = validateOptionalString(typedSource.effectiveAt, "source.effectiveAt");
+
+  const rawFreshness = raw.freshness as FreshnessState | undefined;
+  const freshness =
+    rawFreshness && VALID_FRESHNESS_STATES.has(rawFreshness) ? rawFreshness : "unknown";
+
+  const contentHash = validateOptionalString(raw.contentHash, "contentHash") ?? "";
+
+  return {
+    cadastralNumber,
+    geometry: {
+      type: geometryType,
+      coordinates,
+    },
+    crs,
+    facts: {
+      areaSqm,
+      addressText,
+      landUseData,
+    },
+    source: {
+      id: sourceId,
+      datasetVersion,
+      syncRun,
+      objectId,
+      normalizerVersion,
+      retrievedAt,
+      effectiveAt,
+    },
+    freshness,
+    contentHash,
+  };
 }
 
 export function parseProviderParcel(payload: unknown): ParcelParseResult {
@@ -227,8 +319,51 @@ export function parseProviderParcel(payload: unknown): ParcelParseResult {
     errors.push(parseError("UNSUPPORTED_CRS", "crs", "crs is not a supported CRS"));
   }
 
-  if (raw.areaSqm !== undefined && raw.areaSqm !== null && !isFiniteNumber(raw.areaSqm)) {
-    errors.push(parseError("NON_FINITE_NUMERIC", "areaSqm", "areaSqm must be a finite number"));
+  const rawFacts = raw.facts;
+  if (!isObject(rawFacts)) {
+    errors.push(parseError("MISSING_FACTS", "facts", "facts is required"));
+  } else {
+    const typedFacts = rawFacts as Record<string, unknown>;
+    const rawAreaSqm = typedFacts.areaSqm;
+    if (rawAreaSqm === undefined || rawAreaSqm === null) {
+      errors.push(
+        parseError(
+          "MISSING_FACTS_AREA_SQM",
+          "facts.areaSqm",
+          "facts.areaSqm is required and must be a finite number"
+        )
+      );
+    } else if (!isFiniteNumber(rawAreaSqm)) {
+      errors.push(
+        parseError(
+          "INVALID_FACTS_AREA_SQM",
+          "facts.areaSqm",
+          "facts.areaSqm must be a finite number"
+        )
+      );
+    }
+
+    const rawAddressText = typedFacts.addressText;
+    if (rawAddressText !== undefined && rawAddressText !== null && !isString(rawAddressText)) {
+      errors.push(
+        parseError(
+          "INVALID_FACTS_ADDRESS_TEXT",
+          "facts.addressText",
+          "facts.addressText must be a string when provided"
+        )
+      );
+    }
+
+    const rawLandUseData = typedFacts.landUseData;
+    if (rawLandUseData !== undefined && rawLandUseData !== null && !isObject(rawLandUseData)) {
+      errors.push(
+        parseError(
+          "INVALID_FACTS_LAND_USE_DATA",
+          "facts.landUseData",
+          "facts.landUseData must be an object when provided"
+        )
+      );
+    }
   }
 
   const rawSource = raw.source;
@@ -289,7 +424,7 @@ export function parseProviderParcel(payload: unknown): ParcelParseResult {
           "source.retrievedAt is required and must be a non-empty string"
         )
       );
-    } else if (!isValidTimestamp(rawRetrievedAt)) {
+    } else if (!isValidIsoTimestamp(rawRetrievedAt)) {
       errors.push(
         parseError(
           "INVALID_TIMESTAMP",
@@ -309,7 +444,7 @@ export function parseProviderParcel(payload: unknown): ParcelParseResult {
             "source.effectiveAt must be a valid ISO timestamp when provided"
           )
         );
-      } else if (!isValidTimestamp(rawEffectiveAt)) {
+      } else if (!isValidIsoTimestamp(rawEffectiveAt)) {
         errors.push(
           parseError(
             "INVALID_TIMESTAMP",
@@ -318,6 +453,17 @@ export function parseProviderParcel(payload: unknown): ParcelParseResult {
           )
         );
       }
+    }
+
+    const rawObjectId = typedSource.objectId;
+    if (rawObjectId !== undefined && rawObjectId !== null && !isString(rawObjectId)) {
+      errors.push(
+        parseError(
+          "INVALID_OPTIONAL_FIELD",
+          "source.objectId",
+          "source.objectId must be a string when provided"
+        )
+      );
     }
   }
 
@@ -330,15 +476,27 @@ export function parseProviderParcel(payload: unknown): ParcelParseResult {
     }
   }
 
+  const rawContentHash = raw.contentHash;
+  if (rawContentHash !== undefined && rawContentHash !== null && !isString(rawContentHash)) {
+    errors.push(
+      parseError(
+        "INVALID_OPTIONAL_FIELD",
+        "contentHash",
+        "contentHash must be a string when provided"
+      )
+    );
+  }
+
   if (errors.length > 0) {
     return { valid: false, errors };
   }
 
-  const cadastralId = normalizeCadastralId(raw.cadastralNumber as string);
-  const typedGeometry = rawGeometry as Record<string, unknown>;
-  const geometryType = typedGeometry.type as string;
-  const coordinates = typedGeometry.coordinates;
-  const crs = rawCrs as string;
+  const validated = buildValidatedDTO(raw);
+
+  const cadastralId = normalizeCadastralId(validated.cadastralNumber);
+  const geometryType = validated.geometry.type;
+  const coordinates = validated.geometry.coordinates;
+  const crs = validated.crs;
 
   const coordinateError = validateCoordinates(coordinates, geometryType, crs);
   if (coordinateError) {
@@ -356,42 +514,27 @@ export function parseProviderParcel(payload: unknown): ParcelParseResult {
           coordinates: coordinates as ParcelGeometry["coordinates"],
         } as ParcelGeometry);
 
-  const areaM2Computed = isFiniteNumber(raw.areaSqm) ? (raw.areaSqm as number) : 0;
-  const addressText = isString(raw.addressText) ? raw.addressText : undefined;
-  const landUseData = isObject(raw.landUseData)
-    ? (raw.landUseData as Record<string, unknown>)
-    : undefined;
-  const contentHash = isString(raw.contentHash) ? raw.contentHash : "";
-
-  const typedSource = rawSource as Record<string, unknown>;
-  const sourceObjectId = isString(typedSource.objectId) ? typedSource.objectId : undefined;
-  const sourceEffectiveAt = isString(typedSource.effectiveAt) ? typedSource.effectiveAt : undefined;
-  const freshnessState =
-    isString(rawFreshness) && VALID_FRESHNESS_STATES.has(rawFreshness as FreshnessState)
-      ? (rawFreshness as FreshnessState)
-      : "unknown";
-
   const parcel: Parcel = {
-    id: sourceObjectId || cadastralId,
+    id: validated.source.objectId || cadastralId,
     cadastralId,
     geometry,
     geometryCrs: crs,
     facts: {
-      areaM2Computed,
-      addressText,
-      landUseData,
+      areaM2Computed: validated.facts.areaSqm,
+      addressText: validated.facts.addressText,
+      landUseData: validated.facts.landUseData,
     },
     source: {
-      sourceId: typedSource.id as string,
-      sourceDatasetVersionId: typedSource.datasetVersion as string,
-      sourceSyncRunId: typedSource.syncRun as string,
-      sourceObjectId,
-      normalizerVersion: typedSource.normalizerVersion as string,
-      retrievedAt: typedSource.retrievedAt as string,
-      sourceEffectiveAt,
+      sourceId: validated.source.id,
+      sourceDatasetVersionId: validated.source.datasetVersion,
+      sourceSyncRunId: validated.source.syncRun,
+      sourceObjectId: validated.source.objectId || undefined,
+      normalizerVersion: validated.source.normalizerVersion,
+      retrievedAt: validated.source.retrievedAt,
+      sourceEffectiveAt: validated.source.effectiveAt,
     },
-    freshnessState,
-    contentHash,
+    freshnessState: validated.freshness,
+    contentHash: validated.contentHash,
   };
 
   const domainResult = validateParcel(parcel);

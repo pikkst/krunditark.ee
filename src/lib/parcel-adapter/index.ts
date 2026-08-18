@@ -1,9 +1,6 @@
 export type {
   ParcelParseErrorCode,
   ParcelParseError,
-  ProviderParcelDTO,
-  ProviderParcelGeometryRaw,
-  ProviderParcelSourceRaw,
   ParcelParseSuccess,
   ParcelParseFailure,
   ParcelParseResult,

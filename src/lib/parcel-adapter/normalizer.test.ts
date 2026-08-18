@@ -16,9 +16,11 @@ const VALID_PROVIDER_PAYLOAD: ProviderParcelDTO = {
     ],
   },
   crs: "EPSG:3301",
-  areaSqm: 100000,
-  addressText: "Test address 1",
-  landUseData: { zone: "residential" },
+  facts: {
+    areaSqm: 100000,
+    addressText: "Test address 1",
+    landUseData: { zone: "residential" },
+  },
   source: {
     id: "maru.cadastre.parcels",
     datasetVersion: "2026-08-01",
@@ -58,7 +60,9 @@ const VALID_MULTIPOLYGON_PAYLOAD: ProviderParcelDTO = {
     ],
   },
   crs: "EPSG:3301",
-  areaSqm: 200000,
+  facts: {
+    areaSqm: 200000,
+  },
   source: {
     id: "maru.cadastre.parcels",
     datasetVersion: "2026-08-01",
@@ -105,18 +109,18 @@ describe("parseProviderParcel (KT-028 runtime boundary)", () => {
       }
     });
 
-    test("generates id from cadastralId when source.objectId is missing", () => {
+    test("generates id from source.objectId when present", () => {
       const payload: ProviderParcelDTO = {
         ...VALID_PROVIDER_PAYLOAD,
         source: {
           ...VALID_PROVIDER_PAYLOAD.source,
-          objectId: undefined,
+          objectId: "obj-99999",
         },
       };
       const result = parseProviderParcel(payload);
       expect(result.valid).toBe(true);
       if (result.valid) {
-        expect(result.parcel.id).toBe("784011013143");
+        expect(result.parcel.id).toBe("obj-99999");
       }
     });
 
@@ -132,30 +136,30 @@ describe("parseProviderParcel (KT-028 runtime boundary)", () => {
       }
     });
 
-    test("defaults areaM2Computed to 0 when areaSqm is missing", () => {
+    test("defaults contentHash to empty string when missing", () => {
       const payload: ProviderParcelDTO = {
         ...VALID_PROVIDER_PAYLOAD,
-        areaSqm: undefined,
+        contentHash: undefined,
       };
       const result = parseProviderParcel(payload);
       expect(result.valid).toBe(true);
       if (result.valid) {
-        expect(result.parcel.facts.areaM2Computed).toBe(0);
+        expect(result.parcel.contentHash).toBe("");
       }
     });
 
     test("ignores unknown provider fields", () => {
       const payload = {
         ...VALID_PROVIDER_PAYLOAD,
-        unknownProviderField: "should-be-ignored",
+        providerSecret: "should-be-ignored",
         anotherUnknown: 42,
       };
       const result = parseProviderParcel(payload);
       expect(result.valid).toBe(true);
       if (result.valid) {
-        expect(
-          result.parcel.facts.landUseData?.unknownProviderField as string | undefined
-        ).toBeUndefined();
+        const serialized = JSON.stringify(result.parcel);
+        expect(serialized).not.toContain("providerSecret");
+        expect(serialized).not.toContain("anotherUnknown");
       }
     });
 
@@ -174,7 +178,10 @@ describe("parseProviderParcel (KT-028 runtime boundary)", () => {
     test("returns domain warnings when areaM2Computed is non-positive", () => {
       const payload: ProviderParcelDTO = {
         ...VALID_PROVIDER_PAYLOAD,
-        areaSqm: 0,
+        facts: {
+          ...VALID_PROVIDER_PAYLOAD.facts,
+          areaSqm: 0,
+        },
       };
       const result = parseProviderParcel(payload);
       expect(result.valid).toBe(true);
@@ -341,6 +348,27 @@ describe("parseProviderParcel (KT-028 runtime boundary)", () => {
       }
     });
 
+    test("rejects missing facts", () => {
+      const payload = { ...VALID_PROVIDER_PAYLOAD, facts: undefined };
+      const result = parseProviderParcel(payload);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.code === "MISSING_FACTS")).toBe(true);
+      }
+    });
+
+    test("rejects missing facts.areaSqm", () => {
+      const payload = {
+        ...VALID_PROVIDER_PAYLOAD,
+        facts: { ...VALID_PROVIDER_PAYLOAD.facts, areaSqm: undefined },
+      };
+      const result = parseProviderParcel(payload);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.code === "MISSING_FACTS_AREA_SQM")).toBe(true);
+      }
+    });
+
     test("rejects missing source", () => {
       const payload = { ...VALID_PROVIDER_PAYLOAD, source: undefined };
       const result = parseProviderParcel(payload);
@@ -498,6 +526,66 @@ describe("parseProviderParcel (KT-028 runtime boundary)", () => {
         expect(result.errors.some((e) => e.code === "MISSING_RETRIEVED_AT")).toBe(true);
       }
     });
+
+    test("rejects facts.areaSqm as string", () => {
+      const payload = {
+        ...VALID_PROVIDER_PAYLOAD,
+        facts: { ...VALID_PROVIDER_PAYLOAD.facts, areaSqm: "100" },
+      };
+      const result = parseProviderParcel(payload);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.code === "INVALID_FACTS_AREA_SQM")).toBe(true);
+      }
+    });
+
+    test("rejects source.objectId as number when provided", () => {
+      const payload = {
+        ...VALID_PROVIDER_PAYLOAD,
+        source: { ...VALID_PROVIDER_PAYLOAD.source, objectId: 123 },
+      };
+      const result = parseProviderParcel(payload);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.code === "INVALID_OPTIONAL_FIELD")).toBe(true);
+      }
+    });
+
+    test("rejects contentHash as number when provided", () => {
+      const payload = {
+        ...VALID_PROVIDER_PAYLOAD,
+        contentHash: 123,
+      };
+      const result = parseProviderParcel(payload);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.code === "INVALID_OPTIONAL_FIELD")).toBe(true);
+      }
+    });
+
+    test("rejects facts.addressText as number when provided", () => {
+      const payload = {
+        ...VALID_PROVIDER_PAYLOAD,
+        facts: { ...VALID_PROVIDER_PAYLOAD.facts, addressText: 123 },
+      };
+      const result = parseProviderParcel(payload);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.code === "INVALID_FACTS_ADDRESS_TEXT")).toBe(true);
+      }
+    });
+
+    test("rejects facts.landUseData as string when provided", () => {
+      const payload = {
+        ...VALID_PROVIDER_PAYLOAD,
+        facts: { ...VALID_PROVIDER_PAYLOAD.facts, landUseData: "not-an-object" },
+      };
+      const result = parseProviderParcel(payload);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.code === "INVALID_FACTS_LAND_USE_DATA")).toBe(true);
+      }
+    });
   });
 
   describe("invalid geometry", () => {
@@ -572,6 +660,29 @@ describe("parseProviderParcel (KT-028 runtime boundary)", () => {
       expect(result.valid).toBe(false);
       if (!result.valid) {
         expect(result.errors.some((e) => e.field === "geometry.coordinates[0][4][0]")).toBe(true);
+      }
+    });
+
+    test("rejects Polygon with extra malformed ordinate", () => {
+      const payload = {
+        ...VALID_PROVIDER_PAYLOAD,
+        geometry: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [650000, 6600000],
+              [651000, 6600000],
+              [651000, 6601000],
+              [650000, 6601000],
+              [650000, 6600000, "junk"],
+            ],
+          ],
+        },
+      };
+      const result = parseProviderParcel(payload);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.field === "geometry.coordinates[0][4]")).toBe(true);
       }
     });
 
@@ -747,29 +858,38 @@ describe("parseProviderParcel (KT-028 runtime boundary)", () => {
 
   describe("non-finite numeric input", () => {
     test("rejects NaN areaSqm", () => {
-      const payload = { ...VALID_PROVIDER_PAYLOAD, areaSqm: NaN };
+      const payload = {
+        ...VALID_PROVIDER_PAYLOAD,
+        facts: { ...VALID_PROVIDER_PAYLOAD.facts, areaSqm: NaN },
+      };
       const result = parseProviderParcel(payload);
       expect(result.valid).toBe(false);
       if (!result.valid) {
-        expect(result.errors.some((e) => e.code === "NON_FINITE_NUMERIC")).toBe(true);
+        expect(result.errors.some((e) => e.code === "INVALID_FACTS_AREA_SQM")).toBe(true);
       }
     });
 
     test("rejects Infinity areaSqm", () => {
-      const payload = { ...VALID_PROVIDER_PAYLOAD, areaSqm: Infinity };
+      const payload = {
+        ...VALID_PROVIDER_PAYLOAD,
+        facts: { ...VALID_PROVIDER_PAYLOAD.facts, areaSqm: Infinity },
+      };
       const result = parseProviderParcel(payload);
       expect(result.valid).toBe(false);
       if (!result.valid) {
-        expect(result.errors.some((e) => e.code === "NON_FINITE_NUMERIC")).toBe(true);
+        expect(result.errors.some((e) => e.code === "INVALID_FACTS_AREA_SQM")).toBe(true);
       }
     });
 
     test("rejects -Infinity areaSqm", () => {
-      const payload = { ...VALID_PROVIDER_PAYLOAD, areaSqm: -Infinity };
+      const payload = {
+        ...VALID_PROVIDER_PAYLOAD,
+        facts: { ...VALID_PROVIDER_PAYLOAD.facts, areaSqm: -Infinity },
+      };
       const result = parseProviderParcel(payload);
       expect(result.valid).toBe(false);
       if (!result.valid) {
-        expect(result.errors.some((e) => e.code === "NON_FINITE_NUMERIC")).toBe(true);
+        expect(result.errors.some((e) => e.code === "INVALID_FACTS_AREA_SQM")).toBe(true);
       }
     });
   });
@@ -796,6 +916,30 @@ describe("parseProviderParcel (KT-028 runtime boundary)", () => {
       expect(result.valid).toBe(false);
       if (!result.valid) {
         expect(result.errors.some((e) => e.field === "source.effectiveAt")).toBe(true);
+      }
+    });
+
+    test("rejects impossible calendar date 2026-02-30", () => {
+      const payload = {
+        ...VALID_PROVIDER_PAYLOAD,
+        source: { ...VALID_PROVIDER_PAYLOAD.source, retrievedAt: "2026-02-30T00:00:00Z" },
+      };
+      const result = parseProviderParcel(payload);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.field === "source.retrievedAt")).toBe(true);
+      }
+    });
+
+    test("rejects locale-style date string", () => {
+      const payload = {
+        ...VALID_PROVIDER_PAYLOAD,
+        source: { ...VALID_PROVIDER_PAYLOAD.source, retrievedAt: "01.08.2026 00:00:00" },
+      };
+      const result = parseProviderParcel(payload);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.field === "source.retrievedAt")).toBe(true);
       }
     });
 
@@ -970,6 +1114,8 @@ describe("parseProviderParcel (KT-028 runtime boundary)", () => {
         ).toBeUndefined();
         expect((result.parcel as unknown as Record<string, unknown>).areaSqm).toBeUndefined();
         expect((result.parcel as unknown as Record<string, unknown>).crs).toBeUndefined();
+        expect((result.parcel as unknown as Record<string, unknown>).geometry).toBeDefined();
+        expect((result.parcel as unknown as Record<string, unknown>).source).toBeDefined();
       }
     });
   });

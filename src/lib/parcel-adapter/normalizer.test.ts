@@ -967,6 +967,30 @@ describe("parseProviderParcel (KT-028 runtime boundary)", () => {
       }
     });
 
+    test("rejects timezone offset +24:00", () => {
+      const payload = {
+        ...VALID_PROVIDER_PAYLOAD,
+        source: { ...VALID_PROVIDER_PAYLOAD.source, retrievedAt: "2026-01-01T00:00:00+24:00" },
+      };
+      const result = parseProviderParcel(payload);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.field === "source.retrievedAt")).toBe(true);
+      }
+    });
+
+    test("rejects timezone offset +01:60", () => {
+      const payload = {
+        ...VALID_PROVIDER_PAYLOAD,
+        source: { ...VALID_PROVIDER_PAYLOAD.source, retrievedAt: "2026-01-01T00:00:00+01:60" },
+      };
+      const result = parseProviderParcel(payload);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.field === "source.retrievedAt")).toBe(true);
+      }
+    });
+
     test("accepts valid retrievedAt", () => {
       const payload = {
         ...VALID_PROVIDER_PAYLOAD,
@@ -989,6 +1013,33 @@ describe("parseProviderParcel (KT-028 runtime boundary)", () => {
   describe("invalid freshness", () => {
     test("rejects invalid freshness", () => {
       const payload = { ...VALID_PROVIDER_PAYLOAD, freshness: "not-a-state" };
+      const result = parseProviderParcel(payload);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.code === "INVALID_FRESHNESS")).toBe(true);
+      }
+    });
+
+    test("rejects non-string freshness as number", () => {
+      const payload = { ...VALID_PROVIDER_PAYLOAD, freshness: 123 };
+      const result = parseProviderParcel(payload);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.code === "INVALID_FRESHNESS")).toBe(true);
+      }
+    });
+
+    test("rejects non-string freshness as object", () => {
+      const payload = { ...VALID_PROVIDER_PAYLOAD, freshness: {} };
+      const result = parseProviderParcel(payload);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.code === "INVALID_FRESHNESS")).toBe(true);
+      }
+    });
+
+    test("rejects non-string freshness as array", () => {
+      const payload = { ...VALID_PROVIDER_PAYLOAD, freshness: [] };
       const result = parseProviderParcel(payload);
       expect(result.valid).toBe(false);
       if (!result.valid) {

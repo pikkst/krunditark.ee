@@ -168,6 +168,16 @@ function isValidIsoTimestamp(value: string): boolean {
     return false;
   }
 
+  const offsetHour = Number(match[7]);
+  const offsetMinute = Number(match[8]);
+
+  if (offsetHour > 23) {
+    return false;
+  }
+  if (offsetMinute > 59) {
+    return false;
+  }
+
   const year = Number(match[1]);
   const month = Number(match[2]);
   const day = Number(match[3]);
@@ -197,20 +207,20 @@ function validateOptionalString(value: unknown, field: string): string | undefin
   return value;
 }
 
-function buildValidatedDTO(raw: Record<string, unknown>): ValidatedProviderParcelDTO {
-  const cadastralNumber = raw.cadastralNumber as string;
-  const typedGeometry = raw.geometry as Record<string, unknown>;
-  const geometryType = typedGeometry.type as "Polygon" | "MultiPolygon";
-  const coordinates =
-    typedGeometry.coordinates as ValidatedProviderParcelDTO["geometry"]["coordinates"];
-  const crs = raw.crs as string;
-
-  const rawFacts = raw.facts as Record<string, unknown>;
+function buildValidatedDTO(
+  cadastralNumber: string,
+  geometryType: "Polygon" | "MultiPolygon",
+  coordinates: ValidatedProviderParcelDTO["geometry"]["coordinates"],
+  crs: string,
+  rawFacts: Record<string, unknown>,
+  typedSource: Record<string, unknown>,
+  rawFreshness: unknown,
+  rawContentHash: unknown
+): ValidatedProviderParcelDTO {
   const areaSqm = rawFacts.areaSqm as number;
   const addressText = validateOptionalString(rawFacts.addressText, "facts.addressText");
   const landUseData = rawFacts.landUseData as Record<string, unknown> | undefined;
 
-  const typedSource = raw.source as Record<string, unknown>;
   const sourceId = typedSource.id as string;
   const datasetVersion = typedSource.datasetVersion as string;
   const syncRun = typedSource.syncRun as string;
@@ -219,11 +229,15 @@ function buildValidatedDTO(raw: Record<string, unknown>): ValidatedProviderParce
   const retrievedAt = typedSource.retrievedAt as string;
   const effectiveAt = validateOptionalString(typedSource.effectiveAt, "source.effectiveAt");
 
-  const rawFreshness = raw.freshness as FreshnessState | undefined;
-  const freshness =
-    rawFreshness && VALID_FRESHNESS_STATES.has(rawFreshness) ? rawFreshness : "unknown";
+  let freshness: ValidatedProviderParcelDTO["freshness"] = "unknown";
+  if (isString(rawFreshness) && rawFreshness.trim().length > 0) {
+    const trimmed = rawFreshness as FreshnessState;
+    if (VALID_FRESHNESS_STATES.has(trimmed)) {
+      freshness = trimmed;
+    }
+  }
 
-  const contentHash = validateOptionalString(raw.contentHash, "contentHash") ?? "";
+  const contentHash = validateOptionalString(rawContentHash, "contentHash") ?? "";
 
   return {
     cadastralNumber,
@@ -468,8 +482,12 @@ export function parseProviderParcel(payload: unknown): ParcelParseResult {
   }
 
   const rawFreshness = raw.freshness;
-  if (isString(rawFreshness) && rawFreshness.trim().length > 0) {
-    if (!VALID_FRESHNESS_STATES.has(rawFreshness as FreshnessState)) {
+  if (rawFreshness !== undefined && rawFreshness !== null) {
+    if (!isString(rawFreshness) || rawFreshness.trim().length === 0) {
+      errors.push(
+        parseError("INVALID_FRESHNESS", "freshness", "freshness must be a valid FreshnessState")
+      );
+    } else if (!VALID_FRESHNESS_STATES.has(rawFreshness as FreshnessState)) {
       errors.push(
         parseError("INVALID_FRESHNESS", "freshness", "freshness must be a valid FreshnessState")
       );
@@ -491,17 +509,31 @@ export function parseProviderParcel(payload: unknown): ParcelParseResult {
     return { valid: false, errors };
   }
 
-  const validated = buildValidatedDTO(raw);
-
-  const cadastralId = normalizeCadastralId(validated.cadastralNumber);
-  const geometryType = validated.geometry.type;
-  const coordinates = validated.geometry.coordinates;
-  const crs = validated.crs;
+  const cadastralId = normalizeCadastralId(raw.cadastralNumber as string);
+  const typedGeometry = raw.geometry as Record<string, unknown>;
+  const geometryType = typedGeometry.type as "Polygon" | "MultiPolygon";
+  const coordinates =
+    typedGeometry.coordinates as ValidatedProviderParcelDTO["geometry"]["coordinates"];
+  const crs = raw.crs as string;
 
   const coordinateError = validateCoordinates(coordinates, geometryType, crs);
   if (coordinateError) {
     return { valid: false, errors: [coordinateError] };
   }
+
+  const typedSource = raw.source as Record<string, unknown>;
+  const typedFacts = raw.facts as Record<string, unknown>;
+
+  const validated = buildValidatedDTO(
+    cadastralId,
+    geometryType,
+    coordinates,
+    crs,
+    typedFacts,
+    typedSource,
+    rawFreshness,
+    raw.contentHash
+  );
 
   const geometry: ParcelGeometry =
     geometryType === "Polygon"

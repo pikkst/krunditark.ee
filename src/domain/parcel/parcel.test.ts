@@ -5,6 +5,7 @@ import {
   type Parcel,
   type SourceProvenance,
   type FreshnessState,
+  type CanonicalParcelCrs,
 } from "./types";
 
 describe("parcel domain model (KT-020)", () => {
@@ -139,7 +140,7 @@ describe("parcel domain model (KT-020)", () => {
           ],
         ],
       },
-      geometryCrs: "EPSG:4326",
+      geometryCrs: "EPSG:4326" as CanonicalParcelCrs,
       facts: { areaM2Computed: 1000 },
       source: {
         sourceId: "maru.cadastre.parcels",
@@ -385,69 +386,6 @@ describe("parcel domain model (KT-020)", () => {
       expect(result.errors.some((e) => e.field === "geometry.coordinates[0][0][4][1]")).toBe(true);
     });
 
-    test("rejects EPSG:4326 coordinate with longitude > 180", () => {
-      const result = validateParcel(
-        makeEstoniaPolygon4326({
-          geometry: {
-            type: "Polygon",
-            coordinates: [
-              [
-                [999, 59.4],
-                [999, 59.4],
-                [999, 59.4],
-                [999, 59.4],
-                [999, 59.4],
-              ],
-            ],
-          } as unknown as Parcel["geometry"],
-        })
-      );
-      expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.field === "geometry.coordinates[0][0][0]")).toBe(true);
-    });
-
-    test("rejects EPSG:4326 coordinate with latitude > 90", () => {
-      const result = validateParcel(
-        makeEstoniaPolygon4326({
-          geometry: {
-            type: "Polygon",
-            coordinates: [
-              [
-                [24.7, 999],
-                [24.7, 999],
-                [24.7, 999],
-                [24.7, 999],
-                [24.7, 999],
-              ],
-            ],
-          } as unknown as Parcel["geometry"],
-        })
-      );
-      expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.field === "geometry.coordinates[0][0][1]")).toBe(true);
-    });
-
-    test("rejects EPSG:4326 coordinate with negative out-of-range latitude", () => {
-      const result = validateParcel(
-        makeEstoniaPolygon4326({
-          geometry: {
-            type: "Polygon",
-            coordinates: [
-              [
-                [24.7, -999],
-                [24.7, -999],
-                [24.7, -999],
-                [24.7, -999],
-                [24.7, -999],
-              ],
-            ],
-          } as unknown as Parcel["geometry"],
-        })
-      );
-      expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.field === "geometry.coordinates[0][0][1]")).toBe(true);
-    });
-
     test("rejects EPSG:3301 coordinate outside Estonian bounds", () => {
       const result = validateParcel(
         makePolygon({
@@ -473,18 +411,18 @@ describe("parcel domain model (KT-020)", () => {
       ).toBe(true);
     });
 
-    test("accepts EPSG:4326 coordinate at valid boundary", () => {
+    test("accepts EPSG:3301 coordinate at valid boundary", () => {
       const result = validateParcel(
-        makeEstoniaPolygon4326({
+        makePolygon({
           geometry: {
             type: "Polygon",
             coordinates: [
               [
-                [-180, -90],
-                [180, -90],
-                [180, 90],
-                [-180, 90],
-                [-180, -90],
+                [350000, 6300000],
+                [350100, 6300000],
+                [350100, 6300100],
+                [350000, 6300100],
+                [350000, 6300000],
               ],
             ],
           } as unknown as Parcel["geometry"],
@@ -494,21 +432,28 @@ describe("parcel domain model (KT-020)", () => {
     });
 
     test("requires geometryCrs", () => {
-      const result = validateParcel(makePolygon({ geometryCrs: "" }));
+      const result = validateParcel(makePolygon({ geometryCrs: "" as CanonicalParcelCrs }));
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.field === "geometryCrs")).toBe(true);
     });
 
     test("rejects unsupported geometryCrs", () => {
-      const result = validateParcel(makePolygon({ geometryCrs: "EPSG:banana" }));
+      const result = validateParcel(
+        makePolygon({ geometryCrs: "EPSG:banana" as CanonicalParcelCrs })
+      );
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.field === "geometryCrs")).toBe(true);
     });
 
-    test("accepts supported geometryCrs values", () => {
-      const epsg4326 = validateParcel(makeEstoniaPolygon4326({ geometryCrs: "EPSG:4326" }));
-      expect(epsg4326.valid).toBe(true);
+    test("rejects canonical Parcel labeled EPSG:4326 (canonical is 3301 only)", () => {
+      const result = validateParcel(
+        makeEstoniaPolygon4326({ geometryCrs: "EPSG:4326" as CanonicalParcelCrs })
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "geometryCrs")).toBe(true);
+    });
 
+    test("accepts canonical Parcel labeled EPSG:3301", () => {
       const epsg3301 = validateParcel(makePolygon({ geometryCrs: "EPSG:3301" }));
       expect(epsg3301.valid).toBe(true);
     });

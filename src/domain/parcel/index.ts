@@ -9,6 +9,12 @@ export type {
   Parcel,
   ParcelValidationError,
   ParcelValidationResult,
+  CanonicalParcelCrs,
 } from "./types";
 
-export { normalizeCadastralId, isValidCadastralId, validateParcel } from "./types";
+export {
+  normalizeCadastralId,
+  isValidCadastralId,
+  validateParcel,
+  CANONICAL_PARCEL_CRS,
+} from "./types";

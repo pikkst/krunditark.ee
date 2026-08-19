@@ -134,6 +134,41 @@ describe("parcel snapshot database regression (KT-027)", () => {
     expect(result.rows[0].area_m2_geometry).toBeCloseTo(10000, 0);
   });
 
+  runTest("persisted canonical geometry reports ST_SRID = 3301", async () => {
+    await withAdvisoryLock(client, async () => {
+      await cleanStart(client);
+    });
+
+    const dataRelease = await client.query(
+      `INSERT INTO private.data_releases (release_key, status) VALUES ($1, 'promoted') RETURNING id`,
+      [`srid-readback-${crypto.randomUUID().slice(0, 8)}`]
+    );
+    const { sourceVersionId } = await createSourceVersion(client, dataRelease.rows[0].id);
+
+    const sourceSyncRunId = (
+      await client.query(`SELECT sync_run_id FROM private.source_dataset_versions WHERE id = $1`, [
+        sourceVersionId,
+      ])
+    ).rows[0].sync_run_id;
+
+    const inserted = await client.query(
+      `
+      INSERT INTO geo.parcel_snapshots (cadastral_id, source_dataset_version_id, source_sync_run_id, source_object_id, geometry, area_m2_source, address_text, normalizer_version, content_hash)
+      VALUES ($1, $2, $3, $4, extensions.ST_SetSRID('POLYGON((650000 6600000, 651000 6600000, 651000 6601000, 650000 6601000, 650000 6600000))'::extensions.geometry, 3301), 10000, 'Test Address', 'v1', 'hash-srid-readback')
+      RETURNING id
+      `,
+      ["cad-srid-readback", sourceVersionId, sourceSyncRunId, "obj-srid-readback"]
+    );
+
+    const readback = await client.query(
+      `SELECT ST_SRID(geometry) AS srid FROM geo.parcel_snapshots WHERE id = $1`,
+      [inserted.rows[0].id]
+    );
+
+    expect(readback.rows).toHaveLength(1);
+    expect(readback.rows[0].srid).toBe(3301);
+  });
+
   runTest("accepts valid MultiPolygon in EPSG:3301", async () => {
     await withAdvisoryLock(client, async () => {
       await cleanStart(client);

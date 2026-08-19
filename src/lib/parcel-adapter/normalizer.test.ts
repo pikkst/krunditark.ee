@@ -190,7 +190,9 @@ describe("parseProviderParcel (KT-028 runtime boundary)", () => {
       }
     });
 
-    test("accepts EPSG:4326 coordinates within valid bounds", () => {
+    test("reprojects EPSG:4326 provider geometry into canonical EPSG:3301", () => {
+      // A vertex at the LCC false origin (lon 24, lat 57.5175...) projects to the
+      // exact L-EST97 false origin (easting 500000, northing 6375000).
       const payload: ProviderParcelDTO = {
         ...VALID_PROVIDER_PAYLOAD,
         crs: "EPSG:4326",
@@ -198,11 +200,11 @@ describe("parseProviderParcel (KT-028 runtime boundary)", () => {
           type: "Polygon",
           coordinates: [
             [
-              [-180, -90],
-              [180, -90],
-              [180, 90],
-              [-180, 90],
-              [-180, -90],
+              [24.0, 57.5175539305556],
+              [24.1, 57.5175539305556],
+              [24.1, 57.6],
+              [24.0, 57.6],
+              [24.0, 57.5175539305556],
             ],
           ],
         },
@@ -210,7 +212,29 @@ describe("parseProviderParcel (KT-028 runtime boundary)", () => {
       const result = parseProviderParcel(payload);
       expect(result.valid).toBe(true);
       if (result.valid) {
-        expect(result.parcel.geometryCrs).toBe("EPSG:4326");
+        expect(result.parcel.geometryCrs).toBe("EPSG:3301");
+        const firstVertex = result.parcel.geometry.coordinates[0][0];
+        expect(firstVertex[0]).toBeCloseTo(500000, 3);
+        expect(firstVertex[1]).toBeCloseTo(6375000, 3);
+        // The source 4326 coordinates are degrees; the canonical coordinates are
+        // metres. They must not be identical (no mere SRID relabeling).
+        expect(firstVertex[0]).not.toBeCloseTo(24.0, 0);
+        expect(firstVertex[1]).not.toBeCloseTo(57.5175539305556, 0);
+      }
+    });
+
+    test("passes through EPSG:3301 provider geometry unchanged (canonical)", () => {
+      const result = parseProviderParcel(VALID_PROVIDER_PAYLOAD);
+      expect(result.valid).toBe(true);
+      if (result.valid) {
+        expect(result.parcel.geometryCrs).toBe("EPSG:3301");
+        const inputGeometry = VALID_PROVIDER_PAYLOAD.geometry as {
+          coordinates: number[][][];
+        };
+        const input = inputGeometry.coordinates[0][0];
+        const output = result.parcel.geometry.coordinates[0][0];
+        expect(output[0]).toBeCloseTo(input[0], 6);
+        expect(output[1]).toBeCloseTo(input[1], 6);
       }
     });
   });

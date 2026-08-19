@@ -60,7 +60,7 @@ RLS:
 | `id`                         | uuid PK              |                                                                                   |
 | `user_id`                    | uuid FK auth.users   | owner                                                                             |
 | `name`                       | text                 | user label                                                                        |
-| `cadastral_id`               | text                 | selected parcel, not ownership proof                                              |
+| `cadastral_id`               | text                 | 12-digit Estonian kadastritunnus (normalized, no separators)                      |
 | `intent_code`                | text/enum nullable   | stable locale-independent user intent (KT-024)                                    |
 | `current_parcel_snapshot_id` | uuid nullable        | latest selected parcel snapshot; FK `geo.parcel_snapshots(id) ON DELETE SET NULL` |
 | `created_at`                 | timestamptz          |                                                                                   |
@@ -256,7 +256,7 @@ The same cadastral unit can change over time. Analyses reference a snapshot boun
 | Column                      | Type                               | Notes                                                                   |
 | --------------------------- | ---------------------------------- | ----------------------------------------------------------------------- |
 | `id`                        | uuid PK                            |                                                                         |
-| `cadastral_id`              | text                               | indexed, max 50 chars                                                   |
+| `cadastral_id`              | text                               | indexed; 12-digit Estonian kadastritunnus (normalized, no separators)   |
 | `source_dataset_version_id` | uuid FK                            | exact source dataset version                                            |
 | `source_sync_run_id`        | uuid FK                            | provenance convenience; must match dataset version's sync run           |
 | `source_object_id`          | text nullable                      | source-scoped object ID, max 200 chars                                  |

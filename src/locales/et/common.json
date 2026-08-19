@@ -47,5 +47,13 @@
     "understandParcel": "Mõistan krunti",
     "existingBuildingModification": "Muudan olemasolevat hoonet",
     "professional": "Professionaalne"
+  },
+  "validation": {
+    "cadastralId": {
+      "invalidType": "Katastritunnus peab olema string kujul '12345:678:9012'",
+      "empty": "Katastritunnus ei tohi olla tühi",
+      "invalidCharacters": "Katastritunnus sisaldab sobitumatid kirjamärke; lubatud on ainult numbrid, koolonid, kriirjoon, punkt ja tühikud",
+      "wrongLength": "Katastritunnus peab pärast normaliseerimist olema 12 numbrit"
+    }
   }
 }

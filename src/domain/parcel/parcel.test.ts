@@ -31,9 +31,10 @@ describe("parcel domain model (KT-020)", () => {
   });
 
   describe("isValidCadastralId", () => {
-    test("accepts numeric ids of typical length", () => {
-      expect(isValidCadastralId("1234567890")).toBe(true);
-      expect(isValidCadastralId("12345")).toBe(true);
+    test("accepts valid 12-digit numeric ids", () => {
+      expect(isValidCadastralId("123456789012")).toBe(true);
+      expect(isValidCadastralId("412010040110")).toBe(true);
+      expect(isValidCadastralId("784011013143")).toBe(true);
     });
 
     test("accepts official colon-delimited ids", () => {
@@ -42,23 +43,34 @@ describe("parcel domain model (KT-020)", () => {
     });
 
     test("rejects ids with letters", () => {
-      expect(isValidCadastralId("12345abc")).toBe(false);
+      expect(isValidCadastralId("12345abc6789")).toBe(false);
     });
 
     test("rejects empty string", () => {
       expect(isValidCadastralId("")).toBe(false);
     });
 
+    test("rejects ids with too few digits after normalization", () => {
+      expect(isValidCadastralId("12345")).toBe(false);
+      expect(isValidCadastralId("1234567890")).toBe(false);
+    });
+
+    test("rejects ids with too many digits after normalization", () => {
+      expect(isValidCadastralId("1234567890123")).toBe(false);
+      expect(isValidCadastralId("12345678901234567890")).toBe(false);
+    });
+
     test("normalizes before validating", () => {
-      expect(isValidCadastralId(" 12345-6789 ")).toBe(true);
-      expect(isValidCadastralId(" 41201:004:0110 ")).toBe(true);
+      expect(isValidCadastralId(" 41201-004-0110 ")).toBe(true);
+      expect(isValidCadastralId(" 78401:101:3143 ")).toBe(true);
+      expect(isValidCadastralId("41201 004 0110")).toBe(true);
     });
   });
 
   describe("validateParcel", () => {
     const makePolygon = (overrides: Partial<Parcel> = {}): Parcel => ({
       id: "parcel-1",
-      cadastralId: "1234567890",
+      cadastralId: "412010040110",
       geometry: {
         type: "Polygon",
         coordinates: [
@@ -87,7 +99,7 @@ describe("parcel domain model (KT-020)", () => {
 
     const makeMultiPolygon = (overrides: Partial<Parcel> = {}): Parcel => ({
       id: "parcel-2",
-      cadastralId: "1234567890",
+      cadastralId: "412010040110",
       geometry: {
         type: "MultiPolygon",
         coordinates: [
@@ -127,7 +139,7 @@ describe("parcel domain model (KT-020)", () => {
 
     const makeEstoniaPolygon4326 = (overrides: Partial<Parcel> = {}): Parcel => ({
       id: "parcel-3",
-      cadastralId: "1234567890",
+      cadastralId: "412010040110",
       geometry: {
         type: "Polygon",
         coordinates: [

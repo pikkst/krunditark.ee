@@ -138,7 +138,7 @@ describe("CRS transform (EPSG:3301 canonical, L-EST97 LCC 2SP)", () => {
   function canonicalParcel(geometry: ParcelGeometry): Parcel {
     return {
       id: "p-1",
-      cadastralId: "1234567890",
+      cadastralId: "412010040110",
       geometry,
       geometryCrs: CANONICAL_PARCEL_CRS,
       facts: { areaM2Computed: 0 },

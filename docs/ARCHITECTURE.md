@@ -326,6 +326,21 @@ address/search result
 
 Never silently choose a parcel when multiple are plausible.
 
+### Runtime parsing boundary
+
+External provider payloads must never be cast directly to canonical domain types. Every adapter entry point accepts `unknown` and runs an explicit runtime parser/normalizer that:
+
+- validates required object structure, primitive types, timestamps, IDs, geometry shape, and numeric values;
+- rejects non-finite numeric input (`NaN`, `Infinity`, `-Infinity`);
+- rejects invalid timestamps deterministically;
+- keeps provider-specific property names/types inside the adapter layer;
+- returns typed parse/validation errors instead of uncaught property-access/type errors;
+- produces a canonical provider-independent `Parcel` value on success.
+
+Parser errors distinguish malformed provider payloads from domain-level unsupported/unknown conditions where relevant. Unknown provider fields are safely ignored or retained only through the approved noncritical extras policy.
+
+Future external adapters must follow the same boundary pattern. Provider DTOs must not leak into UI or rules code.
+
 ## 11. Geospatial architecture
 
 ### Canonical analysis CRS

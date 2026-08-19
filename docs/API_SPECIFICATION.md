@@ -147,15 +147,29 @@ Example:
   "data": [
     {
       "id": "source-scoped-id",
+      "addressId": "address-version-id",
       "label": "Pärnu mnt 10, Tallinn",
-      "objectType": "address",
+      "objectType": "building",
+      "objectTypeCode": "E",
       "coordinates": {
         "lat": 59.0,
         "lon": 24.0
       },
+      "coordinatesEpsg3301": {
+        "x": 650000,
+        "y": 6600000
+      },
       "source": {
         "id": "maru.inaks",
         "authority": "Maa- ja Ruumiamet"
+      },
+      "status": "K",
+      "primary": true,
+      "provenance": {
+        "sourceId": "maru.inaks",
+        "sourceObjectId": "source-scoped-id",
+        "normalizerVersion": "1",
+        "retrievedAt": "2026-08-19T00:00:00Z"
       }
     }
   ],

@@ -63,6 +63,7 @@ let fetchSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
   (import.meta.env as Record<string, string | undefined>).VITE_SUPABASE_URL = MOCK_SUPABASE_URL;
+  (import.meta.env as Record<string, string | undefined>).VITE_APP_ENV = "test";
   getAddressSearchCache().clear();
   fetchSpy = vi.spyOn(globalThis, "fetch");
   vi.useFakeTimers();
@@ -115,7 +116,22 @@ describe("searchAddress", () => {
     }
   });
 
-  it("returns UPSTREAM_ERROR when Edge Function returns non-ok", async () => {
+  it("preserves ADDRESS_SEARCH_UNAVAILABLE from Edge 502 body", async () => {
+    fetchSpy.mockResolvedValueOnce({
+      ok: false,
+      status: 502,
+      json: () =>
+        Promise.resolve({ error: { code: "ADDRESS_SEARCH_UNAVAILABLE", message: "In-AKS down" } }),
+    } as unknown as Response);
+
+    const result = await searchAddress("Mustamäe tee 51");
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.error.code).toBe("ADDRESS_SEARCH_UNAVAILABLE");
+    }
+  });
+
+  it("returns UPSTREAM_ERROR when Edge Function returns non-ok without known code", async () => {
     fetchSpy.mockResolvedValueOnce({
       ok: false,
       status: 500,
@@ -142,7 +158,9 @@ describe("searchAddress", () => {
     mockFetchOk({ addresses: [] });
     const emptyResult = await searchAddress("empty result");
     expect(emptyResult.valid).toBe(true);
-    expect(emptyResult.valid && emptyResult.results).toHaveLength(0);
+    if (emptyResult.valid) {
+      expect(emptyResult.results).toHaveLength(0);
+    }
 
     fetchSpy.mockRejectedValueOnce(new Error("network down"));
     const unavailableResult = await searchAddress("network error");
@@ -239,6 +257,25 @@ describe("searchAddress", () => {
     expect(third.valid).toBe(true);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
+
+  it("uses 5min cache for empty adrid exact lookup", async () => {
+    mockFetchOk({ addresses: [] });
+
+    const first = await searchAddress("999999999");
+    expect(first.valid).toBe(true);
+    expect(first.valid && first.results).toHaveLength(0);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(4 * 60 * 1000);
+    const second = await searchAddress("999999999");
+    expect(second.valid).toBe(true);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(2 * 60 * 1000);
+    const third = await searchAddress("999999999");
+    expect(third.valid).toBe(true);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("createDebouncedSearch", () => {
@@ -246,7 +283,8 @@ describe("createDebouncedSearch", () => {
     mockFetchOk({ addresses: [] });
 
     const debounced = createDebouncedSearch({ debounceMs: 500 });
-    const promise = debounced.search("test");
+    const controller = new AbortController();
+    const promise = debounced.search("test", controller.signal);
 
     expect(fetchSpy).not.toHaveBeenCalled();
 
@@ -256,7 +294,7 @@ describe("createDebouncedSearch", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("cancels previous pending search when a new query arrives", async () => {
+  it("rejects previous pending search when a new query arrives", async () => {
     mockFetchOk({ addresses: [] });
 
     const debounced = createDebouncedSearch({ debounceMs: 500 });
@@ -265,7 +303,7 @@ describe("createDebouncedSearch", () => {
     const secondPromise = debounced.search("second");
     vi.advanceTimersByTime(500);
 
-    await expect(firstPromise).rejects.toThrow("Debounced search cancelled by new query");
+    await expect(firstPromise).rejects.toThrow("Debounced search aborted");
     const secondResult = await secondPromise;
     expect(secondResult.valid).toBe(true);
 
@@ -273,15 +311,76 @@ describe("createDebouncedSearch", () => {
     expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("q=second"), expect.anything());
   });
 
-  it("cancels pending search on explicit cancel", async () => {
+  it("resolves newest query even if older in-flight request finishes later", async () => {
+    const normalizer = await import("../../inaks-adapter/normalizer");
+    const parseSpy = vi.spyOn(normalizer, "parseInAksAddressResponse").mockImplementation((raw) => {
+      const adrId = raw?.addresses?.[0]?.adr_id ?? "unknown";
+      return {
+        valid: true,
+        results: [
+          {
+            id: `inaks-${adrId}`,
+            addressId: adrId,
+            label: `Address ${adrId}`,
+            objectType: "building" as const,
+            objectTypeCode: "E",
+            coordinates: { lat: 0, lon: 0 },
+            coordinatesEpsg3301: { x: 0, y: 0 },
+            source: { id: "maru.inaks", authority: "Maa- ja Ruumiamet" },
+            administrative: {},
+            status: "K",
+            primary: true,
+            provenance: {
+              sourceId: "maru.inaks",
+              sourceObjectId: adrId,
+              normalizerVersion: "1",
+              retrievedAt: new Date().toISOString(),
+            },
+          },
+        ],
+        warnings: [],
+      };
+    });
+
+    fetchSpy.mockImplementation((url: string) => {
+      if (url.includes("q=A")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ addresses: [{ adr_id: "A" }] }),
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ addresses: [{ adr_id: "B" }] }),
+      } as Response);
+    });
+
+    const debounced = createDebouncedSearch({ debounceMs: 500 });
+    const resultA = debounced.search("A");
+    vi.advanceTimersByTime(200);
+    const resultB = debounced.search("B");
+    vi.advanceTimersByTime(500);
+
+    await expect(resultA).rejects.toThrow("Debounced search aborted");
+    const finalB = await resultB;
+    expect(finalB.valid).toBe(true);
+    if (finalB.valid) {
+      expect(finalB.results[0].addressId).toBe("B");
+    }
+
+    parseSpy.mockRestore();
+  });
+
+  it("cancels pending search on explicit abort signal", async () => {
     mockFetchOk({ addresses: [] });
 
     const debounced = createDebouncedSearch({ debounceMs: 500 });
-    const promise = debounced.search("test");
-    debounced.cancel();
+    const controller = new AbortController();
+    const promise = debounced.search("test", controller.signal);
+    controller.abort();
 
     vi.advanceTimersByTime(1000);
-    await expect(promise).rejects.toThrow("Debounced search cancelled");
+    await expect(promise).rejects.toThrow("Debounced search aborted");
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

@@ -54,30 +54,33 @@ export function useAddressSearch(
     abortRef.current = controller;
 
     const debounced = debouncedRef.current;
-    debounced.search(trimmed, controller.signal).then((response) => {
-      if (response.valid) {
-        setState({
-          results: response.results,
-          error: null,
-          isLoading: false,
-        });
-      } else {
-        setState({
-          results: [],
-          error: response.error,
-          isLoading: false,
-        });
+    debounced.search(trimmed, controller.signal).then(
+      (response) => {
+        if (response.valid) {
+          setState({
+            results: response.results,
+            error: null,
+            isLoading: false,
+          });
+        } else {
+          setState({
+            results: [],
+            error: response.error,
+            isLoading: false,
+          });
+        }
+      },
+      () => {
+        setState((prev) => ({ ...prev, isLoading: false }));
       }
-    });
+    );
 
     return () => {
-      debounced.cancel();
       controller.abort();
     };
   }, [query, trimmed, isEmpty, isTooLong]);
 
   const clear = useCallback(() => {
-    debouncedRef.current.cancel();
     if (abortRef.current) {
       abortRef.current.abort();
     }

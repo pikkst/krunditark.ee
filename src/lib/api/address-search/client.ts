@@ -1,5 +1,6 @@
 import { parseInAksAddressResponse } from "../../inaks-adapter/normalizer";
 import type {
+  AddressSearchErrorCode,
   AddressSearchResponse,
   AddressSearchSuccess,
   AddressSearchFailure,
@@ -9,19 +10,27 @@ import type {
 
 const INAKS_NORMALIZER_VERSION = "1";
 
-function simpleHash(str: string): string {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash;
-  }
-  return Math.abs(hash).toString(36);
+function getEnvironment(): string {
+  return import.meta.env.VITE_APP_ENV ?? "local";
 }
 
-function buildCacheKey(query: string, kind: "address" | "adrid" | "empty"): string {
+async function sha256(message: string): Promise<string> {
+  const data = new TextEncoder().encode(message);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  const bytes = new Uint8Array(hash);
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function buildCacheKey(
+  environment: string,
+  query: string,
+  kind: "address" | "adrid" | "empty"
+): Promise<string> {
   const normalized = query.trim().toLowerCase();
-  return `inaks:${kind}:${simpleHash(normalized)}`;
+  const queryHash = await sha256(normalized);
+  return `inaks:${environment}:${INAKS_NORMALIZER_VERSION}:${kind}:${queryHash}`;
 }
 
 class AddressSearchCache {
@@ -91,7 +100,8 @@ export async function searchAddress(
   }
 
   const isAdrid = /^\d+$/.test(trimmed);
-  const cacheKey = buildCacheKey(trimmed, isAdrid ? "adrid" : "address");
+  const environment = getEnvironment();
+  const cacheKey = await buildCacheKey(environment, trimmed, isAdrid ? "adrid" : "address");
   const cached = cache.get(cacheKey);
   if (cached) return cached;
 
@@ -103,11 +113,23 @@ export async function searchAddress(
     });
 
     if (!response.ok) {
+      let edgeErrorCode: AddressSearchErrorCode | undefined;
+      try {
+        const errorBody = (await response.json()) as { error?: { code?: string } };
+        if (errorBody.error?.code && errorBody.error.code === "ADDRESS_SEARCH_UNAVAILABLE") {
+          edgeErrorCode = "ADDRESS_SEARCH_UNAVAILABLE";
+        }
+      } catch {
+        // ignore parse error, fall through to UPSTREAM_ERROR
+      }
+
       const failure: AddressSearchFailure = {
         valid: false,
         error: {
-          code: "UPSTREAM_ERROR",
-          message: `Address search returned status ${response.status}`,
+          code: edgeErrorCode ?? "UPSTREAM_ERROR",
+          message: edgeErrorCode
+            ? "Address search service is unavailable"
+            : `Address search returned status ${response.status}`,
         },
       };
       cache.set(cacheKey, failure, 60 * 1000);
@@ -187,42 +209,45 @@ export async function searchAddress(
 export function createDebouncedSearch(options: { debounceMs?: number } = {}) {
   const debounceMs = options.debounceMs ?? 300;
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  let latestResolve: ((value: AddressSearchResponse) => void) | null = null;
-  let latestReject: ((reason: unknown) => void) | null = null;
+  let currentReject: ((reason: unknown) => void) | null = null;
 
   return {
     search: (query: string, signal?: AbortSignal): Promise<AddressSearchResponse> => {
       if (timeoutId) {
         clearTimeout(timeoutId);
-        latestReject?.(new Error("Debounced search cancelled by new query"));
+        currentReject?.(new Error("Debounced search aborted"));
       }
 
       return new Promise<AddressSearchResponse>((resolve, reject) => {
-        latestResolve = resolve;
-        latestReject = reject;
+        currentReject = reject;
 
         timeoutId = setTimeout(async () => {
+          timeoutId = null;
+          currentReject = null;
+
           try {
             const result = await searchAddress(query, { signal });
-            latestResolve?.(result);
+            resolve(result);
           } catch (err) {
-            latestReject?.(err);
-          } finally {
-            timeoutId = null;
-            latestResolve = null;
-            latestReject = null;
+            reject(err);
           }
         }, debounceMs);
+
+        if (signal) {
+          signal.addEventListener(
+            "abort",
+            () => {
+              if (timeoutId) {
+                clearTimeout(timeoutId);
+                timeoutId = null;
+              }
+              currentReject = null;
+              reject(new Error("Debounced search aborted"));
+            },
+            { once: true }
+          );
+        }
       });
-    },
-    cancel: (): void => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-        latestReject?.(new Error("Debounced search cancelled"));
-        timeoutId = null;
-        latestResolve = null;
-        latestReject = null;
-      }
     },
   };
 }

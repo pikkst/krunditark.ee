@@ -9,6 +9,9 @@ const CORS_HEADERS = {
   "Access-Control-Max-Age": "86400",
 };
 
+const QUERY_MAX_LENGTH = 256;
+const ADRID_MAX_LENGTH = 64;
+
 function jsonResponse(body: unknown, status: number, headers: Record<string, string>) {
   return new Response(JSON.stringify(body), {
     status,
@@ -48,6 +51,22 @@ serve(async (req) => {
   if (query && adrid) {
     return jsonResponse(
       { error: "INVALID_INPUT", message: "Provide only one of q or adrid" },
+      400,
+      {}
+    );
+  }
+
+  if (query && query.length > QUERY_MAX_LENGTH) {
+    return jsonResponse(
+      { error: "INVALID_INPUT", message: `q must not exceed ${QUERY_MAX_LENGTH} characters` },
+      400,
+      {}
+    );
+  }
+
+  if (adrid && (adrid.length === 0 || adrid.length > ADRID_MAX_LENGTH || !/^\d+$/.test(adrid))) {
+    return jsonResponse(
+      { error: "INVALID_INPUT", message: "adrid must be a digits-only identifier" },
       400,
       {}
     );
@@ -95,7 +114,7 @@ serve(async (req) => {
     const isExactLookup = !!adrid;
     const hasEmptyAddresses =
       !data.addresses || !Array.isArray(data.addresses) || data.addresses.length === 0;
-    const cacheTtl = isExactLookup ? 86400 : hasEmptyAddresses ? 300 : 3600;
+    const cacheTtl = hasEmptyAddresses ? 300 : isExactLookup ? 86400 : 3600;
 
     return jsonResponse(data, 200, {
       "Cache-Control": `public, max-age=${cacheTtl}, s-maxage=${cacheTtl}`,

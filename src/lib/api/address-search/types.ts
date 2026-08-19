@@ -27,6 +27,7 @@ export interface SearchAddressOptions {
   debounceMs?: number;
   maxQueryLength?: number;
   signal?: AbortSignal;
+  queryType?: "address" | "adrid";
 }
 
 export interface CachedEntry<T> {

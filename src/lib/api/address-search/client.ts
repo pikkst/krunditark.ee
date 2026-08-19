@@ -61,18 +61,24 @@ export function getAddressSearchCache(): AddressSearchCache {
   return cache;
 }
 
-function buildEdgeFunctionUrl(query: string, isAdrid: boolean): string {
+function buildEdgeFunctionUrl(query: string, queryType: "address" | "adrid"): string {
   const baseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, "");
   if (!baseUrl) {
     throw new Error("VITE_SUPABASE_URL is not configured");
   }
   const url = new URL(`${baseUrl}/functions/v1/address-search`);
-  if (isAdrid) {
+  if (queryType === "adrid") {
     url.searchParams.set("adrid", query);
   } else {
     url.searchParams.set("q", query);
   }
   return url.toString();
+}
+
+function mapEdgeErrorCode(edgeError: string | undefined): AddressSearchErrorCode | undefined {
+  if (edgeError === "ADDRESS_SEARCH_UNAVAILABLE") return "ADDRESS_SEARCH_UNAVAILABLE";
+  if (edgeError === "INVALID_INPUT") return "INVALID_INPUT";
+  return undefined;
 }
 
 export async function searchAddress(
@@ -81,6 +87,7 @@ export async function searchAddress(
 ): Promise<AddressSearchResponse> {
   const trimmed = query.trim();
   const maxLength = options.maxQueryLength ?? 256;
+  const queryType = options.queryType ?? "address";
 
   if (trimmed.length === 0) {
     return {
@@ -99,13 +106,12 @@ export async function searchAddress(
     };
   }
 
-  const isAdrid = /^\d+$/.test(trimmed);
   const environment = getEnvironment();
-  const cacheKey = await buildCacheKey(environment, trimmed, isAdrid ? "adrid" : "address");
+  const cacheKey = await buildCacheKey(environment, trimmed, queryType);
   const cached = cache.get(cacheKey);
   if (cached) return cached;
 
-  const targetUrl = buildEdgeFunctionUrl(trimmed, isAdrid);
+  const targetUrl = buildEdgeFunctionUrl(trimmed, queryType);
 
   try {
     const response = await fetch(targetUrl, {
@@ -114,11 +120,10 @@ export async function searchAddress(
 
     if (!response.ok) {
       let edgeErrorCode: AddressSearchErrorCode | undefined;
+      let errorBody: { error?: string; message?: string } = {};
       try {
-        const errorBody = (await response.json()) as { error?: { code?: string } };
-        if (errorBody.error?.code && errorBody.error.code === "ADDRESS_SEARCH_UNAVAILABLE") {
-          edgeErrorCode = "ADDRESS_SEARCH_UNAVAILABLE";
-        }
+        errorBody = (await response.json()) as { error?: string; message?: string };
+        edgeErrorCode = mapEdgeErrorCode(errorBody.error);
       } catch {
         // ignore parse error, fall through to UPSTREAM_ERROR
       }
@@ -128,7 +133,7 @@ export async function searchAddress(
         error: {
           code: edgeErrorCode ?? "UPSTREAM_ERROR",
           message: edgeErrorCode
-            ? "Address search service is unavailable"
+            ? (errorBody.message ?? "Address search service is unavailable")
             : `Address search returned status ${response.status}`,
         },
       };
@@ -184,7 +189,7 @@ export async function searchAddress(
       warnings: parsed.warnings,
     };
 
-    const ttl = isAdrid ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000;
+    const ttl = queryType === "adrid" ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000;
     cache.set(cacheKey, success, ttl);
     return success;
   } catch (err) {
@@ -206,43 +211,63 @@ export async function searchAddress(
   }
 }
 
+export async function searchAddressByAdrid(
+  adrid: string,
+  options: Omit<SearchAddressOptions, "queryType"> = {}
+): Promise<AddressSearchResponse> {
+  return searchAddress(adrid, { ...options, queryType: "adrid" });
+}
+
 export function createDebouncedSearch(options: { debounceMs?: number } = {}) {
   const debounceMs = options.debounceMs ?? 300;
-  let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  let currentReject: ((reason: unknown) => void) | null = null;
+  let sharedTimer: ReturnType<typeof setTimeout> | null = null;
+  let sharedReject: ((reason: unknown) => void) | null = null;
+  let invocationId = 0;
 
   return {
     search: (query: string, signal?: AbortSignal): Promise<AddressSearchResponse> => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-        currentReject?.(new Error("Debounced search aborted"));
+      const currentId = ++invocationId;
+
+      if (sharedTimer) {
+        clearTimeout(sharedTimer);
+        sharedReject?.(new Error("Debounced search aborted"));
       }
 
       return new Promise<AddressSearchResponse>((resolve, reject) => {
-        currentReject = reject;
+        sharedReject = reject;
 
-        timeoutId = setTimeout(async () => {
-          timeoutId = null;
-          currentReject = null;
+        const timerId = setTimeout(async () => {
+          if (currentId !== invocationId) {
+            return;
+          }
+
+          sharedTimer = null;
+          sharedReject = null;
 
           try {
             const result = await searchAddress(query, { signal });
-            resolve(result);
+            if (currentId === invocationId) {
+              resolve(result);
+            }
           } catch (err) {
-            reject(err);
+            if (currentId === invocationId) {
+              reject(err);
+            }
           }
         }, debounceMs);
+
+        sharedTimer = timerId;
 
         if (signal) {
           signal.addEventListener(
             "abort",
             () => {
-              if (timeoutId) {
-                clearTimeout(timeoutId);
-                timeoutId = null;
+              if (currentId === invocationId && sharedTimer === timerId) {
+                clearTimeout(timerId);
+                sharedTimer = null;
+                sharedReject = null;
+                reject(new Error("Debounced search aborted"));
               }
-              currentReject = null;
-              reject(new Error("Debounced search aborted"));
             },
             { once: true }
           );

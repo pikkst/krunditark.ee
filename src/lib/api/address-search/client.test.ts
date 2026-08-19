@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { searchAddress, createDebouncedSearch, getAddressSearchCache } from "./client";
+import {
+  searchAddress,
+  searchAddressByAdrid,
+  createDebouncedSearch,
+  getAddressSearchCache,
+} from "./client";
 
 const MOCK_SUPABASE_URL = "http://127.0.0.1:54321";
 
@@ -116,18 +121,31 @@ describe("searchAddress", () => {
     }
   });
 
-  it("preserves ADDRESS_SEARCH_UNAVAILABLE from Edge 502 body", async () => {
+  it("preserves ADDRESS_SEARCH_UNAVAILABLE from flat Edge 502 body", async () => {
     fetchSpy.mockResolvedValueOnce({
       ok: false,
       status: 502,
-      json: () =>
-        Promise.resolve({ error: { code: "ADDRESS_SEARCH_UNAVAILABLE", message: "In-AKS down" } }),
+      json: () => Promise.resolve({ error: "ADDRESS_SEARCH_UNAVAILABLE", message: "In-AKS down" }),
     } as unknown as Response);
 
     const result = await searchAddress("Mustamäe tee 51");
     expect(result.valid).toBe(false);
     if (!result.valid) {
       expect(result.error.code).toBe("ADDRESS_SEARCH_UNAVAILABLE");
+    }
+  });
+
+  it("preserves INVALID_INPUT from flat Edge 400 body", async () => {
+    fetchSpy.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: () => Promise.resolve({ error: "INVALID_INPUT", message: "bad query" }),
+    } as unknown as Response);
+
+    const result = await searchAddress("Mustamäe tee 51");
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.error.code).toBe("INVALID_INPUT");
     }
   });
 
@@ -203,20 +221,36 @@ describe("searchAddress", () => {
     }
   });
 
-  it("uses 24h cache for exact adrid lookup", async () => {
+  it("uses free-text mode by default even for digits-only query", async () => {
+    mockFetchOk({ addresses: [] });
+
+    await searchAddress("12");
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("q=12"), expect.anything());
+  });
+
+  it("uses adrid mode only when explicitly requested", async () => {
+    mockFetchOk({ addresses: [] });
+
+    await searchAddressByAdrid("12");
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("adrid=12"), expect.anything());
+  });
+
+  it("uses 24h cache for explicit adrid lookup", async () => {
     mockFetchOk(VALID_INAKS_RESPONSE);
 
-    const first = await searchAddress("2105921");
+    const first = await searchAddressByAdrid("2105921");
     expect(first.valid).toBe(true);
     expect(fetchSpy).toHaveBeenCalledTimes(1);
 
     vi.advanceTimersByTime(23 * 60 * 60 * 1000);
-    const second = await searchAddress("2105921");
+    const second = await searchAddressByAdrid("2105921");
     expect(second.valid).toBe(true);
     expect(fetchSpy).toHaveBeenCalledTimes(1);
 
     vi.advanceTimersByTime(2 * 60 * 60 * 1000);
-    const third = await searchAddress("2105921");
+    const third = await searchAddressByAdrid("2105921");
     expect(third.valid).toBe(true);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
@@ -261,18 +295,18 @@ describe("searchAddress", () => {
   it("uses 5min cache for empty adrid exact lookup", async () => {
     mockFetchOk({ addresses: [] });
 
-    const first = await searchAddress("999999999");
+    const first = await searchAddressByAdrid("999999999");
     expect(first.valid).toBe(true);
     expect(first.valid && first.results).toHaveLength(0);
     expect(fetchSpy).toHaveBeenCalledTimes(1);
 
     vi.advanceTimersByTime(4 * 60 * 1000);
-    const second = await searchAddress("999999999");
+    const second = await searchAddressByAdrid("999999999");
     expect(second.valid).toBe(true);
     expect(fetchSpy).toHaveBeenCalledTimes(1);
 
     vi.advanceTimersByTime(2 * 60 * 1000);
-    const third = await searchAddress("999999999");
+    const third = await searchAddressByAdrid("999999999");
     expect(third.valid).toBe(true);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
@@ -379,6 +413,25 @@ describe("createDebouncedSearch", () => {
     vi.advanceTimersByTime(1000);
     await expect(promise).rejects.toThrow("Debounced search aborted");
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("aborting older invocation does not cancel newer query timer", async () => {
+    mockFetchOk({ addresses: [] });
+
+    const debounced = createDebouncedSearch({ debounceMs: 500 });
+    const controllerA = new AbortController();
+    const promiseA = debounced.search("A", controllerA.signal);
+    vi.advanceTimersByTime(200);
+    const promiseB = debounced.search("B");
+    vi.advanceTimersByTime(200);
+    controllerA.abort();
+
+    vi.advanceTimersByTime(500);
+    await expect(promiseA).rejects.toThrow("Debounced search aborted");
+    const resultB = await promiseB;
+    expect(resultB.valid).toBe(true);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("q=B"), expect.anything());
   });
 });
 

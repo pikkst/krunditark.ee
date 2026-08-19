@@ -36,6 +36,7 @@ export function useAddressSearch(
   });
 
   const debouncedRef = useRef(createDebouncedSearch({ debounceMs }));
+  const requestIdRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -47,15 +48,19 @@ export function useAddressSearch(
       return;
     }
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setState((prev) => ({ ...prev, isLoading: true, error: null }));
-
+    const requestId = ++requestIdRef.current;
     const controller = new AbortController();
     abortRef.current = controller;
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     const debounced = debouncedRef.current;
     debounced.search(trimmed, controller.signal).then(
       (response) => {
+        if (requestId !== requestIdRef.current) return;
+        if (controller.signal.aborted) return;
+
         if (response.valid) {
           setState({
             results: response.results,
@@ -71,6 +76,9 @@ export function useAddressSearch(
         }
       },
       () => {
+        if (requestId !== requestIdRef.current) return;
+        if (controller.signal.aborted) return;
+
         setState((prev) => ({ ...prev, isLoading: false }));
       }
     );

@@ -347,7 +347,7 @@ Future external adapters must follow the same boundary pattern. Provider DTOs mu
 
 The canonical normalized **Parcel**, **Proposal**, and **Constraint** domain models are authoritative Estonia metric data and exist **only in EPSG:3301 (L-EST97)**. EPSG:3301 is a Lambert Conic Conformal (2SP) projection on the GRS80 ellipsoid; the deterministic forward/inverse transform lives in `src/lib/crs` and never merely relabels coordinates (no `ST_SetSRID`-style reassignment of an unverified CRS).
 
-For Estonia metric operations prefer **EPSG:3301 (L-EST97)** unless a source/rule justifies another metric CRS.
+The canonical domain models and all persistence use **EPSG:3301 (L-EST97)** exclusively. The only permitted exception is external/source geometry supplied before normalization (for example a provider WFS/GeoJSON in another metric CRS); such geometry must be transformed into EPSG:3301 at the adapter boundary before any canonical Parcel/Proposal/Constraint is constructed. Canonical domain geometry and persistence are unambiguously EPSG:3301-only.
 
 ### Provider / browser interchange CRS
 

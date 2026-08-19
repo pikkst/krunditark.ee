@@ -16,7 +16,7 @@ An LLM is not part of this chain.
 
 ### Canonical analysis
 
-For Estonian metric analysis, use **EPSG:3301 / L-EST97** unless a source-specific reason requires another metric CRS.
+Canonical metric analysis and all persistence use **EPSG:3301 / L-EST97** exclusively. The only permitted exception is external/source geometry supplied before normalization; such geometry must be transformed into EPSG:3301 at the adapter boundary before any canonical Parcel/Proposal/Constraint is constructed. Canonical domain geometry and persistence are unambiguously EPSG:3301-only.
 
 ### Browser interchange
 

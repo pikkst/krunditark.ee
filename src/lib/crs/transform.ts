@@ -67,8 +67,10 @@ const LAT_2 = toRad(LAT_2_DEG);
 function tOfLat(latRad: number): number {
   const sinLat = Math.sin(latRad);
   const tanHalf = Math.tan(Math.PI / 4 - latRad / 2);
+  // Ellipsoidal Lambert Conformal Conic conformal latitude factor: divide,
+  // not multiply. t(phi) = tan(pi/4 - phi/2) / ((1 - e*sin(phi))/(1 + e*sin(phi)))^(e/2).
   const factor = Math.pow((1 - ECC * sinLat) / (1 + ECC * sinLat), ECC / 2);
-  return tanHalf * factor;
+  return tanHalf / factor;
 }
 
 const M1 = Math.cos(LAT_1) / Math.sqrt(1 - E2 * Math.sin(LAT_1) ** 2);
@@ -111,7 +113,7 @@ export function unprojectEpsg3301ToLonLat(x: number, y: number): LonLat {
   for (let i = 0; i < 24; i++) {
     const sinLat = Math.sin(latRad);
     const g = Math.pow((1 - ECC * sinLat) / (1 + ECC * sinLat), ECC / 2);
-    const next = Math.PI / 2 - 2 * Math.atan(t / g);
+    const next = Math.PI / 2 - 2 * Math.atan(t * g);
     if (Math.abs(next - latRad) < 1e-15) {
       latRad = next;
       break;

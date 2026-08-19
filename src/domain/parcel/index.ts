@@ -9,6 +9,7 @@ export type {
   Parcel,
   ParcelValidationError,
   ParcelValidationResult,
+  CanonicalParcelCrs,
 } from "./types";
 
 export {

@@ -36,6 +36,15 @@ describe("CRS transform (EPSG:3301 canonical, L-EST97 LCC 2SP)", () => {
     expect(north.y).toBeGreaterThan(base.y);
   });
 
+  test("matches an independent PROJ/EST97 reference projection (Tallinn, non-origin)", () => {
+    // Independent reference from PROJ EPSG:3301 (L-EST97, EST97~WGS84): the
+    // WGS84 point (lon 24.75353, lat 59.43696) projects to ~ (542759.45, 6589031.77).
+    // This is a non-origin vector and catches sign/reciprocal formula errors.
+    const { x, y } = projectLonLatToEpsg3301(24.75353, 59.43696);
+    expect(Math.abs(x - 542759.45)).toBeLessThan(2);
+    expect(Math.abs(y - 6589031.77)).toBeLessThan(2);
+  });
+
   test("round-trips a realistic Estonian WGS84 point within sub-mm tolerance", () => {
     const lon = 24.75353;
     const lat = 59.43696;

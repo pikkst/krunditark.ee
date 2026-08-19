@@ -35,7 +35,7 @@ export interface Parcel {
   id: string;
   cadastralId: CadastralId;
   geometry: ParcelGeometry;
-  geometryCrs: string;
+  geometryCrs: CanonicalParcelCrs;
   facts: ParcelFacts;
   source: SourceProvenance;
   freshnessState: FreshnessState;
@@ -62,6 +62,7 @@ const ESTONIAN_CADASTRAL_PATTERN = /^\d{4,20}$/;
  * the canonical contract never carries 4326.
  */
 export const CANONICAL_PARCEL_CRS = "EPSG:3301";
+export type CanonicalParcelCrs = typeof CANONICAL_PARCEL_CRS;
 export const SUPPORTED_CRS = new Set([CANONICAL_PARCEL_CRS]);
 const VALID_FRESHNESS_STATES = new Set<FreshnessState>(["fresh", "warning", "stale", "unknown"]);
 

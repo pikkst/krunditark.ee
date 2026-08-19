@@ -35,7 +35,7 @@ const VALID_PROVIDER_PAYLOAD: ProviderParcelDTO = {
 };
 
 const VALID_MULTIPOLYGON_PAYLOAD: ProviderParcelDTO = {
-  cadastralNumber: "1234567890",
+  cadastralNumber: "601230010123",
   geometry: {
     type: "MultiPolygon",
     coordinates: [
@@ -104,7 +104,7 @@ describe("parseProviderParcel (KT-028 runtime boundary)", () => {
       expect(result.valid).toBe(true);
       if (result.valid) {
         expect(result.parcel.geometry.type).toBe("MultiPolygon");
-        expect(result.parcel.cadastralId).toBe("1234567890");
+        expect(result.parcel.cadastralId).toBe("601230010123");
         expect(result.parcel.facts.areaM2Computed).toBe(200000);
       }
     });

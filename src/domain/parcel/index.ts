@@ -1,5 +1,8 @@
 export type {
   CadastralId,
+  CadastralIdErrorCode,
+  CadastralIdValidationError,
+  CadastralIdValidationResult,
   FreshnessState,
   PolygonGeometry,
   MultiPolygonGeometry,
@@ -13,7 +16,9 @@ export type {
 } from "./types";
 
 export {
+  ESTONIAN_CADASTRAL_ID_LENGTH,
   normalizeCadastralId,
+  validateCadastralId,
   isValidCadastralId,
   validateParcel,
   CANONICAL_PARCEL_CRS,

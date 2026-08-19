@@ -254,9 +254,9 @@ Acceptance:
 
 ## KT-030 — Validate cadastral identifiers
 
-- [ ] format normalization.
-- [ ] typed validation errors.
-- [ ] tests.
+- [x] format normalization.
+- [x] typed validation errors.
+- [x] tests.
 
 ## KT-031 — Research/lock In-AKS integration contract
 

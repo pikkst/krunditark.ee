@@ -330,11 +330,11 @@ Never silently choose a parcel when multiple are plausible.
 
 External provider payloads must never be cast directly to canonical domain types. Every adapter entry point accepts `unknown` and runs an explicit runtime parser/normalizer that:
 
-- validates required object structure, primitive types, timestamps, IDs, geometry shape, and numeric values;
+- validates required object structure, primitive types, timestamps, identifiers, geometry shape, and numeric values;
 - rejects non-finite numeric input (`NaN`, `Infinity`, `-Infinity`);
 - rejects invalid timestamps deterministically;
 - keeps provider-specific property names/types inside the adapter layer;
-- returns typed parse/validation errors instead of uncaught property-access/type errors;
+- returns typed parse/validation errors instead of uncaught property-access/type errors (e.g., `CadastralIdErrorCode` for Estonian 12-digit kadastritunnus input);
 - produces a canonical provider-independent `Parcel` value on success.
 
 Parser errors distinguish malformed provider payloads from domain-level unsupported/unknown conditions where relevant. Unknown provider fields are safely ignored or retained only through the approved noncritical extras policy.

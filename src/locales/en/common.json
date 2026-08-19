@@ -47,5 +47,13 @@
     "understandParcel": "Understand the parcel",
     "existingBuildingModification": "Modify existing building",
     "professional": "Professional mode"
+  },
+  "validation": {
+    "cadastralId": {
+      "invalidType": "Cadastral identifier must be a string",
+      "empty": "Cadastral identifier must not be empty",
+      "invalidCharacters": "Cadastral identifier contains invalid characters; only digits, colons, hyphens, dots and spaces are allowed",
+      "wrongLength": "Cadastral identifier must be 12 digits after normalization"
+    }
   }
 }

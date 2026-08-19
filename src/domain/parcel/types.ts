@@ -1,5 +1,23 @@
 export type CadastralId = string;
 
+/**
+ * Estonian cadastral identifier (kadastritunnus) is a 12-digit number,
+ * typically displayed as XXXXX:XXX:XXXX (5:3:4 grouping). Verified against
+ * official MaRu cadastral register query and the Riigi Kinnistusraamat
+ * XML service specification.
+ */
+export const ESTONIAN_CADASTRAL_ID_LENGTH = 12;
+
+/**
+ * Characters that may appear in a user-entered or provider-displayed
+ * cadastral identifier. Separators beyond colons are tolerated so that
+ * common user input variants (hyphens, dots, spaces) still normalize
+ * correctly while letters and other symbols are rejected explicitly.
+ */
+const CADASTRAL_INPUT_PATTERN = /^[0-9:\-\.\s]+$/;
+
+const ESTONIAN_CADASTRAL_PATTERN = /^\d{12}$/;
+
 export type FreshnessState = "fresh" | "warning" | "stale" | "unknown";
 
 export interface PolygonGeometry {
@@ -53,8 +71,6 @@ export interface ParcelValidationResult {
   warnings: ParcelValidationError[];
 }
 
-const ESTONIAN_CADASTRAL_PATTERN = /^\d{4,20}$/;
-
 /**
  * Canonical normalized Parcel geometry is authoritative Estonia metric data and
  * only exists in EPSG:3301. Provider/browser EPSG:4326 geometry is transformed
@@ -81,9 +97,91 @@ export function normalizeCadastralId(raw: string): CadastralId {
   return raw.trim().replace(/[:\-.\s]/g, "");
 }
 
-export function isValidCadastralId(raw: string): boolean {
+/**
+ * Typed error codes for cadastral identifier validation.
+ * These are locale-independent machine codes; user-facing messages
+ * are resolved through i18n keys in the presentation layer.
+ */
+export type CadastralIdErrorCode = "INVALID_TYPE" | "EMPTY" | "INVALID_CHARACTERS" | "WRONG_LENGTH";
+
+export interface CadastralIdValidationError {
+  code: CadastralIdErrorCode;
+  field: string;
+  message: string;
+}
+
+export interface CadastralIdValidationResult {
+  valid: boolean;
+  errors: CadastralIdValidationError[];
+  normalized?: string;
+}
+
+/**
+ * Validate a cadastral identifier with typed, locale-independent error
+ * codes. Accepts the official Estonian display format (XXXXX:XXX:XXXX)
+ * as well as bare 12-digit strings and common separator variants.
+ *
+ * Returns the normalized form (12 bare digits) on success so callers
+ * do not need to re-normalize.
+ */
+export function validateCadastralId(raw: unknown): CadastralIdValidationResult {
+  const errors: CadastralIdValidationError[] = [];
+
+  if (typeof raw !== "string") {
+    errors.push({
+      code: "INVALID_TYPE",
+      field: "cadastralId",
+      message: "cadastralId must be a string",
+    });
+    return { valid: false, errors };
+  }
+
+  const trimmed = raw.trim();
+
+  if (trimmed.length === 0) {
+    errors.push({
+      code: "EMPTY",
+      field: "cadastralId",
+      message: "cadastralId must not be empty",
+    });
+    return { valid: false, errors };
+  }
+
+  if (!CADASTRAL_INPUT_PATTERN.test(trimmed)) {
+    errors.push({
+      code: "INVALID_CHARACTERS",
+      field: "cadastralId",
+      message:
+        "cadastralId contains invalid characters; only digits, colons, hyphens, dots and spaces are allowed",
+    });
+    return { valid: false, errors };
+  }
+
   const normalized = normalizeCadastralId(raw);
-  return ESTONIAN_CADASTRAL_PATTERN.test(normalized);
+
+  if (normalized.length === 0) {
+    errors.push({
+      code: "EMPTY",
+      field: "cadastralId",
+      message: "cadastralId must not be empty",
+    });
+    return { valid: false, errors };
+  }
+
+  if (!ESTONIAN_CADASTRAL_PATTERN.test(normalized)) {
+    errors.push({
+      code: "WRONG_LENGTH",
+      field: "cadastralId",
+      message: `Estonian cadastral identifier must have ${ESTONIAN_CADASTRAL_ID_LENGTH} digits after normalization, got ${normalized.length}`,
+    });
+    return { valid: false, errors };
+  }
+
+  return { valid: true, errors: [], normalized };
+}
+
+export function isValidCadastralId(raw: string): boolean {
+  return validateCadastralId(raw).valid;
 }
 
 function isFiniteCoordinate(value: unknown): value is number {

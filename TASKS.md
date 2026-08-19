@@ -272,11 +272,11 @@ Read current official MaRu In-AKS docs at implementation time.
 
 ## KT-032 — Implement address search API/adapter
 
-- [ ] normalized `AddressSearchResult`.
-- [ ] debounce/bounded query.
-- [ ] typed unavailable vs no-match.
-- [ ] short cache per source policy.
-- [ ] provider payload types do not leak into UI/domain.
+- [x] normalized `AddressSearchResult`.
+- [x] debounce/bounded query.
+- [x] typed unavailable vs no-match.
+- [x] short cache per source policy.
+- [x] provider payload types do not leak into UI/domain.
 
 ## KT-033 — Implement cadastral parcel adapter
 

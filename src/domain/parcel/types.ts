@@ -54,7 +54,15 @@ export interface ParcelValidationResult {
 }
 
 const ESTONIAN_CADASTRAL_PATTERN = /^\d{4,20}$/;
-const SUPPORTED_CRS = new Set(["EPSG:3301", "EPSG:4326"]);
+
+/**
+ * Canonical normalized Parcel geometry is authoritative Estonia metric data and
+ * only exists in EPSG:3301. Provider/browser EPSG:4326 geometry is transformed
+ * to this CRS at the adapter boundary before a normalized Parcel is built, so
+ * the canonical contract never carries 4326.
+ */
+export const CANONICAL_PARCEL_CRS = "EPSG:3301";
+export const SUPPORTED_CRS = new Set([CANONICAL_PARCEL_CRS]);
 const VALID_FRESHNESS_STATES = new Set<FreshnessState>(["fresh", "warning", "stale", "unknown"]);
 
 interface CoordinateBounds {
@@ -65,7 +73,6 @@ interface CoordinateBounds {
 }
 
 const SUPPORTED_CRS_BOUNDS: Record<string, CoordinateBounds> = {
-  "EPSG:4326": { minX: -180, maxX: 180, minY: -90, maxY: 90 },
   "EPSG:3301": { minX: 200000, maxX: 900000, minY: 6300000, maxY: 7800000 },
 };
 

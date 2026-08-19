@@ -3,6 +3,7 @@ import {
   normalizeCadastralId,
   isValidCadastralId,
   validateParcel,
+  CANONICAL_PARCEL_CRS,
 } from "../../domain/parcel/types";
 import type {
   ParcelParseError,
@@ -10,6 +11,7 @@ import type {
   ParcelParseResult,
   ValidatedProviderParcelDTO,
 } from "./types";
+import { toCanonicalParcelGeometry, type CrsTransformError } from "../crs";
 
 const SUPPORTED_CRS = new Set(["EPSG:3301", "EPSG:4326"]);
 
@@ -539,7 +541,7 @@ export function parseProviderParcel(payload: unknown): ParcelParseResult {
     raw.contentHash
   );
 
-  const geometry: ParcelGeometry =
+  const providerGeometry: ParcelGeometry =
     geometryType === "Polygon"
       ? ({
           type: "Polygon",
@@ -550,11 +552,31 @@ export function parseProviderParcel(payload: unknown): ParcelParseResult {
           coordinates: coordinates as ParcelGeometry["coordinates"],
         } as ParcelGeometry);
 
+  // The canonical normalized Parcel only exists in EPSG:3301. Provider/browser
+  // geometry declared as EPSG:4326 is genuinely reprojected here; the declared
+  // CRS is never merely relabeled via ST_SetSRID-style reassignment.
+  let canonicalGeometry: ParcelGeometry;
+  try {
+    canonicalGeometry = toCanonicalParcelGeometry(providerGeometry, crs);
+  } catch (error) {
+    const transformError = error as CrsTransformError;
+    if (transformError?.code === "UNSUPPORTED_TRANSFORM") {
+      return {
+        valid: false,
+        errors: [parseError("UNSUPPORTED_CRS", "crs", transformError.message)],
+      };
+    }
+    return {
+      valid: false,
+      errors: [parseError("DOMAIN_VALIDATION_FAILED", "geometry", (error as Error).message)],
+    };
+  }
+
   const parcel: Parcel = {
     id: validated.source.objectId || cadastralId,
     cadastralId,
-    geometry,
-    geometryCrs: crs,
+    geometry: canonicalGeometry,
+    geometryCrs: CANONICAL_PARCEL_CRS,
     facts: {
       areaM2Computed: validated.facts.areaSqm,
       addressText: validated.facts.addressText,

@@ -313,33 +313,30 @@ describe("createDebouncedSearch", () => {
 
   it("resolves newest query even if older in-flight request finishes later", async () => {
     const normalizer = await import("../../inaks-adapter/normalizer");
-    const parseSpy = vi.spyOn(normalizer, "parseInAksAddressResponse").mockImplementation((raw) => {
-      const adrId = raw?.addresses?.[0]?.adr_id ?? "unknown";
-      return {
-        valid: true,
-        results: [
-          {
-            id: `inaks-${adrId}`,
-            addressId: adrId,
-            label: `Address ${adrId}`,
-            objectType: "building" as const,
-            objectTypeCode: "E",
-            coordinates: { lat: 0, lon: 0 },
-            coordinatesEpsg3301: { x: 0, y: 0 },
-            source: { id: "maru.inaks", authority: "Maa- ja Ruumiamet" },
-            administrative: {},
-            status: "K",
-            primary: true,
-            provenance: {
-              sourceId: "maru.inaks",
-              sourceObjectId: adrId,
-              normalizerVersion: "1",
-              retrievedAt: new Date().toISOString(),
-            },
+    const parseSpy = vi.spyOn(normalizer, "parseInAksAddressResponse").mockReturnValue({
+      valid: true,
+      results: [
+        {
+          id: "inaks-B",
+          addressId: "B",
+          label: "Address B",
+          objectType: "building",
+          objectTypeCode: "E",
+          coordinates: { lat: 0, lon: 0 },
+          coordinatesEpsg3301: { x: 0, y: 0 },
+          source: { id: "maru.inaks", authority: "Maa- ja Ruumiamet" },
+          administrative: {},
+          status: "K",
+          primary: true,
+          provenance: {
+            sourceId: "maru.inaks",
+            sourceObjectId: "B",
+            normalizerVersion: "1",
+            retrievedAt: new Date().toISOString(),
           },
-        ],
-        warnings: [],
-      };
+        },
+      ],
+      warnings: [],
     });
 
     fetchSpy.mockImplementation((url: string) => {

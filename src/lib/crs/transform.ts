@@ -1,8 +1,10 @@
 import type {
+  Parcel,
   ParcelGeometry,
   PolygonGeometry,
   MultiPolygonGeometry,
 } from "../../domain/parcel/types";
+import { CANONICAL_PARCEL_CRS } from "../../domain/parcel/types";
 
 export const EPSG_4326 = "EPSG:4326";
 export const EPSG_3301 = "EPSG:3301";
@@ -231,10 +233,21 @@ function ringSignedArea(ring: number[][]): number {
  * Deterministic planar (shoelace) area of canonical geometry in square metres.
  * Canonical EPSG:3301 coordinates are metres, so the result is metric. This is a
  * non-authoritative convenience/sanity check only; material area for findings
- * remains PostGIS-computed (geo.st_area_m2). It must never be fed degree-scale
- * coordinates, which is guaranteed by the canonical-3301-only contract.
+ * remains PostGIS-computed (geo.st_area_m2).
+ *
+ * The helper is CRS-branded: it only accepts an already-validated canonical
+ * `Parcel` (whose `geometryCrs` is the literal `CanonicalParcelCrs`), so metric
+ * area logic can never be run on untagged EPSG:4326/degree provider geometry.
+ * A defensive runtime guard enforces the canonical CRS as well.
  */
-export function planarAreaM2(geometry: ParcelGeometry): number {
+export function planarAreaM2(parcel: Parcel): number {
+  if (parcel.geometryCrs !== CANONICAL_PARCEL_CRS) {
+    throw new CrsTransformError(
+      "OUT_OF_DOMAIN",
+      `planarAreaM2 requires canonical ${CANONICAL_PARCEL_CRS} geometry, received ${parcel.geometryCrs}`
+    );
+  }
+  const geometry = parcel.geometry;
   if (geometry.type === "Polygon") {
     let signed = 0;
     for (const ring of geometry.coordinates) {

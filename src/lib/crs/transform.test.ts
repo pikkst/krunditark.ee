@@ -1,8 +1,10 @@
 import type {
+  Parcel,
   ParcelGeometry,
   PolygonGeometry,
   MultiPolygonGeometry,
 } from "../../domain/parcel/types";
+import { CANONICAL_PARCEL_CRS } from "../../domain/parcel/types";
 import {
   CANONICAL_CRS,
   EPSG_3301,
@@ -133,20 +135,39 @@ describe("CRS transform (EPSG:3301 canonical, L-EST97 LCC 2SP)", () => {
     expect(canonical.coordinates[0][0][0][0]).toBeCloseTo(500000, 3);
   });
 
+  function canonicalParcel(geometry: ParcelGeometry): Parcel {
+    return {
+      id: "p-1",
+      cadastralId: "1234567890",
+      geometry,
+      geometryCrs: CANONICAL_PARCEL_CRS,
+      facts: { areaM2Computed: 0 },
+      source: {
+        sourceId: "maru.cadastre.parcels",
+        sourceDatasetVersionId: "v1",
+        sourceSyncRunId: "sync-1",
+        normalizerVersion: "1",
+        retrievedAt: "2026-01-01T00:00:00Z",
+      },
+      freshnessState: "fresh",
+      contentHash: "h",
+    };
+  }
+
   test("planarAreaM2 returns metric square metres for canonical geometry", () => {
     const unitSquare: ParcelGeometry = {
       type: "Polygon",
       coordinates: [
         [
-          [0, 0],
-          [1, 0],
-          [1, 1],
-          [0, 1],
-          [0, 0],
+          [650000, 6600000],
+          [650001, 6600000],
+          [650001, 6600001],
+          [650000, 6600001],
+          [650000, 6600000],
         ],
       ],
     };
-    expect(planarAreaM2(unitSquare)).toBeCloseTo(1, 9);
+    expect(planarAreaM2(canonicalParcel(unitSquare))).toBeCloseTo(1, 9);
 
     const kmSquare: ParcelGeometry = {
       type: "Polygon",
@@ -160,7 +181,27 @@ describe("CRS transform (EPSG:3301 canonical, L-EST97 LCC 2SP)", () => {
         ],
       ],
     };
-    expect(planarAreaM2(kmSquare)).toBeCloseTo(1_000_000, 1);
+    expect(planarAreaM2(canonicalParcel(kmSquare))).toBeCloseTo(1_000_000, 1);
+  });
+
+  test("planarAreaM2 rejects EPSG:4326/degree geometry and never treats it as metric", () => {
+    const degreePolygon: ParcelGeometry = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [24, 57.5],
+          [24.1, 57.5],
+          [24.1, 57.6],
+          [24, 57.6],
+          [24, 57.5],
+        ],
+      ],
+    };
+    const degreeParcel = {
+      ...canonicalParcel(degreePolygon),
+      geometryCrs: "EPSG:4326",
+    } as unknown as Parcel;
+    expect(() => planarAreaM2(degreeParcel)).toThrow(CrsTransformError);
   });
 
   test("canonical metric geometry never carries degree-scale coordinates", () => {

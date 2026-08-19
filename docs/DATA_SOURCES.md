@@ -94,6 +94,184 @@ Do not hardcode a layer name based only on documentation text. Retrieve capabili
 
 MaRu public service guidance requires source attribution in products/printouts. Preserve source attribution in map/report UI.
 
+### In-AKS — integrated address search
+
+Official In-AKS service page (replaced In-ADS on 27 April 2026):
+
+- https://geoportaal.maaruum.ee/est/teenused/integreeritav-aadressiotsing-in-ads-p504.html
+
+Official change notice:
+
+- https://geoportaal.maaruum.ee/est/teenused/in-ads-in-aks/nb-muudatused-in-adsis-p1038.html
+
+#### Locked integration contract (KT-031)
+
+**Production endpoints:**
+
+- Gazetteer API: `https://aks.geoportaal.ee/inaks/inaadress/gazetteer/`
+- Base service: `https://aks.geoportaal.ee/inaks/`
+
+**Test endpoints:**
+
+- Gazetteer API: `https://aks-test.geoportaal.ee/inaks/inaadress/gazetteer/`
+- Base service: `https://aks-test.geoportaal.ee/inaks/`
+
+**Endpoint precedence note:**
+
+The official MaRu documents currently disagree on these paths. The newer MaRu change notice (last modified 18 May 2026) defines the production service as `aks.geoportaal.ee/inaks/` and the Gazetteer under `/inaks/inaadress/gazetteer/`, which matches this contract and the current official test sample. The In-AKS usage-terms PDF v1.2 dated 24 April 2026 still contains older `/aks/inaks/` work/test URLs. This contract follows the 18 May change notice and live service; the stale paths in the 24 April PDF are preserved only for rate/legal rules and do not override the working endpoints above.
+
+**Supported query parameters:**
+
+- `address` — free-text address search query
+- `adrid` — exact address version identifier lookup (`adr_id` from In-AKS response; not the stable object identifier)
+
+**Cache defaults by query type:**
+
+- Free-text `address` queries: **1 hour** Edge Function cache.
+- Exact `adrid` lookup: **24 hours** Edge Function cache.
+- Negative / empty results: **5 minutes** Edge Function cache.
+- Rationale: In-AKS data updates nightly (`üks kord ööpäevas` per official documentation). Shorter TTL for negative results prevents stale "not found" states from persisting after upstream corrections.
+
+**Response format:** JSON. The gazetteer returns an object with an `addresses` array and a `host` field. Each address object contains the fields documented in `src/lib/inaks-adapter/types.ts`.
+
+**Key object type codes (`liik`):**
+
+- `1` — `EHAK` (administrative unit)
+- `2` — `TANAV` (street)
+- `B` — `VAIKEKOHT` (small place; distinct from POI data in `poid` / `poidDetail`)
+- `4` — `KATASTRIYKSUS` (cadastral unit)
+- `E` — `EHITISHOONE` (building)
+
+**Legacy/manual discrepancy — `liik=3` / `EHITIS`:**
+
+The official In-AKS developer manual v3.3.0 section 7.2.15 lists Gazetteer `liik` values as `1, 2, B, 4, E`, but the same manual contains response examples with `liik: "3"` and `liikVal: "EHITIS"`. The committed raw fixtures captured from both production (`aks.geoportaal.ee`) and test (`aks-test.geoportaal.ee`) endpoints on 2026-08-19 only emit `liik: "E"` / `EHITISHOONE` for buildings. The parser accepts only the observed live contract (`1, 2, B, 4, E`). The `3/EHITIS` examples are treated as stale/manual legacy examples. If `3/EHITIS` reappears in production, it must be resolved via a controlled rule promotion rather than silent acceptance.
+
+**Coordinate systems in response:**
+
+- `viitepunkt_x` / `viitepunkt_y` — reference point in **EPSG:3301 (L-EST97)**
+- `viitepunkt_l` / `viitepunkt_b` — reference point in **EPSG:4326 (WGS84)**
+- `boundingbox` — bounding box in EPSG:3301
+- `g_boundingbox` — bounding box in WGS84
+
+**Stable identifiers:**
+
+- `adr_id` — unique address key / address-version identifier (not the stable object identifier)
+- `ads_oid` — **stable In-AKS object identifier** (source-scoped; used as canonical result `id` and `provenance.sourceObjectId`)
+- `adob_id` — address-object version identifier
+- `tunnus` — object ID (for `liik=4` this is the Estonian cadastral identifier)
+
+**Points of interest (`poid`):**
+
+- `poid` is the list of points of interest (Huviobjektid) associated with the address, **not** the data source authority.
+- Provider authority is fixed from integration source metadata: **Maa- ja Ruumiamet**.
+
+**Terms and attribution:**
+
+- Service is free to use.
+- When using the In-AKS container solution, notify Maaruum.ee at `inads.abi@maaruum.ee`.
+- Attribution text: **Maa- ja Ruumiamet**.
+- Source ID in Krunditark: `maru.inaks`.
+- Preserve source attribution in map/report UI.
+
+#### Client vs Edge proxy decision
+
+**Decision:** In-AKS calls must go through a Supabase Edge Function proxy. Direct browser calls to `aks.geoportaal.ee` are not permitted.
+
+Rationale:
+
+- SSRF-safe allow-list enforcement;
+- rate limiting per user/IP;
+- CORS handling without exposing browser credentials;
+- server-side cache control (short TTL);
+- request/response logging for observability;
+- centralized timeout/retry configuration.
+
+The Edge Function acts as the only permitted client for official In-AKS requests. The frontend calls Krunditark-owned endpoints only.
+
+#### Rate and cache policy
+
+Source class: **Class C — Interactive official lookup**.
+
+**Cache defaults:**
+
+- Free-text `address` queries: **1 hour** Edge Function cache.
+- Exact `adrid` lookup: **24 hours** Edge Function cache.
+- Negative / empty results: **5 minutes** Edge Function cache.
+- **Rationale:** In-AKS data updates nightly (`üks kord ööpäevas` per official documentation). Shorter TTL for negative results prevents stale "not found" states from persisting after upstream corrections.
+
+**Cache-key isolation:**
+
+- Cache keys must include `{environment}:{contractVersion}:{queryType}:{queryHash}:{filtersHash}`.
+- `queryHash` must be a non-reversible hash (e.g., SHA-256 or HMAC) of the normalized query. The actual hashing implementation is deferred to KT-032; KT-031 locks only the policy that raw queries must not appear in cache keys.
+- Production (`aks.geoportaal.ee`) and test (`aks-test.geoportaal.ee`) entries must never share cache keys.
+- Contract version changes must invalidate prior cache namespaces.
+
+**Upstream rate limits (In-AKS usage terms v1.2 section 2.3):**
+
+- Maximum **5 000 requests per 10 minutes** per user / per IP address.
+- Maximum **2 500 requests per 10 minutes** for traffic originating from IP addresses outside Estonia.
+- Higher volumes require prior agreement with the service owner.
+
+**Edge Function enforcement:**
+
+- **Application-level per-user/IP limiter** for abuse protection.
+- **Upstream/global egress budget** set below the applicable In-AKS ceiling, with headroom for concurrency and retries.
+- If Edge egress country is not guaranteed, default to the more conservative **2 500 requests per 10 minutes** ceiling until egress geography is confirmed.
+- The proxy must return `429` with a safe retry interval when either limit is exceeded.
+
+**Do not** replicate In-AKS into a monthly national snapshot. The service is specifically designed for interactive lookup.
+
+**Do not** log full search queries long-term.
+
+Selected address/object identifiers may be stored with the user's project parcel resolution.
+
+#### Ambiguous address-to-parcel behavior
+
+One address query can return multiple results with different `liik` values. Distinct results may share the same `adr_id` (address-version identifier) but have different `ads_oid` object identifiers. The live test response for `adrid=2105921` returned both a building (`liik=E`, `ads_oid=ME01087725`) and a cadastral unit (`liik=4`, `ads_oid=CU00473339`) for the same street address.
+
+**Contract rules:**
+
+- Never silently choose a single parcel when multiple object types are returned.
+- Use `ads_oid` as the canonical result `id` and provenance `sourceObjectId`; retain `adr_id` separately as `addressId`.
+- Return all candidates to the client with their canonical `id` (backed by In-AKS `ads_oid`), `objectType`, `cadastralId` (when applicable), and `coordinates`.
+- The client must present candidates explicitly and require user confirmation.
+- Use the typed error `PARCEL_SELECTION_AMBIGUOUS` when resolution cannot proceed without explicit selection.
+- A selected project does not prove parcel ownership.
+
+#### Non-current object policy
+
+The In-AKS provider contract defines object status (`olek`) as a finite set:
+
+- `K` — current; normal selectable candidate for parcel resolution.
+- `O` — pending; may be displayed with a clear pending state, but is not silently selected. Requires an explicit product decision before parcel resolution uses it.
+- `V` — obsolete version; historical, not selectable for current parcel resolution.
+- `T` — cancelled; not selectable for current parcel resolution.
+
+**Downstream rules:**
+
+- Non-`K` results surface a `NON_CURRENT_OBJECT` warning in the parser result.
+- The address-search/parcel-resolution layer (KT-032) must respect this policy and not auto-select non-`K` candidates.
+- The exact UI treatment of `O`/`V`/`T` is a product decision, but the parser contract must preserve the status and warning deterministically.
+
+#### Adapter status
+
+**KT-031 locked — contract research and normalizer implemented.**
+
+- Production/test endpoints documented.
+- Response fields/object identifiers locked in `src/lib/inaks-adapter/types.ts`.
+- Object identity uses `ads_oid` (not `adr_id`) for canonical `id` and `sourceObjectId`.
+- `poid` treated as POI data; source authority fixed as `Maa- ja Ruumiamet`.
+- Normalizer and deterministic fixtures implemented in `src/lib/inaks-adapter/normalizer.test.ts`.
+- Raw upstream fixtures captured from both production and test endpoints (`adrid=2105921`, 2026-08-19) with metadata.
+- Terms/attribution documented above.
+- Client vs Edge proxy decision: Edge Function only.
+- Rate/cache policy: short-lived cache (Class C) with upstream limits enforced.
+- Ambiguous behavior: explicit user selection required.
+- Canonical cadastral-ID validation reused from `src/domain/parcel`.
+- Coordinate domain validation enforces WGS84 lon/lat bounds and Estonia EPSG:3301 bounds.
+- Timestamp validation rejects impossible calendar dates and invalid UTC offsets.
+- `poid` validated as optional string array; non-array or non-string elements produce typed errors.
+
 ## 4. Maa- ja Ruumiamet — cadastral restrictions
 
 Official page:

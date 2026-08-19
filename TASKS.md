@@ -262,13 +262,13 @@ Acceptance:
 
 Read current official MaRu In-AKS docs at implementation time.
 
-- [ ] exact production/test endpoints.
-- [ ] response fields/object identifiers.
-- [ ] terms/attribution.
-- [ ] client vs Edge proxy decision.
-- [ ] rate/cache policy.
-- [ ] ambiguous address-to-parcel behavior.
-- [ ] deterministic fixtures.
+- [x] exact production/test endpoints.
+- [x] response fields/object identifiers.
+- [x] terms/attribution.
+- [x] client vs Edge proxy decision.
+- [x] rate/cache policy.
+- [x] ambiguous address-to-parcel behavior.
+- [x] deterministic fixtures.
 
 ## KT-032 — Implement address search API/adapter
 

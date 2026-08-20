@@ -466,6 +466,52 @@ describe("createDebouncedSearch", () => {
       expect(finalB.results[0].addressId).toBe("2105921");
     }
   });
+
+  it("does not reuse generation IDs after in-flight cancel, late completion cannot corrupt newer promise", async () => {
+    let resolveA: (value: { addresses: Array<{ adr_id: string }> }) => void;
+    const promiseA = new Promise<{ addresses: Array<{ adr_id: string }> }>((resolve) => {
+      resolveA = resolve;
+    });
+
+    fetchSpy.mockImplementation((url: string) => {
+      if (url.includes("q=A")) {
+        return promiseA.then(
+          (data) =>
+            ({
+              ok: true,
+              json: () => Promise.resolve(data),
+            }) as Response
+        );
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(VALID_INAKS_RESPONSE),
+      } as Response);
+    });
+
+    const debounced = createDebouncedSearch({ debounceMs: 500 });
+    const resultA = debounced.search("A");
+    vi.advanceTimersByTime(500);
+
+    const controllerB = new AbortController();
+    const promiseB = debounced.search("B", controllerB.signal);
+    vi.advanceTimersByTime(200);
+    controllerB.abort();
+
+    await expect(promiseB).rejects.toThrow("Debounced search aborted");
+
+    const resultC = debounced.search("C");
+    vi.advanceTimersByTime(500);
+
+    resolveA!({ addresses: [{ adr_id: "A" }] });
+
+    await expect(resultA).rejects.toThrow("Debounced search aborted");
+    const finalC = await resultC;
+    expect(finalC.valid).toBe(true);
+    if (finalC.valid) {
+      expect(finalC.results[0].addressId).toBe("2105921");
+    }
+  });
 });
 
 describe("getAddressSearchCache", () => {

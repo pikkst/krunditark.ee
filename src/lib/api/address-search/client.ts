@@ -230,11 +230,11 @@ export async function searchAddressByAdrid(
 
 export function createDebouncedSearch(options: { debounceMs?: number } = {}) {
   const debounceMs = options.debounceMs ?? 300;
+  let generation = 0;
   let pendingTimer: ReturnType<typeof setTimeout> | null = null;
   let pendingReject: ((reason: unknown) => void) | null = null;
-  let activeRequestId = 0;
+  let activeGeneration = 0;
   let inFlightReject: ((reason: unknown) => void) | null = null;
-  let inFlightId = 0;
 
   function cancelPending() {
     if (pendingTimer) {
@@ -252,14 +252,15 @@ export function createDebouncedSearch(options: { debounceMs?: number } = {}) {
       inFlightReject(new Error("Debounced search aborted"));
       inFlightReject = null;
     }
-    inFlightId = 0;
+    activeGeneration = 0;
   }
 
   return {
     search: (query: string, signal?: AbortSignal): Promise<AddressSearchResponse> => {
-      const requestId = ++activeRequestId;
+      const currentGeneration = ++generation;
 
       cancelPending();
+      cancelInFlight();
 
       return new Promise<AddressSearchResponse>((resolve, reject) => {
         pendingReject = reject;
@@ -267,23 +268,17 @@ export function createDebouncedSearch(options: { debounceMs?: number } = {}) {
         const timerId = setTimeout(async () => {
           pendingTimer = null;
           pendingReject = null;
-
-          if (inFlightReject) {
-            inFlightReject(new Error("Debounced search aborted"));
-            inFlightReject = null;
-          }
-
-          const currentInFlightId = ++inFlightId;
+          activeGeneration = currentGeneration;
           inFlightReject = reject;
 
           try {
             const result = await searchAddress(query, { signal });
-            if (currentInFlightId === inFlightId) {
+            if (currentGeneration === activeGeneration) {
               inFlightReject = null;
               resolve(result);
             }
           } catch (err) {
-            if (currentInFlightId === inFlightId) {
+            if (currentGeneration === activeGeneration) {
               inFlightReject = null;
               reject(err);
             }
@@ -296,10 +291,8 @@ export function createDebouncedSearch(options: { debounceMs?: number } = {}) {
           signal.addEventListener(
             "abort",
             () => {
-              if (requestId === activeRequestId && pendingTimer === timerId) {
+              if (currentGeneration === generation && pendingTimer === timerId) {
                 cancelPending();
-                cancelInFlight();
-                reject(new Error("Debounced search aborted"));
               }
             },
             { once: true }

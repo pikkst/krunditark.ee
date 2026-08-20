@@ -30,6 +30,15 @@ function jsonResponse(body: unknown, status: number, headers: Record<string, str
   });
 }
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("SOURCE_TIMEOUT")), timeoutMs)
+    ),
+  ]);
+}
+
 function isAllowedMaruWfsUrl(url: URL): boolean {
   return ALLOWED_MARU_WFS_HOSTS.includes(url.hostname);
 }
@@ -103,17 +112,16 @@ async function resolveAddress(addressResultId: string, addressId: string) {
     );
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
   let inaksResponse;
   try {
-    inaksResponse = await fetch(inaksUrl.toString(), {
-      headers: { Accept: "application/json" },
-      signal: controller.signal,
-    });
+    inaksResponse = await withTimeout(
+      fetch(inaksUrl.toString(), {
+        headers: { Accept: "application/json" },
+      }),
+      REQUEST_TIMEOUT_MS
+    );
   } catch (err) {
-    if (err instanceof Error && err.name === "AbortError") {
+    if (err instanceof Error && err.message === "SOURCE_TIMEOUT") {
       return jsonResponse({ error: "SOURCE_TIMEOUT", message: "In-AKS request timed out" }, 502, {
         "Cache-Control": "no-store, max-age=0",
       });
@@ -123,8 +131,6 @@ async function resolveAddress(addressResultId: string, addressId: string) {
       502,
       { "Cache-Control": "no-store, max-age=0" }
     );
-  } finally {
-    clearTimeout(timeoutId);
   }
 
   if (!inaksResponse.ok) {
@@ -145,91 +151,33 @@ async function resolveAddress(addressResultId: string, addressId: string) {
 
   let inaksData: unknown;
   try {
-    inaksData = await inaksResponse.json();
-  } catch {
+    inaksData = await withTimeout(inaksResponse.json(), REQUEST_TIMEOUT_MS);
+  } catch (err) {
+    if (err instanceof Error && err.message === "SOURCE_TIMEOUT") {
+      return jsonResponse({ error: "SOURCE_TIMEOUT", message: "In-AKS body read timed out" }, 502, {
+        "Cache-Control": "no-store, max-age=0",
+      });
+    }
     return jsonResponse({ error: "PARSE_ERROR", message: "In-AKS returned non-JSON" }, 502, {
       "Cache-Control": "no-store, max-age=0",
     });
   }
 
-  if (!inaksData || typeof inaksData !== "object" || Array.isArray(inaksData)) {
-    return jsonResponse(
-      { error: "PARSE_ERROR", message: "In-AKS response root must be a non-null object" },
-      502,
-      { "Cache-Control": "no-store, max-age=0" }
-    );
-  }
+  const resolution = buildAddressResolutionWfsFilter(inaksData, addressResultId, addressId);
 
-  const responseObj = inaksData as Record<string, unknown>;
-  const addresses = responseObj.addresses;
-
-  if (!Array.isArray(addresses)) {
-    return jsonResponse(
-      { error: "PARSE_ERROR", message: "In-AKS response missing addresses array" },
-      502,
-      { "Cache-Control": "no-store, max-age=0" }
-    );
-  }
-
-  const selected = addresses.find((addr) => {
-    if (typeof addr !== "object" || addr === null) return false;
-    const record = addr as Record<string, unknown>;
-    const adsOid = record.ads_oid;
-    const adrId = record.adr_id;
-    return (
-      typeof adsOid === "string" &&
-      typeof adrId === "string" &&
-      adsOid.trim() === addressResultId.trim() &&
-      adrId.trim() === addressId.trim()
-    );
-  });
-
-  if (!selected) {
+  if (resolution.status === "not_found") {
     return jsonResponse({ status: "not_found", candidates: [] }, 200, {
       "Cache-Control": "no-store, max-age=0",
     });
   }
 
-  const selectedRecord = selected as Record<string, unknown>;
-  const liik = selectedRecord.liik;
-  const tunnus = selectedRecord.tunnus;
-
-  let cqlFilter: string;
-  let count = 10;
-  if (liik === "4" && typeof tunnus === "string" && tunnus.trim().length > 0) {
-    const normalized = normalizeCadastralId(tunnus);
-    if (!isValidEstonianCadastralId(normalized)) {
-      return jsonResponse(
-        { error: "INVALID_CADASTRAL_ID", message: "Selected cadastral unit has invalid tunnus" },
-        400,
-        { "Cache-Control": "no-store, max-age=0" }
-      );
-    }
-    const ref = `${normalized.slice(0, 5)}:${normalized.slice(5, 8)}:${normalized.slice(8, 12)}`;
-    cqlFilter = `nationalcadastralreference='${ref}'`;
-    count = 1;
-  } else {
-    const viiteX = selectedRecord.viitepunkt_x;
-    const viiteY = selectedRecord.viitepunkt_y;
-    if (
-      typeof viiteX !== "number" ||
-      typeof viiteY !== "number" ||
-      !Number.isFinite(viiteX) ||
-      !Number.isFinite(viiteY)
-    ) {
-      return jsonResponse(
-        {
-          error: "PARSE_ERROR",
-          message: "Selected address result missing valid viitepunkt_x/viitepunkt_y",
-        },
-        502,
-        { "Cache-Control": "no-store, max-age=0" }
-      );
-    }
-    cqlFilter = `INTERSECTS(geometry, POINT(${viiteX} ${viiteY}))`;
+  if (resolution.status === "invalid_source") {
+    return jsonResponse({ error: "INVALID_SOURCE", message: resolution.error }, 502, {
+      "Cache-Control": "no-store, max-age=0",
+    });
   }
 
-  const wfsUrl = buildMaruWfsUrl(cqlFilter, count);
+  const wfsUrl = buildMaruWfsUrl(resolution.wfsFilter, resolution.count);
 
   if (!isAllowedMaruWfsUrl(wfsUrl)) {
     return jsonResponse(

@@ -75,7 +75,7 @@ describe("buildAddressResolutionWfsFilter (KT-034)", () => {
     expect(result.status).toBe("not_found");
   });
 
-  test("uses spatial INTERSECTS for non-cadastral selected result", () => {
+  test("uses spatial INTERSECTS for non-cadastral selected result with string coordinates", () => {
     const inaksData = {
       addresses: [
         {
@@ -83,8 +83,8 @@ describe("buildAddressResolutionWfsFilter (KT-034)", () => {
           adr_id: "2105921",
           liik: "E",
           tunnus: "1234567890",
-          viitepunkt_x: 650000,
-          viitepunkt_y: 6600000,
+          viitepunkt_x: "650000",
+          viitepunkt_y: "6600000",
         },
       ],
     };
@@ -95,6 +95,50 @@ describe("buildAddressResolutionWfsFilter (KT-034)", () => {
     if (result.status === "resolved") {
       expect(result.wfsFilter).toBe("INTERSECTS(geometry, POINT(650000 6600000))");
       expect(result.count).toBe(10);
+    }
+  });
+
+  test("returns invalid_source for non-numeric string coordinates", () => {
+    const inaksData = {
+      addresses: [
+        {
+          ads_oid: "ME01087725",
+          adr_id: "2105921",
+          liik: "E",
+          tunnus: "1234567890",
+          viitepunkt_x: "not-a-number",
+          viitepunkt_y: "6600000",
+        },
+      ],
+    };
+
+    const result = buildAddressResolutionWfsFilter(inaksData, addressResultId, addressId);
+
+    expect(result.status).toBe("invalid_source");
+    if (result.status === "invalid_source") {
+      expect(result.error).toContain("invalid reference point");
+    }
+  });
+
+  test("returns invalid_source for out-of-range EPSG:3301 string coordinates", () => {
+    const inaksData = {
+      addresses: [
+        {
+          ads_oid: "ME01087725",
+          adr_id: "2105921",
+          liik: "E",
+          tunnus: "1234567890",
+          viitepunkt_x: "9999999",
+          viitepunkt_y: "6600000",
+        },
+      ],
+    };
+
+    const result = buildAddressResolutionWfsFilter(inaksData, addressResultId, addressId);
+
+    expect(result.status).toBe("invalid_source");
+    if (result.status === "invalid_source") {
+      expect(result.error).toContain("invalid reference point");
     }
   });
 
@@ -167,7 +211,7 @@ describe("buildAddressResolutionWfsFilter (KT-034)", () => {
           liik: "E",
           tunnus: "1234567890",
           viitepunkt_x: null,
-          viitepunkt_y: 6600000,
+          viitepunkt_y: "6600000",
         },
       ],
     };
@@ -176,7 +220,7 @@ describe("buildAddressResolutionWfsFilter (KT-034)", () => {
 
     expect(result.status).toBe("invalid_source");
     if (result.status === "invalid_source") {
-      expect(result.error).toContain("viitepunkt_x/viitepunkt_y");
+      expect(result.error).toContain("invalid reference point");
     }
   });
 

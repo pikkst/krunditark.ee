@@ -1,4 +1,5 @@
 import type { InAksResolveResult } from "./inaks-resolve-handler.types.ts";
+import { parseCoordinatePair } from "../inaks-adapter/coordinate-parser.ts";
 
 export function buildAddressResolutionWfsFilter(
   inaksData: unknown,
@@ -59,23 +60,27 @@ export function buildAddressResolutionWfsFilter(
     };
   }
 
-  const viiteX = selectedRecord.viitepunkt_x;
-  const viiteY = selectedRecord.viitepunkt_y;
-  if (
-    typeof viiteX !== "number" ||
-    typeof viiteY !== "number" ||
-    !Number.isFinite(viiteX) ||
-    !Number.isFinite(viiteY)
-  ) {
+  const coordError = parseCoordinatePair(
+    selectedRecord.viitepunkt_x,
+    selectedRecord.viitepunkt_y,
+    "viitepunkt_x_y",
+    { min: 200000, max: 900000 },
+    { min: 6300000, max: 7800000 }
+  );
+
+  if (coordError) {
     return {
       status: "invalid_source",
-      error: "Selected address result missing valid viitepunkt_x/viitepunkt_y",
+      error: `Selected address result has invalid reference point: ${coordError.message}`,
     };
   }
 
+  const x = Number(selectedRecord.viitepunkt_x);
+  const y = Number(selectedRecord.viitepunkt_y);
+
   return {
     status: "resolved",
-    wfsFilter: `INTERSECTS(geometry, POINT(${viiteX} ${viiteY}))`,
+    wfsFilter: `INTERSECTS(geometry, POINT(${x} ${y}))`,
     count: 10,
   };
 }

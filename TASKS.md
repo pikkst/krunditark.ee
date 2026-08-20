@@ -280,11 +280,11 @@ Read current official MaRu In-AKS docs at implementation time.
 
 ## KT-033 — Implement cadastral parcel adapter
 
-- [ ] verified MaRu source/layer.
-- [ ] timeout/retry/limits.
-- [ ] schema/geometry validation.
-- [ ] normalization/provenance.
-- [ ] fixtures.
+- [x] verified MaRu source/layer.
+- [x] timeout/retry/limits.
+- [x] schema/geometry validation.
+- [x] normalization/provenance.
+- [x] fixtures.
 
 ## KT-034 — Implement parcel resolution API
 

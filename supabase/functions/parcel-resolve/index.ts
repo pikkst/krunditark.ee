@@ -6,6 +6,7 @@ import {
 } from "../../../src/lib/parcel-adapter/maru-wfs.utils.ts";
 import { edgeParcelResolve } from "../../../src/lib/parcel-adapter/maru-wfs.resolve-handler.ts";
 import { parseInAksAddressResponse } from "../../../src/lib/inaks-adapter/normalizer.ts";
+import { projectLonLatToEpsg3301 } from "../../../src/lib/crs/transform.ts";
 
 const ALLOWED_INAKS_HOSTS = ["aks.geoportaal.ee", "aks-test.geoportaal.ee"];
 const ALLOWED_MARU_WFS_HOSTS = ["inspire.geoportaal.ee"];
@@ -256,12 +257,9 @@ async function resolveByPoint(
 }> {
   const [lon, lat] = coordinates;
 
-  const projection = await import("https://cdn.jsdelivr.net/npm/proj4@2.11.0/+esm");
-  const from = "EPSG:4326";
-  const to = "EPSG:3301";
-  const projected = projection.default(lon, lat, from, to);
-  const x = projected[0];
-  const y = projected[1];
+  const projected = projectLonLatToEpsg3301(lon, lat);
+  const x = projected.x;
+  const y = projected.y;
 
   const halfSize = 50;
   const minX = x - halfSize;

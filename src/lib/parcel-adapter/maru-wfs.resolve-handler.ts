@@ -1,4 +1,5 @@
-import { parseMaruWfsResponse } from "./maru-wfs.parser";
+import { parseMaruWfsFeature } from "./maru-wfs.parser";
+import { parseProviderParcel } from "./normalizer";
 
 export interface EdgeParcelResolveOptions {
   cadastralId: string;
@@ -84,29 +85,46 @@ export async function edgeParcelResolve(
         return { status: "unavailable", candidates: [] };
       }
 
-      const parseResult = parseMaruWfsResponse(decoded, retrievedAt, syncRun);
+      if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) {
+        return { status: "unavailable", candidates: [] };
+      }
 
-      if (!parseResult.valid) {
-        const criticalErrors = parseResult.errors.filter(
-          (e) => e.code === "PARSE_ERROR" || e.code === "INVALID_RESPONSE_TYPE"
-        );
-        if (criticalErrors.length > 0) {
-          return { status: "unavailable", candidates: [] };
-        }
+      const data = decoded as Record<string, unknown>;
+      if (data.type !== "FeatureCollection") {
+        return { status: "unavailable", candidates: [] };
+      }
+
+      const features = data.features;
+      if (!Array.isArray(features) || features.length === 0) {
         return { status: "not_found", candidates: [] };
       }
 
-      const candidates: ResolveCandidate[] = parseResult.parcels.map((parcel) => ({
-        cadastralId: parcel.cadastralId,
-        address: parcel.facts.addressText || "",
-        areaM2: parcel.facts.areaM2Computed,
-        geometry: parcel.geometry,
-        source: {
-          id: parcel.source.sourceId,
-          datasetVersionId: parcel.source.sourceDatasetVersionId,
-          retrievedAt: parcel.source.retrievedAt,
-        },
-      }));
+      const candidates: ResolveCandidate[] = [];
+
+      for (let i = 0; i < features.length; i++) {
+        const featureResult = parseMaruWfsFeature(features[i], retrievedAt, syncRun);
+        if (!featureResult.valid) {
+          continue;
+        }
+
+        const parseResult = parseProviderParcel(featureResult.dto);
+        if (!parseResult.valid) {
+          continue;
+        }
+
+        const parcel = parseResult.parcel;
+        candidates.push({
+          cadastralId: parcel.cadastralId,
+          address: parcel.facts.addressText || "",
+          areaM2: parcel.facts.areaM2Computed,
+          geometry: parcel.geometry,
+          source: {
+            id: parcel.source.sourceId,
+            datasetVersionId: parcel.source.sourceDatasetVersionId,
+            retrievedAt: parcel.source.retrievedAt,
+          },
+        });
+      }
 
       if (candidates.length === 0) {
         return { status: "not_found", candidates: [] };

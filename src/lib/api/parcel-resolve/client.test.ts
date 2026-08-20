@@ -195,13 +195,13 @@ test("returns CONFIG_ERROR when VITE_SUPABASE_URL is missing", async () => {
   }
 });
 
-test("returns network error on fetch failure", async () => {
+test("returns source unavailable on fetch failure", async () => {
   global.fetch = vi.fn().mockRejectedValue(new Error("network failure"));
 
   const result = await resolveParcel({ cadastralId: "78401:101:3143" });
 
   expect(result.valid).toBe(false);
   if (!result.valid) {
-    expect(result.error.code).toBe("PARCEL_UNAVAILABLE");
+    expect(result.error.code).toBe("SOURCE_UNAVAILABLE");
   }
 });

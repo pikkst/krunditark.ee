@@ -134,58 +134,36 @@ Do not return `*_NOT_FOUND` when the relevant source request actually failed.
 
 ## 4. Address search
 
-### `GET /addresses/search?q=<query>&limit=<n>`
+### `GET /functions/v1/address-search?q=<query>` or `?adrid=<id>`
 
-Public or anonymous-safe endpoint according to final In-AKS integration architecture.
+Public or anonymous-safe Supabase Edge Function proxy for official In-AKS Gazetteer API.
 
 Purpose: normalized official address/place/object autocomplete.
 
-Example:
+Request parameters:
 
-```json
-{
-  "data": [
-    {
-      "id": "source-scoped-id",
-      "addressId": "address-version-id",
-      "label": "Pärnu mnt 10, Tallinn",
-      "objectType": "building",
-      "objectTypeCode": "E",
-      "coordinates": {
-        "lat": 59.0,
-        "lon": 24.0
-      },
-      "coordinatesEpsg3301": {
-        "x": 650000,
-        "y": 6600000
-      },
-      "source": {
-        "id": "maru.inaks",
-        "authority": "Maa- ja Ruumiamet"
-      },
-      "status": "K",
-      "primary": true,
-      "provenance": {
-        "sourceId": "maru.inaks",
-        "sourceObjectId": "source-scoped-id",
-        "normalizerVersion": "1",
-        "retrievedAt": "2026-08-19T00:00:00Z"
-      }
-    }
-  ],
-  "meta": {
-    "requestId": "uuid"
-  }
-}
-```
+- `q` — free-text address search query (max 256 characters)
+- `adrid` — exact address version identifier lookup (digits only)
+
+Exactly one of `q` or `adrid` must be provided.
+
+Success response body is raw normalized In-AKS JSON. Frontend client parses with `parseInAksAddressResponse` and returns domain `AddressSearchResult[]`.
 
 Rules:
 
 - normalized bounded query length;
-- debounce on client;
-- short-cache per source policy;
+- debounce on client (default 300ms);
+- short-cache per source policy (free-text 1h, exact adrid 24h, negative 5min);
 - unavailable != no matches;
 - raw In-AKS provider response not exposed as stable UI contract.
+
+Error codes:
+
+- `INVALID_INPUT` — missing/invalid query parameters
+- `ADDRESS_SEARCH_UNAVAILABLE` — Edge Function cannot reach In-AKS
+- `UPSTREAM_ERROR` — In-AKS returned non-2xx
+- `PARSE_ERROR` — response structure or validation failed
+- `NETWORK_ERROR` — request aborted or network failure
 
 ## 5. Parcel candidate resolution
 

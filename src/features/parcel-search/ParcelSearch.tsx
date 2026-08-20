@@ -73,7 +73,12 @@ export default function ParcelSearch({
   }, [query]);
 
   const showAutocomplete = useMemo(() => {
-    return isFocused && !cadastralValidation.isCadastral && !cadastralValidation.isInvalidCadastral && query.trim().length > 0;
+    return (
+      isFocused &&
+      !cadastralValidation.isCadastral &&
+      !cadastralValidation.isInvalidCadastral &&
+      query.trim().length > 0
+    );
   }, [isFocused, cadastralValidation.isCadastral, cadastralValidation.isInvalidCadastral, query]);
 
   const displayAddressResults = useMemo(() => {
@@ -198,7 +203,15 @@ export default function ParcelSearch({
         abortRef.current = null;
       }
     },
-    [query, cadastralValidation, displayAddressResults, addressError, clearAddressSearch, handleResolveResult, t]
+    [
+      query,
+      cadastralValidation,
+      displayAddressResults,
+      addressError,
+      clearAddressSearch,
+      handleResolveResult,
+      t,
+    ]
   );
 
   const handleAddressSelect = useCallback(
@@ -294,16 +307,10 @@ export default function ParcelSearch({
   }, [onMapSelectRequested]);
 
   const showResults = showAutocomplete && !isAddressLoading && displayAddressResults.length > 0;
-  const showNoMatch =
-    !isSubmitting && resolveStatus === "not_found" && query.trim().length > 0;
+  const showNoMatch = !isSubmitting && resolveStatus === "not_found" && query.trim().length > 0;
   const showUnavailable =
-    !isSubmitting &&
-    resolveStatus === "unavailable" &&
-    query.trim().length > 0;
-  const showInvalid =
-    !isSubmitting &&
-    resolveStatus === "invalid" &&
-    query.trim().length > 0;
+    !isSubmitting && resolveStatus === "unavailable" && query.trim().length > 0;
+  const showInvalid = !isSubmitting && resolveStatus === "invalid" && query.trim().length > 0;
   const showAddressUnavailable =
     showAutocomplete &&
     !isAddressLoading &&

@@ -179,7 +179,9 @@ describe("ParcelSearch", () => {
     fireEvent.change(input, { target: { value: "Mustamäe" } });
 
     await waitFor(() => {
-      expect(screen.getByText("Aadressiotsing ei ole hetkel saadaval. Proovi uuesti.")).toBeDefined();
+      expect(
+        screen.getByText("Aadressiotsing ei ole hetkel saadaval. Proovi uuesti.")
+      ).toBeDefined();
     });
 
     const button = screen.getByRole("button", { name: "Otsi" });

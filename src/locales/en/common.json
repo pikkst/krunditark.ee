@@ -55,5 +55,22 @@
       "invalidCharacters": "Cadastral identifier contains invalid characters; only digits, colons, hyphens, dots and spaces are allowed",
       "wrongLength": "Cadastral identifier must be 12 digits after normalization"
     }
+  },
+  "parcelSearch": {
+    "label": "Address or cadastral identifier",
+    "placeholder": "E.g. Pärnu mnt 10, Tallinn or 12345:678:9012",
+    "searchButton": "Search",
+    "loading": "Searching...",
+    "noMatch": "No parcel found",
+    "unavailable": "Parcel data could not be loaded. Please try again.",
+    "addressSearchUnavailable": "Address search is unavailable. Please try again.",
+    "resolutionUnavailable": "Parcel resolution service is unavailable. Please try again.",
+    "mapSelect": "Select parcel on map",
+    "error": {
+      "SOURCE_TIMEOUT": "Parcel data could not be loaded. Please try again.",
+      "PARCEL_UNAVAILABLE": "Parcel resolution service is unavailable. Please try again.",
+      "NETWORK_ERROR": "Network request failed. Please try again.",
+      "CONFIG_ERROR": "Service configuration is invalid. Please try again later."
+    }
   }
 }

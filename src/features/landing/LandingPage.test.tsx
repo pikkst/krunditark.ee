@@ -15,8 +15,9 @@ describe("LandingPage", () => {
     expect(screen.getByText("Tea enne, kui ehitad.")).toBeDefined();
   });
 
-  it("renders the search input with Estonian placeholder", () => {
+  it("renders the combined parcel search input", () => {
     renderWithI18n(<LandingPage />);
+    expect(screen.getByLabelText("Aadress või katastritunnus")).toBeDefined();
     expect(
       screen.getByPlaceholderText("Nt Pärnu mnt 10, Tallinn või 12345:678:9012")
     ).toBeDefined();
@@ -25,5 +26,10 @@ describe("LandingPage", () => {
   it("renders the search button", () => {
     renderWithI18n(<LandingPage />);
     expect(screen.getByRole("button", { name: "Otsi" })).toBeDefined();
+  });
+
+  it("renders the secondary map selection button", () => {
+    renderWithI18n(<LandingPage />);
+    expect(screen.getByRole("button", { name: "Vali krunt kaardilt" })).toBeDefined();
   });
 });

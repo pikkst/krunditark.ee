@@ -3,8 +3,8 @@ import type {
   ParcelGeometry,
   PolygonGeometry,
   MultiPolygonGeometry,
-} from "../../domain/parcel/types";
-import { CANONICAL_PARCEL_CRS } from "../../domain/parcel/types";
+} from "../../domain/parcel/types.ts";
+import { CANONICAL_PARCEL_CRS } from "../../domain/parcel/types.ts";
 
 export const EPSG_4326 = "EPSG:4326";
 export const EPSG_3301 = "EPSG:3301";

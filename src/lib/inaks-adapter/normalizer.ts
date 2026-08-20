@@ -17,6 +17,7 @@ import type {
   ProviderInAksAddressRaw,
   ProviderInAksResponseRaw,
 } from "./types";
+import { parseCoordinatePair } from "./coordinate-parser";
 
 const SUPPORTED_OBJECT_TYPES = new Set(["1", "2", "B", "4", "E"]);
 const VALID_STATUSES = new Set(["K", "O", "V", "T"]);
@@ -35,10 +36,6 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function isString(value: unknown): value is string {
   return typeof value === "string";
-}
-
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
 }
 
 function isInAksParseError(value: unknown): value is InAksParseError {
@@ -141,45 +138,6 @@ function isValidIsoTimestamp(value: string): boolean {
   }
 
   return !Number.isNaN(Date.parse(value));
-}
-
-function parseCoordinatePair(
-  rawX: unknown,
-  rawY: unknown,
-  fieldPrefix: string,
-  xBounds?: { min: number; max: number },
-  yBounds?: { min: number; max: number }
-): InAksParseError | undefined {
-  if (rawX == null || rawY == null) {
-    return parseError("INVALID_COORDINATES", fieldPrefix, "both coordinate values are required");
-  }
-  if (!isString(rawX) || !isString(rawY)) {
-    return parseError(
-      "INVALID_COORDINATES",
-      fieldPrefix,
-      "coordinates must be numeric strings when provided"
-    );
-  }
-  const x = Number(rawX);
-  const y = Number(rawY);
-  if (!isFiniteNumber(x) || !isFiniteNumber(y)) {
-    return parseError("NON_FINITE_NUMERIC", fieldPrefix, "coordinates must be finite numbers");
-  }
-  if (xBounds && (x < xBounds.min || x > xBounds.max)) {
-    return parseError(
-      "INVALID_COORDINATES",
-      fieldPrefix,
-      `x coordinate out of range [${xBounds.min}, ${xBounds.max}]`
-    );
-  }
-  if (yBounds && (y < yBounds.min || y > yBounds.max)) {
-    return parseError(
-      "INVALID_COORDINATES",
-      fieldPrefix,
-      `y coordinate out of range [${yBounds.min}, ${yBounds.max}]`
-    );
-  }
-  return undefined;
 }
 
 function mapObjectType(liik: string): AddressObjectType {

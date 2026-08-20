@@ -416,5 +416,8 @@ enabled = true
 [functions.address-search]
 verify_jwt = false
 
+[functions.parcel-resolve]
+verify_jwt = false
+
 [functions.parcel-lookup]
 verify_jwt = false

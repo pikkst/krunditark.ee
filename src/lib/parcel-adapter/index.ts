@@ -18,3 +18,5 @@ export type {
 
 export { parseProviderParcel } from "./normalizer";
 export { parseMaruWfsFeature, parseMaruWfsResponse } from "./maru-wfs.parser";
+export { edgeParcelLookup } from "./maru-wfs.edge-handler";
+export { edgeParcelResolve, type EdgeParcelResolveResult } from "./maru-wfs.resolve-handler";

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { useAddressSearch } from "../../lib/api/address-search/useAddressSearch";
+import { searchAddress } from "../../lib/api/address-search";
 import {
   resolveParcelByAddressResult,
   resolveParcelByCadastralId,
@@ -10,6 +10,7 @@ import {
 } from "../../lib/api/parcel-resolve";
 import type { Parcel } from "../../domain/parcel/types";
 import type { AddressSearchResult } from "../../domain/address-search/types";
+import type { AddressSearchError } from "../../lib/api/address-search/types";
 import { validateCadastralId } from "../../domain/parcel/types";
 import "./ParcelSearch.css";
 
@@ -41,6 +42,10 @@ export default function ParcelSearch({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resolveError, setResolveError] = useState<ParcelResolveError | null>(null);
   const [resolveStatus, setResolveStatus] = useState<ResolveStatus>("idle");
+
+  const [addressResults, setAddressResults] = useState<AddressSearchResult[]>([]);
+  const [addressError, setAddressError] = useState<AddressSearchError | null>(null);
+  const [isAddressLoading, setIsAddressLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
 
   const listboxRef = useRef<HTMLUListElement | null>(null);
@@ -69,32 +74,20 @@ export default function ParcelSearch({
     return { isCadastral: false, isInvalidCadastral: false, normalized: "" };
   }, [trimmedQuery]);
 
-  const addressSearchQuery = useMemo(() => {
-    if (cadastralValidation.isCadastral) return "";
-    if (cadastralValidation.isInvalidCadastral) return "";
-    if (trimmedQuery.length < AUTOCOMPLETE_MIN_LENGTH) return "";
-    return trimmedQuery;
-  }, [cadastralValidation.isCadastral, cadastralValidation.isInvalidCadastral, trimmedQuery]);
-
-  const {
-    results: addressResults,
-    error: addressError,
-    isLoading: isAddressLoading,
-    clear: clearAddressSearch,
-  } = useAddressSearch(addressSearchQuery, { debounceMs: 300 });
-
   const showAutocomplete = useMemo(() => {
     return (
       isFocused &&
       !cadastralValidation.isCadastral &&
       !cadastralValidation.isInvalidCadastral &&
-      trimmedQuery.length >= AUTOCOMPLETE_MIN_LENGTH
+      trimmedQuery.length >= AUTOCOMPLETE_MIN_LENGTH &&
+      addressResults.length > 0
     );
   }, [
     isFocused,
     cadastralValidation.isCadastral,
     cadastralValidation.isInvalidCadastral,
     trimmedQuery,
+    addressResults.length,
   ]);
 
   const displayAddressResults = useMemo(() => {
@@ -162,7 +155,8 @@ export default function ParcelSearch({
       setResolveError(null);
       setResolveStatus("idle");
       setActiveIndex(-1);
-      clearAddressSearch();
+      setAddressResults([]);
+      setAddressError(null);
 
       if (abortRef.current) {
         abortRef.current.abort();
@@ -182,47 +176,53 @@ export default function ParcelSearch({
             code: "INVALID_INPUT",
             message: t("parcelSearch.invalid"),
           });
-        } else if (activeIndex >= 0 && activeIndex < displayAddressResults.length) {
-          if (currentRequestId !== submissionRequestIdRef.current) return;
-          const selected = displayAddressResults[activeIndex];
-          const result = await resolveParcelByAddressResult(selected.id, selected.addressId);
-          if (currentRequestId !== submissionRequestIdRef.current) return;
-          handleResolveResult(result);
-        } else if (isAddressLoading) {
-          setResolveStatus("idle");
-          setIsSubmitting(false);
-          abortRef.current = null;
-        } else if (displayAddressResults.length > 1) {
-          setResolveStatus("idle");
-          setIsSubmitting(false);
-          abortRef.current = null;
-          inputRef.current?.focus();
-        } else if (displayAddressResults.length === 1) {
-          if (currentRequestId !== submissionRequestIdRef.current) return;
-          const result = await resolveParcelByAddressResult(
-            displayAddressResults[0].id,
-            displayAddressResults[0].addressId
-          );
-          if (currentRequestId !== submissionRequestIdRef.current) return;
-          handleResolveResult(result);
-        } else if (addressError !== null) {
-          if (addressError.code === "INVALID_INPUT") {
-            setResolveStatus("invalid");
-            setResolveError({
-              code: "INVALID_INPUT",
-              message: t("parcelSearch.invalid"),
-            });
-          } else {
-            setResolveStatus("unavailable");
-            setResolveError({
-              code: "PARCEL_UNAVAILABLE",
-              message: t("parcelSearch.unavailable"),
-            });
-          }
         } else {
-          setResolveStatus("not_found");
+          setIsAddressLoading(true);
+          const response = await searchAddress(trimmedQuery, { signal: controller.signal });
+          if (currentRequestId !== submissionRequestIdRef.current) {
+            setIsAddressLoading(false);
+            return;
+          }
+          setIsAddressLoading(false);
+
+          if (!response.valid) {
+            if (response.error.code === "INVALID_INPUT") {
+              setResolveStatus("invalid");
+              setResolveError({
+                code: "INVALID_INPUT",
+                message: t("parcelSearch.invalid"),
+              });
+            } else {
+              setResolveStatus("unavailable");
+              setResolveError({
+                code: "PARCEL_UNAVAILABLE",
+                message: t("parcelSearch.unavailable"),
+              });
+            }
+            return;
+          }
+
+          const filtered = response.results.filter(
+            (r) => r.objectType === "cadastral_unit" || r.objectType === "building"
+          );
+          setAddressResults(filtered);
+
+          if (filtered.length === 0) {
+            setResolveStatus("not_found");
+          } else if (filtered.length === 1) {
+            const result = await resolveParcelByAddressResult(
+              filtered[0].id,
+              filtered[0].addressId
+            );
+            if (currentRequestId !== submissionRequestIdRef.current) return;
+            handleResolveResult(result);
+          } else {
+            setResolveStatus("idle");
+            inputRef.current?.focus();
+          }
         }
       } catch {
+        setIsAddressLoading(false);
         setResolveStatus("unavailable");
         setResolveError({
           code: "PARCEL_UNAVAILABLE",
@@ -235,17 +235,7 @@ export default function ParcelSearch({
         }
       }
     },
-    [
-      trimmedQuery,
-      cadastralValidation,
-      activeIndex,
-      displayAddressResults,
-      isAddressLoading,
-      addressError,
-      clearAddressSearch,
-      handleResolveResult,
-      t,
-    ]
+    [trimmedQuery, cadastralValidation, handleResolveResult, t]
   );
 
   const handleAddressSelect = useCallback(
@@ -255,7 +245,7 @@ export default function ParcelSearch({
       setResolveError(null);
       setResolveStatus("idle");
       setActiveIndex(-1);
-      clearAddressSearch();
+      setAddressResults([]);
 
       if (abortRef.current) {
         abortRef.current.abort();
@@ -278,7 +268,7 @@ export default function ParcelSearch({
         abortRef.current = null;
       }
     },
-    [clearAddressSearch, handleResolveResult, t]
+    [handleResolveResult, t]
   );
 
   const handleKeyDown = useCallback(
@@ -322,6 +312,8 @@ export default function ParcelSearch({
     setResolveError(null);
     setResolveStatus("idle");
     setActiveIndex(-1);
+    setAddressResults([]);
+    setAddressError(null);
   }, []);
 
   const handleInputFocus = useCallback(() => {

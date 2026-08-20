@@ -166,6 +166,7 @@ supabase/
     commerce-checkout/        # later
     commerce-webhook-*/       # selected provider later
     _shared/
+      inaks.ts
       auth/
       cors/
       errors/
@@ -309,6 +310,8 @@ Consumer entry methods:
 Official MaRu In-AKS is treated as interactive source with live/short-cache behavior under source policy.
 
 It should produce a normalized internal search result rather than leaking raw provider responses throughout UI.
+
+Address lookup is **submit-driven**: the frontend does not fire upstream requests while the user is typing. An explicit submit action (Enter or Otsi button) triggers a single `searchAddress()` call with a minimum query length. The canonical In-AKS Gazetteer endpoint is centralized in `supabase/functions/_shared/inaks.ts` and used by both `address-search` and `parcel-resolve` Edge Functions.
 
 ### Parcel resolution
 

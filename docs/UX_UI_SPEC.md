@@ -319,6 +319,22 @@ Placeholder:
 
 `Nt Pärnu mnt 10, Tallinn või 12345:678:9012`
 
+Search is **submit-driven**, not reactive to typing:
+
+- typing updates the input text only;
+- no upstream request is made while the user is typing;
+- an address search is triggered only when the user explicitly submits (presses **Otsi** or **Enter**);
+- a minimum of **3 characters** is required for an address lookup;
+- exact cadastral identifiers bypass address search and call the parcel resolver directly;
+- malformed cadastrial-like input (wrong length, invalid characters) is validated locally and shown as an **invalid** state without any upstream request.
+
+After submit:
+
+- **0 candidates** → `not_found` ("Katastriüksust ei leitud");
+- **1 candidate** → resolve automatically;
+- **>1 candidates** → show the accessible suggestion/listbox UI and require explicit selection;
+- provider/network/parse failure → `unavailable` ("Krundiandmeid ei õnnestunud praegu laadida. Proovi uuesti.").
+
 Autocomplete result card may show:
 
 - official address;

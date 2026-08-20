@@ -6,7 +6,9 @@ import type {
   AddressSearchFailure,
   SearchAddressOptions,
   CachedEntry,
+  AddressSearchWarning,
 } from "./types";
+import type { InAksParseWarning } from "../../inaks-adapter/types";
 
 const INAKS_NORMALIZER_VERSION = "1";
 
@@ -79,6 +81,14 @@ function mapEdgeErrorCode(edgeError: string | undefined): AddressSearchErrorCode
   if (edgeError === "ADDRESS_SEARCH_UNAVAILABLE") return "ADDRESS_SEARCH_UNAVAILABLE";
   if (edgeError === "INVALID_INPUT") return "INVALID_INPUT";
   return undefined;
+}
+
+function mapInAksWarning(warning: InAksParseWarning): AddressSearchWarning {
+  return {
+    code: warning.code,
+    field: warning.field,
+    message: warning.message,
+  };
 }
 
 export async function searchAddress(
@@ -186,7 +196,7 @@ export async function searchAddress(
     const success: AddressSearchSuccess = {
       valid: true,
       results: parsed.results,
-      warnings: parsed.warnings,
+      warnings: parsed.warnings.map(mapInAksWarning),
     };
 
     const ttl = queryType === "adrid" ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000;
@@ -220,52 +230,75 @@ export async function searchAddressByAdrid(
 
 export function createDebouncedSearch(options: { debounceMs?: number } = {}) {
   const debounceMs = options.debounceMs ?? 300;
-  let sharedTimer: ReturnType<typeof setTimeout> | null = null;
-  let sharedReject: ((reason: unknown) => void) | null = null;
-  let invocationId = 0;
+  let pendingTimer: ReturnType<typeof setTimeout> | null = null;
+  let pendingReject: ((reason: unknown) => void) | null = null;
+  let activeRequestId = 0;
+  let inFlightReject: ((reason: unknown) => void) | null = null;
+  let inFlightId = 0;
+
+  function cancelPending() {
+    if (pendingTimer) {
+      clearTimeout(pendingTimer);
+      pendingTimer = null;
+    }
+    if (pendingReject) {
+      pendingReject(new Error("Debounced search aborted"));
+      pendingReject = null;
+    }
+  }
+
+  function cancelInFlight() {
+    if (inFlightReject) {
+      inFlightReject(new Error("Debounced search aborted"));
+      inFlightReject = null;
+    }
+    inFlightId = 0;
+  }
 
   return {
     search: (query: string, signal?: AbortSignal): Promise<AddressSearchResponse> => {
-      const currentId = ++invocationId;
+      const requestId = ++activeRequestId;
 
-      if (sharedTimer) {
-        clearTimeout(sharedTimer);
-        sharedReject?.(new Error("Debounced search aborted"));
-      }
+      cancelPending();
 
       return new Promise<AddressSearchResponse>((resolve, reject) => {
-        sharedReject = reject;
+        pendingReject = reject;
 
         const timerId = setTimeout(async () => {
-          if (currentId !== invocationId) {
-            return;
+          pendingTimer = null;
+          pendingReject = null;
+
+          if (inFlightReject) {
+            inFlightReject(new Error("Debounced search aborted"));
+            inFlightReject = null;
           }
 
-          sharedTimer = null;
-          sharedReject = null;
+          const currentInFlightId = ++inFlightId;
+          inFlightReject = reject;
 
           try {
             const result = await searchAddress(query, { signal });
-            if (currentId === invocationId) {
+            if (currentInFlightId === inFlightId) {
+              inFlightReject = null;
               resolve(result);
             }
           } catch (err) {
-            if (currentId === invocationId) {
+            if (currentInFlightId === inFlightId) {
+              inFlightReject = null;
               reject(err);
             }
           }
         }, debounceMs);
 
-        sharedTimer = timerId;
+        pendingTimer = timerId;
 
         if (signal) {
           signal.addEventListener(
             "abort",
             () => {
-              if (currentId === invocationId && sharedTimer === timerId) {
-                clearTimeout(timerId);
-                sharedTimer = null;
-                sharedReject = null;
+              if (requestId === activeRequestId && pendingTimer === timerId) {
+                cancelPending();
+                cancelInFlight();
                 reject(new Error("Debounced search aborted"));
               }
             },

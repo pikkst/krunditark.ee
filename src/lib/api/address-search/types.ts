@@ -10,10 +10,18 @@ export interface AddressSearchError {
   message: string;
 }
 
+export type AddressSearchWarningCode = "NON_CURRENT_OBJECT";
+
+export interface AddressSearchWarning {
+  code: AddressSearchWarningCode;
+  field?: string;
+  message: string;
+}
+
 export interface AddressSearchSuccess {
   valid: true;
   results: import("../../../domain/address-search/types").AddressSearchResult[];
-  warnings: import("../../../lib/inaks-adapter/types").InAksParseWarning[];
+  warnings: AddressSearchWarning[];
 }
 
 export interface AddressSearchFailure {

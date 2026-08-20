@@ -433,6 +433,39 @@ describe("createDebouncedSearch", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("q=B"), expect.anything());
   });
+
+  it("supersedes in-flight older query and rejects its promise", async () => {
+    const promiseA = new Promise<{ addresses: Array<{ adr_id: string }> }>(() => {});
+
+    fetchSpy.mockImplementation((url: string) => {
+      if (url.includes("q=A")) {
+        return promiseA.then(
+          (data) =>
+            ({
+              ok: true,
+              json: () => Promise.resolve(data),
+            }) as Response
+        );
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(VALID_INAKS_RESPONSE),
+      } as Response);
+    });
+
+    const debounced = createDebouncedSearch({ debounceMs: 500 });
+    const resultA = debounced.search("A");
+    vi.advanceTimersByTime(500);
+    const resultB = debounced.search("B");
+    vi.advanceTimersByTime(500);
+
+    await expect(resultA).rejects.toThrow("Debounced search aborted");
+    const finalB = await resultB;
+    expect(finalB.valid).toBe(true);
+    if (finalB.valid) {
+      expect(finalB.results[0].addressId).toBe("2105921");
+    }
+  });
 });
 
 describe("getAddressSearchCache", () => {

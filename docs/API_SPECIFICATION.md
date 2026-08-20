@@ -167,13 +167,13 @@ Error codes:
 
 ## 5. Parcel candidate resolution
 
-### `POST /parcels/resolve`
+### `POST /functions/v1/parcel-resolve`
 
-Request may contain exactly one supported selector:
+Public Supabase Edge Function for parcel resolution. Request body must contain exactly one selector:
 
 ```json
 {
-  "cadastralId": "12345:678:9012"
+  "selector": { "type": "cadastral", "cadastralId": "12345:678:9012" }
 }
 ```
 
@@ -181,7 +181,7 @@ or
 
 ```json
 {
-  "addressResultId": "source-scoped-id"
+  "selector": { "type": "address", "addressResultId": "inaks-0", "addressId": "1234567890" }
 }
 ```
 
@@ -189,41 +189,61 @@ or map selection:
 
 ```json
 {
-  "point": {
-    "type": "Point",
-    "coordinates": [24.75, 59.43]
-  }
+  "selector": { "type": "point", "point": { "lat": 59.437, "lng": 24.753 } }
 }
 ```
 
-Response may contain one or several candidates:
+Response uses a shared resolution contract:
 
 ```json
 {
-  "data": {
-    "status": "ambiguous",
-    "candidates": [
-      {
-        "cadastralId": "12345:678:9012",
-        "address": "...",
-        "areaM2": 12000,
-        "geometry": {
-          "type": "MultiPolygon",
-          "coordinates": []
-        },
-        "source": {
-          "id": "maru.cadastre",
-          "datasetVersionId": "uuid",
-          "retrievedAt": "..."
-        }
-      }
-    ]
-  },
-  "meta": { "requestId": "uuid" }
+  "status": "ambiguous",
+  "candidates": [
+    {
+      "id": "CP:12345:678:9012",
+      "cadastralId": "123456789012",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": []
+      },
+      "geometryCrs": "EPSG:3301",
+      "facts": {
+        "areaM2Computed": 12000,
+        "addressText": "..."
+      },
+      "source": {
+        "sourceId": "maru.cadastre.parcels.inspire",
+        "sourceDatasetVersionId": "2026-08-16",
+        "sourceSyncRunId": "edge-sync-123",
+        "sourceObjectId": "...",
+        "normalizerVersion": "1",
+        "retrievedAt": "...",
+        "sourceEffectiveAt": "..."
+      },
+      "freshnessState": "fresh",
+      "contentHash": "..."
+    }
+  ]
 }
 ```
 
-The client must ask user to choose when `status=ambiguous`.
+Resolution states:
+
+- `resolved` — exactly one valid candidate.
+- `ambiguous` — multiple valid candidates; UI must ask user to choose.
+- `not_found` — no valid candidate.
+- `unavailable` — upstream unreachable, timeout, or invalid response.
+- `invalid_source` — upstream returned features but one or more failed validation.
+
+Rules:
+
+- validates selector exactly-one invariant;
+- cadastral path normalizes to 12-digit string and queries MaRu Inspire WFS with EPSG:3301;
+- address path calls verified In-AKS gazetteer by `addressId`, extracts cadastral units (`liik=4`), then resolves via MaRu WFS;
+- point path projects WGS84 to EPSG:3301 and uses `INTERSECTS(geometry, POINT(...))` spatial filter;
+- retries retryable upstream statuses once;
+- validates root FeatureCollection CRS is EPSG:3301 before parsing candidates;
+- never silently drops invalid features in multi-candidate responses.
 
 ## 6. Parcel lookup
 
@@ -925,76 +945,20 @@ Internal MVP contracts use:
 
 External B2B consumers require explicit `/v1` or equivalent before launch.
 
-## 34. Parcel resolution Edge Function
+## 34. Parcel resolution Edge Function implementation
 
-### `GET /functions/v1/parcel-resolve?cadastralId=<id>`
+### `POST /functions/v1/parcel-resolve`
 
-Public Supabase Edge Function for resolving a single parcel by cadastral identifier.
+Server-side implementation notes for the public parcel resolution endpoint.
 
-Request parameters:
-
-- `cadastralId` — normalized or formatted Estonian cadastral identifier (max 64 characters)
-
-Success response:
-
-```json
-{
-  "valid": true,
-  "parcel": {
-    "id": "CP:12345:678:9012",
-    "cadastralId": "123456789012",
-    "geometry": {
-      "type": "Polygon",
-      "coordinates": []
-    },
-    "geometryCrs": "EPSG:3301",
-    "facts": {
-      "areaM2Computed": 12000,
-      "addressText": "..."
-    },
-    "source": {
-      "sourceId": "maru.cadastre.parcels.inspire",
-      "sourceDatasetVersionId": "2026-08-16",
-      "sourceSyncRunId": "edge-sync-123",
-      "sourceObjectId": "...",
-      "normalizerVersion": "1",
-      "retrievedAt": "...",
-      "sourceEffectiveAt": "..."
-    },
-    "freshnessState": "fresh",
-    "contentHash": "..."
-  }
-}
-```
-
-Error response:
-
-```json
-{
-  "error": "INVALID_CADASTRAL_ID",
-  "message": "cadastralId has invalid format"
-}
-```
-
-Supported error codes:
-
-- `INVALID_INPUT` — missing or empty cadastralId
-- `INVALID_CADASTRAL_ID` — malformed cadastral identifier
-- `PARCEL_NOT_FOUND` — no parcel matches the identifier
-- `AMBIGUOUS_RESULT` — multiple parcels matched
-- `SOURCE_TIMEOUT` — upstream WFS timeout
-- `PARCEL_UNAVAILABLE` — upstream unreachable
-- `UPSTREAM_ERROR` — upstream returned non-2xx or invalid response
-- `PARSE_ERROR` — response decoding/validation failed
-- `CONFIG_ERROR` — frontend/env misconfiguration
-
-Rules:
-
-- validates cadastral format client-side and server-side;
-- normalizes to 12-digit string before upstream query;
-- uses MaRu Inspire WFS with EPSG:3301 response;
-- retries retryable upstream statuses once;
-- no source synchronization triggered per request.
+- accepts JSON body with exactly one selector: `cadastral`, `address`, or `point`;
+- SSRF-safe upstream calls: `inspire.geoportaal.ee` for MaRu WFS, `aks.geoportaal.ee` / `aks-test.geoportaal.ee` for In-AKS;
+- CORS allows `POST` and `OPTIONS`;
+- request timeout 10s, retries retryable upstream statuses once;
+- validates FeatureCollection root CRS is `EPSG:3301` before parsing candidates;
+- returns canonical `Parcel` domain objects as candidates with full provenance and `freshnessState`;
+- address path maps In-AKS cadastral units (`liik=4`) to MaRu WFS queries;
+- point path projects WGS84 to EPSG:3301 server-side and uses `INTERSECTS(geometry, POINT(...))`.
 
 ## 35. API security acceptance
 

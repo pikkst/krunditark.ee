@@ -1,3 +1,22 @@
+import type { Parcel } from "../../../domain/parcel/types";
+
+export type ParcelResolveSelector =
+  | { type: "cadastral"; cadastralId: string }
+  | { type: "address"; addressResultId: string; addressId: string }
+  | { type: "point"; point: { lat: number; lng: number } };
+
+export interface ParcelResolveRequest {
+  selector: ParcelResolveSelector;
+}
+
+export type ParcelResolveStatus =
+  "resolved" | "ambiguous" | "not_found" | "unavailable" | "invalid_source";
+
+export interface ParcelResolveResponse {
+  status: ParcelResolveStatus;
+  candidates: Parcel[];
+}
+
 export type ParcelResolveErrorCode =
   | "INVALID_INPUT"
   | "INVALID_CADASTRAL_ID"
@@ -8,50 +27,17 @@ export type ParcelResolveErrorCode =
   | "SOURCE_TIMEOUT"
   | "PARCEL_UNAVAILABLE"
   | "NETWORK_ERROR"
-  | "CONFIG_ERROR";
+  | "CONFIG_ERROR"
+  | "INVALID_SOURCE";
 
 export interface ParcelResolveError {
   code: ParcelResolveErrorCode;
   message: string;
 }
 
-export interface ParcelGeometry {
-  type: "Polygon" | "MultiPolygon";
-  coordinates: number[][][] | number[][][][];
-}
-
-export interface ParcelFacts {
-  areaM2Computed: number;
-  addressText?: string;
-  landUseData?: Record<string, unknown>;
-}
-
-export interface ParcelSource {
-  sourceId: string;
-  sourceDatasetVersionId: string;
-  sourceSyncRunId: string;
-  sourceObjectId?: string;
-  normalizerVersion: string;
-  retrievedAt: string;
-  sourceEffectiveAt?: string;
-}
-
-export interface ParcelResolveParcel {
-  id: string;
-  cadastralId: string;
-  geometry: ParcelGeometry;
-  geometryCrs: string;
-  facts: ParcelFacts;
-  source: ParcelSource;
-  freshnessState: string;
-  contentHash: string;
-}
-
 export interface ParcelResolveSuccess {
   valid: true;
-  parcel: ParcelResolveParcel;
-  retrievedAt: string;
-  sourceVersion: string;
+  response: ParcelResolveResponse;
 }
 
 export interface ParcelResolveFailure {
@@ -59,4 +45,4 @@ export interface ParcelResolveFailure {
   error: ParcelResolveError;
 }
 
-export type ParcelResolveResponse = ParcelResolveSuccess | ParcelResolveFailure;
+export type ParcelResolveClientResult = ParcelResolveSuccess | ParcelResolveFailure;

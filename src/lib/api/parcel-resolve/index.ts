@@ -3,7 +3,16 @@ export type {
   ParcelResolveError,
   ParcelResolveSuccess,
   ParcelResolveFailure,
+  ParcelResolveClientResult,
+  ParcelResolveSelector,
+  ParcelResolveRequest,
   ParcelResolveResponse,
+  ParcelResolveStatus,
 } from "./types";
 
-export { resolveParcelByCadastralId } from "./client";
+export {
+  resolveParcel,
+  resolveParcelByCadastralId,
+  resolveParcelByAddressResult,
+  resolveParcelByPoint,
+} from "./client";

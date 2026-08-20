@@ -12,15 +12,15 @@ function mockFetchResponse(body: unknown, status = 200): Response {
 
 const BASE_WFS_URL = "https://inspire.geoportaal.ee/geoserver/CP_katastriyksused/wfs";
 
-function buildWfsUrl(cadastralRef: string): string {
+function buildWfsUrl(cqlFilter: string, count = 20): string {
   const url = new URL(BASE_WFS_URL);
   url.searchParams.set("service", "WFS");
   url.searchParams.set("version", "2.0.0");
   url.searchParams.set("request", "GetFeature");
   url.searchParams.set("typeNames", "CP_katastriyksused:CP.CadastralParcel");
-  url.searchParams.set("cql_filter", `nationalcadastralreference='${cadastralRef}'`);
+  url.searchParams.set("cql_filter", cqlFilter);
   url.searchParams.set("outputFormat", "application/json");
-  url.searchParams.set("count", "20");
+  url.searchParams.set("count", String(count));
   url.searchParams.set("srsName", "EPSG:3301");
   return url.toString();
 }
@@ -115,14 +115,13 @@ describe("edgeParcelResolve (KT-034)", () => {
   const syncRun = `maru-wfs-test-${Date.now()}`;
   const retrievedAt = new Date().toISOString();
 
-  test("returns resolved when WFS returns exactly one feature", async () => {
+  test("returns resolved when WFS returns exactly one valid feature with EPSG:3301", async () => {
     global.fetch = vi
       .fn()
       .mockResolvedValue(mockFetchResponse(singleFeatureResponse("78401:101:3143")));
 
     const result = await edgeParcelResolve({
-      cadastralId: "784011013143",
-      wfsUrl: new URL(buildWfsUrl("78401:101:3143")),
+      wfsUrl: new URL(buildWfsUrl("nationalcadastralreference='78401:101:3143'")),
       maxAttempts: 2,
       retryableStatuses: new Set([429, 502, 503, 504]),
       timeoutMs: 10_000,
@@ -134,12 +133,16 @@ describe("edgeParcelResolve (KT-034)", () => {
     if (result.status === "resolved") {
       expect(result.candidates).toHaveLength(1);
       expect(result.candidates[0].cadastralId).toBe("784011013143");
-      expect(result.candidates[0].areaM2).toBe(100000);
-      expect(result.candidates[0].source.id).toBe("maru.cadastre.parcels.inspire");
+      expect(result.candidates[0].geometryCrs).toBe("EPSG:3301");
+      expect(result.candidates[0].freshnessState).toBe("fresh");
+      expect(result.candidates[0].source.sourceId).toBe("maru.cadastre.parcels.inspire");
+      expect(result.candidates[0].source.sourceDatasetVersionId).toBe("2026-08-01");
+      expect(result.candidates[0].source.retrievedAt).toBe(retrievedAt);
+      expect(result.candidates[0].source.sourceSyncRunId).toBe(syncRun);
     }
   });
 
-  test("returns ambiguous when WFS returns multiple features", async () => {
+  test("returns ambiguous when WFS returns multiple valid features", async () => {
     global.fetch = vi
       .fn()
       .mockResolvedValue(
@@ -147,8 +150,9 @@ describe("edgeParcelResolve (KT-034)", () => {
       );
 
     const result = await edgeParcelResolve({
-      cadastralId: "784011013143",
-      wfsUrl: new URL(buildWfsUrl("78401:101:3143")),
+      wfsUrl: new URL(
+        buildWfsUrl("nationalcadastralreference IN ('78401:101:3143','78401:101:3144')", 20)
+      ),
       maxAttempts: 2,
       retryableStatuses: new Set([429, 502, 503, 504]),
       timeoutMs: 10_000,
@@ -159,6 +163,8 @@ describe("edgeParcelResolve (KT-034)", () => {
     expect(result.status).toBe("ambiguous");
     if (result.status === "ambiguous") {
       expect(result.candidates).toHaveLength(2);
+      expect(result.candidates[0].freshnessState).toBe("fresh");
+      expect(result.candidates[1].freshnessState).toBe("fresh");
     }
   });
 
@@ -172,8 +178,7 @@ describe("edgeParcelResolve (KT-034)", () => {
     );
 
     const result = await edgeParcelResolve({
-      cadastralId: "000000000000",
-      wfsUrl: new URL(buildWfsUrl("00000:000:0000")),
+      wfsUrl: new URL(buildWfsUrl("nationalcadastralreference='00000:000:0000'")),
       maxAttempts: 2,
       retryableStatuses: new Set([429, 502, 503, 504]),
       timeoutMs: 10_000,
@@ -185,18 +190,16 @@ describe("edgeParcelResolve (KT-034)", () => {
     expect(result.candidates).toHaveLength(0);
   });
 
-  test("returns not_found for parse errors that are not critical", async () => {
+  test("returns unavailable when WFS response CRS is missing", async () => {
     global.fetch = vi.fn().mockResolvedValue(
       mockFetchResponse({
         type: "FeatureCollection",
-        crs: { properties: { name: "urn:ogc:def:crs:EPSG::3301" } },
-        features: [],
+        features: [singleFeatureResponse("78401:101:3143").features[0]],
       })
     );
 
     const result = await edgeParcelResolve({
-      cadastralId: "784011013143",
-      wfsUrl: new URL(buildWfsUrl("78401:101:3143")),
+      wfsUrl: new URL(buildWfsUrl("nationalcadastralreference='78401:101:3143'")),
       maxAttempts: 2,
       retryableStatuses: new Set([429, 502, 503, 504]),
       timeoutMs: 10_000,
@@ -204,15 +207,96 @@ describe("edgeParcelResolve (KT-034)", () => {
       retrievedAt,
     });
 
-    expect(result.status).toBe("not_found");
+    expect(result.status).toBe("unavailable");
+  });
+
+  test("returns unavailable when WFS response CRS is EPSG:4326", async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      mockFetchResponse({
+        type: "FeatureCollection",
+        crs: { properties: { name: "EPSG:4326" } },
+        features: [singleFeatureResponse("78401:101:3143").features[0]],
+      })
+    );
+
+    const result = await edgeParcelResolve({
+      wfsUrl: new URL(buildWfsUrl("nationalcadastralreference='78401:101:3143'")),
+      maxAttempts: 2,
+      retryableStatuses: new Set([429, 502, 503, 504]),
+      timeoutMs: 10_000,
+      syncRun,
+      retrievedAt,
+    });
+
+    expect(result.status).toBe("unavailable");
+  });
+
+  test("returns invalid_source when WFS returns multiple features but one is invalid", async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      mockFetchResponse({
+        type: "FeatureCollection",
+        crs: { properties: { name: "urn:ogc:def:crs:EPSG::3301" } },
+        features: [
+          singleFeatureResponse("78401:101:3143").features[0],
+          {
+            type: "Feature",
+            id: "CP.CadastralParcel.2",
+            geometry: null,
+            properties: null,
+          },
+        ],
+      })
+    );
+
+    const result = await edgeParcelResolve({
+      wfsUrl: new URL(
+        buildWfsUrl("nationalcadastralreference IN ('78401:101:3143','78401:101:3144')", 20)
+      ),
+      maxAttempts: 2,
+      retryableStatuses: new Set([429, 502, 503, 504]),
+      timeoutMs: 10_000,
+      syncRun,
+      retrievedAt,
+    });
+
+    expect(result.status).toBe("invalid_source");
+    expect(result.candidates).toHaveLength(0);
+  });
+
+  test("returns invalid_source when WFS returns single invalid feature", async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      mockFetchResponse({
+        type: "FeatureCollection",
+        crs: { properties: { name: "urn:ogc:def:crs:EPSG::3301" } },
+        features: [
+          {
+            type: "Feature",
+            id: "CP.CadastralParcel.1",
+            geometry: null,
+            properties: null,
+          },
+        ],
+      })
+    );
+
+    const result = await edgeParcelResolve({
+      wfsUrl: new URL(buildWfsUrl("nationalcadastralreference='78401:101:3143'")),
+      maxAttempts: 2,
+      retryableStatuses: new Set([429, 502, 503, 504]),
+      timeoutMs: 10_000,
+      syncRun,
+      retrievedAt,
+    });
+
+    expect(result.status).toBe("invalid_source");
+    expect(result.candidates).toHaveLength(0);
   });
 
   test("returns unavailable on non-JSON response", async () => {
     global.fetch = vi.fn().mockResolvedValue(mockFetchResponse("not json", 200));
 
     const result = await edgeParcelResolve({
-      cadastralId: "784011013143",
-      wfsUrl: new URL(buildWfsUrl("78401:101:3143")),
+      wfsUrl: new URL(buildWfsUrl("nationalcadastralreference='78401:101:3143'")),
       maxAttempts: 2,
       retryableStatuses: new Set([429, 502, 503, 504]),
       timeoutMs: 10_000,
@@ -227,8 +311,7 @@ describe("edgeParcelResolve (KT-034)", () => {
     global.fetch = vi.fn().mockRejectedValue(new Error("network failure"));
 
     const result = await edgeParcelResolve({
-      cadastralId: "784011013143",
-      wfsUrl: new URL(buildWfsUrl("78401:101:3143")),
+      wfsUrl: new URL(buildWfsUrl("nationalcadastralreference='78401:101:3143'")),
       maxAttempts: 2,
       retryableStatuses: new Set([429, 502, 503, 504]),
       timeoutMs: 10_000,
@@ -250,8 +333,7 @@ describe("edgeParcelResolve (KT-034)", () => {
     });
 
     const result = await edgeParcelResolve({
-      cadastralId: "784011013143",
-      wfsUrl: new URL(buildWfsUrl("78401:101:3143")),
+      wfsUrl: new URL(buildWfsUrl("nationalcadastralreference='78401:101:3143'")),
       maxAttempts: 2,
       retryableStatuses: new Set([429, 502, 503, 504]),
       timeoutMs: 10_000,
@@ -263,12 +345,11 @@ describe("edgeParcelResolve (KT-034)", () => {
     expect(callCount).toBe(2);
   });
 
-  test("returns not_found on non-retryable upstream error", async () => {
+  test("returns unavailable on non-retryable upstream error", async () => {
     global.fetch = vi.fn().mockResolvedValue(mockFetchResponse({ error: "forbidden" }, 403));
 
     const result = await edgeParcelResolve({
-      cadastralId: "784011013143",
-      wfsUrl: new URL(buildWfsUrl("78401:101:3143")),
+      wfsUrl: new URL(buildWfsUrl("nationalcadastralreference='78401:101:3143'")),
       maxAttempts: 2,
       retryableStatuses: new Set([429, 502, 503, 504]),
       timeoutMs: 10_000,

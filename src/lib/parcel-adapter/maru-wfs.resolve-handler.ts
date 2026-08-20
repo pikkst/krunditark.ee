@@ -1,8 +1,8 @@
+import type { Parcel } from "../../domain/parcel/types";
 import { parseMaruWfsFeature } from "./maru-wfs.parser";
 import { parseProviderParcel } from "./normalizer";
 
 export interface EdgeParcelResolveOptions {
-  cadastralId: string;
   wfsUrl: URL;
   maxAttempts: number;
   retryableStatuses: Set<number>;
@@ -11,26 +11,14 @@ export interface EdgeParcelResolveOptions {
   retrievedAt: string;
 }
 
-export interface ResolveCandidate {
-  cadastralId: string;
-  address: string;
-  areaM2: number;
-  geometry: unknown;
-  source: {
-    id: string;
-    datasetVersionId: string;
-    retrievedAt: string;
-  };
-}
-
 export type EdgeParcelResolveResult =
   | {
       status: "resolved";
-      candidates: ResolveCandidate[];
+      candidates: Parcel[];
     }
   | {
       status: "ambiguous";
-      candidates: ResolveCandidate[];
+      candidates: Parcel[];
     }
   | {
       status: "not_found";
@@ -38,6 +26,10 @@ export type EdgeParcelResolveResult =
     }
   | {
       status: "unavailable";
+      candidates: [];
+    }
+  | {
+      status: "invalid_source";
       candidates: [];
     };
 
@@ -94,36 +86,41 @@ export async function edgeParcelResolve(
         return { status: "unavailable", candidates: [] };
       }
 
+      const responseCrs = data.crs as Record<string, unknown> | undefined;
+      const crsName = (responseCrs?.properties as { name?: string } | undefined)?.name;
+      const normalizedCrs = crsName
+        ? crsName.replace("urn:ogc:def:crs:EPSG::", "EPSG:")
+        : undefined;
+      if (normalizedCrs !== "EPSG:3301") {
+        return { status: "unavailable", candidates: [] };
+      }
+
       const features = data.features;
       if (!Array.isArray(features) || features.length === 0) {
         return { status: "not_found", candidates: [] };
       }
 
-      const candidates: ResolveCandidate[] = [];
+      const candidates: Parcel[] = [];
+      let hasInvalidFeature = false;
 
       for (let i = 0; i < features.length; i++) {
         const featureResult = parseMaruWfsFeature(features[i], retrievedAt, syncRun);
         if (!featureResult.valid) {
+          hasInvalidFeature = true;
           continue;
         }
 
         const parseResult = parseProviderParcel(featureResult.dto);
         if (!parseResult.valid) {
+          hasInvalidFeature = true;
           continue;
         }
 
-        const parcel = parseResult.parcel;
-        candidates.push({
-          cadastralId: parcel.cadastralId,
-          address: parcel.facts.addressText || "",
-          areaM2: parcel.facts.areaM2Computed,
-          geometry: parcel.geometry,
-          source: {
-            id: parcel.source.sourceId,
-            datasetVersionId: parcel.source.sourceDatasetVersionId,
-            retrievedAt: parcel.source.retrievedAt,
-          },
-        });
+        candidates.push(parseResult.parcel);
+      }
+
+      if (hasInvalidFeature) {
+        return { status: "invalid_source", candidates: [] };
       }
 
       if (candidates.length === 0) {

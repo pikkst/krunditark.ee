@@ -1,17 +1,17 @@
-import type { Parcel, FreshnessState, ParcelGeometry } from "../../domain/parcel/types";
+import type { Parcel, FreshnessState, ParcelGeometry } from "../../domain/parcel/types.ts";
 import {
   normalizeCadastralId,
   isValidCadastralId,
   validateParcel,
   CANONICAL_PARCEL_CRS,
-} from "../../domain/parcel/types";
+} from "../../domain/parcel/types.ts";
 import type {
   ParcelParseError,
   ParcelParseErrorCode,
   ParcelParseResult,
   ValidatedProviderParcelDTO,
-} from "./types";
-import { toCanonicalParcelGeometry, type CrsTransformError } from "../crs";
+} from "./types.ts";
+import { toCanonicalParcelGeometry, type CrsTransformError } from "../crs/index.ts";
 
 const SUPPORTED_CRS = new Set(["EPSG:3301", "EPSG:4326"]);
 

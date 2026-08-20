@@ -1,6 +1,6 @@
-import type { Parcel } from "../../domain/parcel/types";
-import { parseMaruWfsFeature } from "./maru-wfs.parser";
-import { parseProviderParcel } from "./normalizer";
+import type { Parcel } from "../../domain/parcel/types.ts";
+import { parseMaruWfsFeature } from "./maru-wfs.parser.ts";
+import { parseProviderParcel } from "./normalizer.ts";
 
 export interface EdgeParcelResolveOptions {
   wfsUrl: URL;

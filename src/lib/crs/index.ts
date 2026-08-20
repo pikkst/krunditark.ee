@@ -12,6 +12,6 @@ export {
   toBrowserGeometry,
   planarAreaM2,
   CrsTransformError,
-} from "./transform";
+} from "./transform.ts";
 
-export type { LonLat, XY, CrsTransformErrorCode } from "./transform";
+export type { LonLat, XY, CrsTransformErrorCode } from "./transform.ts";

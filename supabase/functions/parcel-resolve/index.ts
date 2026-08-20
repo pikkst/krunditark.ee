@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { edgeParcelResolve } from "../../src/lib/parcel-adapter/maru-wfs.resolve-handler.ts";
-import { projectLonLatToEpsg3301 } from "../../src/lib/crs/transform.ts";
+import { edgeParcelResolve } from "../../../src/lib/parcel-adapter/maru-wfs.resolve-handler.ts";
+import { projectLonLatToEpsg3301 } from "../../../src/lib/crs/transform.ts";
 
 const ALLOWED_MARU_WFS_HOSTS = ["inspire.geoportaal.ee"];
 const ALLOWED_INAKS_HOSTS = ["aks.geoportaal.ee", "aks-test.geoportaal.ee"];

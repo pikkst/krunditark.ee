@@ -5,9 +5,9 @@ import type {
   MaruWfsGeoJsonGeometry,
   MaruWfsParseError,
   MaruWfsParseErrorCode,
-} from "./maru-wfs.types";
-import type { ParcelParseError, ValidatedProviderParcelDTO } from "./types";
-import { parseProviderParcel } from "./normalizer";
+} from "./maru-wfs.types.ts";
+import type { ParcelParseError, ValidatedProviderParcelDTO } from "./types.ts";
+import { parseProviderParcel } from "./normalizer.ts";
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

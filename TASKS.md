@@ -300,12 +300,12 @@ Support:
 
 Read `UX_UI_SPEC.md`.
 
-- [ ] `Aadress või katastritunnus`.
-- [ ] autocomplete.
-- [ ] loading/no-match/unavailable/invalid states.
-- [ ] keyboard accessible.
-- [ ] secondary `Vali krunt kaardilt`.
-- [ ] no signup requirement.
+- [x] `Aadress või katastritunnus`.
+- [x] autocomplete.
+- [x] loading/no-match/unavailable/invalid states.
+- [x] keyboard accessible.
+- [x] secondary `Vali krunt kaardilt`.
+- [x] no signup requirement.
 
 ## KT-036 — Build parcel selection/disambiguation
 

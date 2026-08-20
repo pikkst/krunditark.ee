@@ -359,4 +359,45 @@ describe("edgeParcelResolve (KT-034)", () => {
 
     expect(result.status).toBe("unavailable");
   });
+
+  test("returns not_found when WFS returns valid feature with different cadastralId", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(mockFetchResponse(singleFeatureResponse("78401:101:3144")));
+
+    const result = await edgeParcelResolve({
+      wfsUrl: new URL(buildWfsUrl("nationalcadastralreference='78401:101:3143'")),
+      maxAttempts: 2,
+      retryableStatuses: new Set([429, 502, 503, 504]),
+      timeoutMs: 10_000,
+      syncRun,
+      retrievedAt,
+      expectedCadastralId: "784011013143",
+    });
+
+    expect(result.status).toBe("not_found");
+    expect(result.candidates).toHaveLength(0);
+  });
+
+  test("returns resolved when expectedCadastralId matches the returned feature", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(mockFetchResponse(singleFeatureResponse("78401:101:3143")));
+
+    const result = await edgeParcelResolve({
+      wfsUrl: new URL(buildWfsUrl("nationalcadastralreference='78401:101:3143'")),
+      maxAttempts: 2,
+      retryableStatuses: new Set([429, 502, 503, 504]),
+      timeoutMs: 10_000,
+      syncRun,
+      retrievedAt,
+      expectedCadastralId: "784011013143",
+    });
+
+    expect(result.status).toBe("resolved");
+    if (result.status === "resolved") {
+      expect(result.candidates).toHaveLength(1);
+      expect(result.candidates[0].cadastralId).toBe("784011013143");
+    }
+  });
 });

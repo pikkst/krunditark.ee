@@ -1,8 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { edgeParcelResolve } from "../../../src/lib/parcel-adapter/maru-wfs.resolve-handler.ts";
+import { edgeParcelLookup } from "../../../src/lib/parcel-adapter/maru-wfs.edge-handler.ts";
 import { projectLonLatToEpsg3301 } from "../../../src/lib/crs/transform.ts";
 import { buildAddressResolutionWfsFilter } from "../../../src/lib/parcel-adapter/inaks-resolve-handler.ts";
 import type { InAksResolveResult } from "../../../src/lib/parcel-adapter/inaks-resolve-handler.types.ts";
+import { getCacheControl } from "../../../src/lib/api/parcel-resolve/cache.ts";
 
 const ALLOWED_MARU_WFS_HOSTS = ["inspire.geoportaal.ee"];
 const ALLOWED_INAKS_HOSTS = ["aks.geoportaal.ee", "aks-test.geoportaal.ee"];
@@ -28,15 +30,6 @@ function jsonResponse(body: unknown, status: number, headers: Record<string, str
       ...headers,
     },
   });
-}
-
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("SOURCE_TIMEOUT")), timeoutMs)
-    ),
-  ]);
 }
 
 function isAllowedMaruWfsUrl(url: URL): boolean {
@@ -86,7 +79,8 @@ async function resolveCadastral(rawId: string) {
   const syncRun = `maru-wfs-${Date.now()}`;
   const retrievedAt = new Date().toISOString();
 
-  const result = await edgeParcelResolve({
+  const exact = await edgeParcelLookup({
+    cadastralId: normalizedId,
     wfsUrl,
     maxAttempts: MAX_ATTEMPTS,
     retryableStatuses: RETRYABLE_STATUSES,
@@ -95,8 +89,26 @@ async function resolveCadastral(rawId: string) {
     retrievedAt,
   });
 
-  return jsonResponse(result, 200, {
-    "Cache-Control": "public, max-age=86400, s-maxage=86400",
+  if (exact.valid) {
+    return jsonResponse({ status: "resolved", candidates: [exact.parcel] }, 200, {
+      "Cache-Control": getCacheControl("resolved"),
+    });
+  }
+
+  if (exact.error === "PARCEL_NOT_FOUND") {
+    return jsonResponse({ status: "not_found", candidates: [] }, 200, {
+      "Cache-Control": getCacheControl("not_found"),
+    });
+  }
+
+  if (exact.error === "AMBIGUOUS_RESULT") {
+    return jsonResponse({ status: "ambiguous", candidates: [] }, 200, {
+      "Cache-Control": getCacheControl("ambiguous"),
+    });
+  }
+
+  return jsonResponse({ status: "unavailable", candidates: [] }, 200, {
+    "Cache-Control": getCacheControl("unavailable"),
   });
 }
 
@@ -112,31 +124,34 @@ async function resolveAddress(addressResultId: string, addressId: string) {
     );
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
   let inaksResponse;
   try {
-    inaksResponse = await withTimeout(
-      fetch(inaksUrl.toString(), {
-        headers: { Accept: "application/json" },
-      }),
-      REQUEST_TIMEOUT_MS
-    );
+    inaksResponse = await fetch(inaksUrl.toString(), {
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
   } catch (err) {
-    if (err instanceof Error && err.message === "SOURCE_TIMEOUT") {
+    if (err instanceof Error && err.name === "AbortError") {
       return jsonResponse({ error: "SOURCE_TIMEOUT", message: "In-AKS request timed out" }, 502, {
-        "Cache-Control": "no-store, max-age=0",
+        "Cache-Control": getCacheControl("unavailable"),
       });
     }
     return jsonResponse(
       { error: "ADDRESS_SEARCH_UNAVAILABLE", message: "Failed to reach In-AKS" },
       502,
-      { "Cache-Control": "no-store, max-age=0" }
+      { "Cache-Control": getCacheControl("unavailable") }
     );
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   if (!inaksResponse.ok) {
     if (inaksResponse.status === 429) {
       return jsonResponse({ error: "UPSTREAM_ERROR", message: "In-AKS rate limited" }, 502, {
-        "Cache-Control": "no-store, max-age=0",
+        "Cache-Control": getCacheControl("unavailable"),
       });
     }
     return jsonResponse(
@@ -145,21 +160,21 @@ async function resolveAddress(addressResultId: string, addressId: string) {
         message: `In-AKS returned status ${inaksResponse.status}`,
       },
       502,
-      { "Cache-Control": "no-store, max-age=0" }
+      { "Cache-Control": getCacheControl("unavailable") }
     );
   }
 
   let inaksData: unknown;
   try {
-    inaksData = await withTimeout(inaksResponse.json(), REQUEST_TIMEOUT_MS);
+    inaksData = await inaksResponse.json();
   } catch (err) {
-    if (err instanceof Error && err.message === "SOURCE_TIMEOUT") {
+    if (err instanceof Error && err.name === "AbortError") {
       return jsonResponse({ error: "SOURCE_TIMEOUT", message: "In-AKS body read timed out" }, 502, {
-        "Cache-Control": "no-store, max-age=0",
+        "Cache-Control": getCacheControl("unavailable"),
       });
     }
     return jsonResponse({ error: "PARSE_ERROR", message: "In-AKS returned non-JSON" }, 502, {
-      "Cache-Control": "no-store, max-age=0",
+      "Cache-Control": getCacheControl("unavailable"),
     });
   }
 
@@ -167,13 +182,13 @@ async function resolveAddress(addressResultId: string, addressId: string) {
 
   if (resolution.status === "not_found") {
     return jsonResponse({ status: "not_found", candidates: [] }, 200, {
-      "Cache-Control": "no-store, max-age=0",
+      "Cache-Control": getCacheControl("not_found"),
     });
   }
 
   if (resolution.status === "invalid_source") {
     return jsonResponse({ error: "INVALID_SOURCE", message: resolution.error }, 502, {
-      "Cache-Control": "no-store, max-age=0",
+      "Cache-Control": getCacheControl("invalid_source"),
     });
   }
 
@@ -200,7 +215,7 @@ async function resolveAddress(addressResultId: string, addressId: string) {
   });
 
   return jsonResponse(result, 200, {
-    "Cache-Control": "public, max-age=86400, s-maxage=86400",
+    "Cache-Control": getCacheControl(result.status),
   });
 }
 
@@ -229,7 +244,7 @@ async function resolvePoint(lat: number, lng: number) {
   });
 
   return jsonResponse(result, 200, {
-    "Cache-Control": "public, max-age=86400, s-maxage=86400",
+    "Cache-Control": getCacheControl(result.status),
   });
 }
 

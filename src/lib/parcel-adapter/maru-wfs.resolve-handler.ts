@@ -9,6 +9,7 @@ export interface EdgeParcelResolveOptions {
   timeoutMs: number;
   syncRun: string;
   retrievedAt: string;
+  expectedCadastralId?: string;
 }
 
 export type EdgeParcelResolveResult =
@@ -43,7 +44,15 @@ function isAbortError(err: unknown): boolean {
 export async function edgeParcelResolve(
   options: EdgeParcelResolveOptions
 ): Promise<EdgeParcelResolveResult> {
-  const { wfsUrl, maxAttempts, retryableStatuses, timeoutMs, syncRun, retrievedAt } = options;
+  const {
+    wfsUrl,
+    maxAttempts,
+    retryableStatuses,
+    timeoutMs,
+    syncRun,
+    retrievedAt,
+    expectedCadastralId,
+  } = options;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const controller = new AbortController();
@@ -127,11 +136,21 @@ export async function edgeParcelResolve(
         return { status: "not_found", candidates: [] };
       }
 
-      if (candidates.length === 1) {
-        return { status: "resolved", candidates };
+      let filtered = candidates;
+      if (expectedCadastralId) {
+        const expected = expectedCadastralId.replace(/[:\-.\s]/g, "");
+        filtered = candidates.filter((candidate) => candidate.cadastralId === expected);
       }
 
-      return { status: "ambiguous", candidates };
+      if (filtered.length === 0) {
+        return { status: "not_found", candidates: [] };
+      }
+
+      if (filtered.length === 1) {
+        return { status: "resolved", candidates: filtered };
+      }
+
+      return { status: "ambiguous", candidates: filtered };
     } catch (err) {
       if (isAbortError(err)) {
         if (attempt < maxAttempts) {

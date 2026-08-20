@@ -4,7 +4,7 @@ describe("buildAddressResolutionWfsFilter (KT-034)", () => {
   const addressResultId = "ME01087725";
   const addressId = "2105921";
 
-  test("resolves from selected cadastral-unit tunnus", () => {
+  test("resolves from selected cadastral-unit tunnus as exact_cadastral", () => {
     const inaksData = {
       addresses: [
         {
@@ -25,7 +25,8 @@ describe("buildAddressResolutionWfsFilter (KT-034)", () => {
     const result = buildAddressResolutionWfsFilter(inaksData, addressResultId, addressId);
 
     expect(result.status).toBe("resolved");
-    if (result.status === "resolved") {
+    if (result.status === "resolved" && result.mode === "exact_cadastral") {
+      expect(result.expectedCadastralId).toBe("784011013143");
       expect(result.wfsFilter).toBe("nationalcadastralreference='78401:101:3143'");
       expect(result.count).toBe(1);
     }
@@ -52,9 +53,8 @@ describe("buildAddressResolutionWfsFilter (KT-034)", () => {
     const result = buildAddressResolutionWfsFilter(inaksData, addressResultId, addressId);
 
     expect(result.status).toBe("resolved");
-    if (result.status === "resolved") {
-      expect(result.wfsFilter).toBe("nationalcadastralreference='78401:101:3143'");
-      expect(result.count).toBe(1);
+    if (result.status === "resolved" && result.mode === "exact_cadastral") {
+      expect(result.expectedCadastralId).toBe("784011013143");
     }
   });
 
@@ -93,6 +93,7 @@ describe("buildAddressResolutionWfsFilter (KT-034)", () => {
 
     expect(result.status).toBe("resolved");
     if (result.status === "resolved") {
+      expect(result.mode).toBe("spatial");
       expect(result.wfsFilter).toBe("INTERSECTS(geometry, POINT(650000 6600000))");
       expect(result.count).toBe(10);
     }

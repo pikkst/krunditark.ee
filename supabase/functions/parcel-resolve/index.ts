@@ -102,8 +102,8 @@ async function resolveCadastral(rawId: string) {
   }
 
   if (exact.error === "AMBIGUOUS_RESULT") {
-    return jsonResponse({ status: "ambiguous", candidates: [] }, 200, {
-      "Cache-Control": getCacheControl("ambiguous"),
+    return jsonResponse({ status: "invalid_source", candidates: [] }, 200, {
+      "Cache-Control": getCacheControl("invalid_source"),
     });
   }
 
@@ -144,8 +144,6 @@ async function resolveAddress(addressResultId: string, addressId: string) {
       502,
       { "Cache-Control": getCacheControl("unavailable") }
     );
-  } finally {
-    clearTimeout(timeoutId);
   }
 
   if (!inaksResponse.ok) {
@@ -176,6 +174,8 @@ async function resolveAddress(addressResultId: string, addressId: string) {
     return jsonResponse({ error: "PARSE_ERROR", message: "In-AKS returned non-JSON" }, 502, {
       "Cache-Control": getCacheControl("unavailable"),
     });
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   const resolution = buildAddressResolutionWfsFilter(inaksData, addressResultId, addressId);
@@ -189,6 +189,53 @@ async function resolveAddress(addressResultId: string, addressId: string) {
   if (resolution.status === "invalid_source") {
     return jsonResponse({ error: "INVALID_SOURCE", message: resolution.error }, 502, {
       "Cache-Control": getCacheControl("invalid_source"),
+    });
+  }
+
+  if (resolution.mode === "exact_cadastral") {
+    const wfsUrl = buildMaruWfsUrl(resolution.wfsFilter, resolution.count);
+
+    if (!isAllowedMaruWfsUrl(wfsUrl)) {
+      return jsonResponse(
+        { error: "INVALID_TARGET", message: "Target host is not allowed" },
+        400,
+        {}
+      );
+    }
+
+    const syncRun = `maru-wfs-${Date.now()}`;
+    const retrievedAt = new Date().toISOString();
+
+    const exact = await edgeParcelLookup({
+      cadastralId: resolution.expectedCadastralId,
+      wfsUrl,
+      maxAttempts: MAX_ATTEMPTS,
+      retryableStatuses: RETRYABLE_STATUSES,
+      timeoutMs: REQUEST_TIMEOUT_MS,
+      syncRun,
+      retrievedAt,
+    });
+
+    if (exact.valid) {
+      return jsonResponse({ status: "resolved", candidates: [exact.parcel] }, 200, {
+        "Cache-Control": getCacheControl("resolved"),
+      });
+    }
+
+    if (exact.error === "PARCEL_NOT_FOUND") {
+      return jsonResponse({ status: "not_found", candidates: [] }, 200, {
+        "Cache-Control": getCacheControl("not_found"),
+      });
+    }
+
+    if (exact.error === "AMBIGUOUS_RESULT") {
+      return jsonResponse({ status: "invalid_source", candidates: [] }, 200, {
+        "Cache-Control": getCacheControl("invalid_source"),
+      });
+    }
+
+    return jsonResponse({ status: "unavailable", candidates: [] }, 200, {
+      "Cache-Control": getCacheControl("unavailable"),
     });
   }
 

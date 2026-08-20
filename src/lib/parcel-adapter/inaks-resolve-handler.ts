@@ -55,6 +55,8 @@ export function buildAddressResolutionWfsFilter(
     const ref = `${normalized.slice(0, 5)}:${normalized.slice(5, 8)}:${normalized.slice(8, 12)}`;
     return {
       status: "resolved",
+      mode: "exact_cadastral",
+      expectedCadastralId: normalized,
       wfsFilter: `nationalcadastralreference='${ref}'`,
       count: 1,
     };
@@ -80,6 +82,7 @@ export function buildAddressResolutionWfsFilter(
 
   return {
     status: "resolved",
+    mode: "spatial",
     wfsFilter: `INTERSECTS(geometry, POINT(${x} ${y}))`,
     count: 10,
   };

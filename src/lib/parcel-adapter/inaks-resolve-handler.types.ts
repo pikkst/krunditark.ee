@@ -1,7 +1,16 @@
 export type InAksResolveStatus = "resolved" | "not_found" | "invalid_source";
 
-export interface InAksResolveResolved {
+export interface InAksResolveResolvedExact {
   status: "resolved";
+  mode: "exact_cadastral";
+  expectedCadastralId: string;
+  wfsFilter: string;
+  count: 1;
+}
+
+export interface InAksResolveResolvedSpatial {
+  status: "resolved";
+  mode: "spatial";
   wfsFilter: string;
   count: number;
 }
@@ -16,4 +25,7 @@ export interface InAksResolveInvalidSource {
 }
 
 export type InAksResolveResult =
-  InAksResolveResolved | InAksResolveNotFound | InAksResolveInvalidSource;
+  | InAksResolveResolvedExact
+  | InAksResolveResolvedSpatial
+  | InAksResolveNotFound
+  | InAksResolveInvalidSource;

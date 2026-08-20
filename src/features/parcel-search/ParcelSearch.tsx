@@ -229,15 +229,12 @@ export default function ParcelSearch({
     [showAutocomplete, displayAddressResults, activeIndex, handleAddressSelect, handleSubmit]
   );
 
-  const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      setQuery(e.target.value);
-      setResolveError(null);
-      setResolveStatus("idle");
-      setActiveIndex(-1);
-    },
-    []
-  );
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setQuery(e.target.value);
+    setResolveError(null);
+    setResolveStatus("idle");
+    setActiveIndex(-1);
+  }, []);
 
   const handleInputFocus = useCallback(() => {
     setIsFocused(true);
@@ -257,10 +254,7 @@ export default function ParcelSearch({
 
   const showResults = showAutocomplete && !isAddressLoading && displayAddressResults.length > 0;
   const showNoMatch =
-    !showAutocomplete &&
-    !isSubmitting &&
-    resolveStatus === "not_found" &&
-    query.trim().length > 0;
+    !showAutocomplete && !isSubmitting && resolveStatus === "not_found" && query.trim().length > 0;
   const showUnavailable =
     !showAutocomplete &&
     !isSubmitting &&
@@ -344,13 +338,19 @@ export default function ParcelSearch({
       )}
 
       {showNoMatch && (
-        <p id="parcel-search-no-match" className="parcel-search__status parcel-search__status--error">
+        <p
+          id="parcel-search-no-match"
+          className="parcel-search__status parcel-search__status--error"
+        >
           {t("parcelSearch.noMatch")}
         </p>
       )}
 
       {showUnavailable && (
-        <p id="parcel-search-unavailable" className="parcel-search__status parcel-search__status--error">
+        <p
+          id="parcel-search-unavailable"
+          className="parcel-search__status parcel-search__status--error"
+        >
           {resolveError?.message ?? t("parcelSearch.unavailable")}
         </p>
       )}

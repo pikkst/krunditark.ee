@@ -3,12 +3,20 @@ import type {
   ParcelResolveResponse,
   ParcelResolveSuccess,
   ParcelResolveFailure,
-  ResolveParcelInput,
 } from "./types";
 
-export async function resolveParcel(
-  input: ResolveParcelInput
+export async function resolveParcelByCadastralId(
+  cadastralId: string
 ): Promise<ParcelResolveResponse> {
+  const trimmed = cadastralId.trim();
+
+  if (trimmed.length === 0) {
+    return {
+      valid: false,
+      error: { code: "INVALID_INPUT", message: "cadastralId must not be empty" },
+    };
+  }
+
   const baseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, "");
   if (!baseUrl) {
     return {
@@ -17,16 +25,13 @@ export async function resolveParcel(
     };
   }
 
-  const targetUrl = `${baseUrl}/functions/v1/parcel-resolve`;
+  const targetUrl = `${baseUrl}/functions/v1/parcel-resolve?cadastralId=${encodeURIComponent(trimmed)}`;
 
   try {
     const response = await fetch(targetUrl, {
-      method: "POST",
       headers: {
         Accept: "application/json",
-        "Content-Type": "application/json",
       },
-      body: JSON.stringify(input),
     });
 
     if (!response.ok) {
@@ -38,13 +43,15 @@ export async function resolveParcel(
         // ignore parse error
       }
 
-      if (errorBody.error === "PARCEL_NOT_FOUND") errorCode = "PARCEL_NOT_FOUND";
-      else if (errorBody.error === "SOURCE_UNAVAILABLE") errorCode = "SOURCE_UNAVAILABLE";
+      if (errorBody.error === "INVALID_CADASTRAL_ID") errorCode = "INVALID_CADASTRAL_ID";
+      else if (errorBody.error === "PARCEL_NOT_FOUND") errorCode = "PARCEL_NOT_FOUND";
+      else if (errorBody.error === "AMBIGUOUS_RESULT") errorCode = "AMBIGUOUS_RESULT";
+      else if (errorBody.error === "SOURCE_TIMEOUT") errorCode = "SOURCE_TIMEOUT";
 
       const failure: ParcelResolveFailure = {
         valid: false,
         error: {
-          code: errorCode ?? "PARSE_ERROR",
+          code: errorCode ?? "UPSTREAM_ERROR",
           message: errorBody.message ?? `Parcel resolve returned status ${response.status}`,
         },
       };
@@ -53,27 +60,21 @@ export async function resolveParcel(
 
     const raw = await response.json();
 
-    if (!raw || typeof raw !== "object" || !("status" in raw) || !("candidates" in raw)) {
+    if (!raw.valid || !raw.parcel) {
       return {
         valid: false,
-        error: { code: "PARSE_ERROR", message: "Invalid parcel resolve response" },
-      };
-    }
-
-    const status = (raw as { status: string }).status as "resolved" | "ambiguous";
-    const candidates = (raw as { candidates: unknown[] }).candidates;
-
-    if (status !== "resolved" && status !== "ambiguous") {
-      return {
-        valid: false,
-        error: { code: "PARSE_ERROR", message: `Unexpected status: ${status}` },
+        error: {
+          code: "PARSE_ERROR",
+          message: "Invalid parcel resolve response",
+        },
       };
     }
 
     const success: ParcelResolveSuccess = {
       valid: true,
-      status,
-      candidates: candidates as ParcelResolveSuccess["candidates"],
+      parcel: raw.parcel,
+      retrievedAt: raw.parcel.source.retrievedAt,
+      sourceVersion: raw.parcel.source.sourceDatasetVersionId,
     };
 
     return success;
@@ -87,28 +88,9 @@ export async function resolveParcel(
     return {
       valid: false,
       error: {
-        code: "SOURCE_UNAVAILABLE",
+        code: "PARCEL_UNAVAILABLE",
         message: "Parcel resolve service is unavailable",
       },
     };
   }
-}
-
-export async function resolveParcelByCadastralId(
-  cadastralId: string
-): Promise<ParcelResolveResponse> {
-  return resolveParcel({ cadastralId });
-}
-
-export async function resolveParcelByAddressResult(
-  addressResultId: string,
-  addressId: string
-): Promise<ParcelResolveResponse> {
-  return resolveParcel({ addressResultId, addressId });
-}
-
-export async function resolveParcelByPoint(
-  point: { type: "Point"; coordinates: [number, number] }
-): Promise<ParcelResolveResponse> {
-  return resolveParcel({ point });
 }

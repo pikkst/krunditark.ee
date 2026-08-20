@@ -925,7 +925,78 @@ Internal MVP contracts use:
 
 External B2B consumers require explicit `/v1` or equivalent before launch.
 
-## 33. API security acceptance
+## 34. Parcel resolution Edge Function
+
+### `GET /functions/v1/parcel-resolve?cadastralId=<id>`
+
+Public Supabase Edge Function for resolving a single parcel by cadastral identifier.
+
+Request parameters:
+
+- `cadastralId` — normalized or formatted Estonian cadastral identifier (max 64 characters)
+
+Success response:
+
+```json
+{
+  "valid": true,
+  "parcel": {
+    "id": "CP:12345:678:9012",
+    "cadastralId": "123456789012",
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": []
+    },
+    "geometryCrs": "EPSG:3301",
+    "facts": {
+      "areaM2Computed": 12000,
+      "addressText": "..."
+    },
+    "source": {
+      "sourceId": "maru.cadastre.parcels.inspire",
+      "sourceDatasetVersionId": "2026-08-16",
+      "sourceSyncRunId": "edge-sync-123",
+      "sourceObjectId": "...",
+      "normalizerVersion": "1",
+      "retrievedAt": "...",
+      "sourceEffectiveAt": "..."
+    },
+    "freshnessState": "fresh",
+    "contentHash": "..."
+  }
+}
+```
+
+Error response:
+
+```json
+{
+  "error": "INVALID_CADASTRAL_ID",
+  "message": "cadastralId has invalid format"
+}
+```
+
+Supported error codes:
+
+- `INVALID_INPUT` — missing or empty cadastralId
+- `INVALID_CADASTRAL_ID` — malformed cadastral identifier
+- `PARCEL_NOT_FOUND` — no parcel matches the identifier
+- `AMBIGUOUS_RESULT` — multiple parcels matched
+- `SOURCE_TIMEOUT` — upstream WFS timeout
+- `PARCEL_UNAVAILABLE` — upstream unreachable
+- `UPSTREAM_ERROR` — upstream returned non-2xx or invalid response
+- `PARSE_ERROR` — response decoding/validation failed
+- `CONFIG_ERROR` — frontend/env misconfiguration
+
+Rules:
+
+- validates cadastral format client-side and server-side;
+- normalizes to 12-digit string before upstream query;
+- uses MaRu Inspire WFS with EPSG:3301 response;
+- retries retryable upstream statuses once;
+- no source synchronization triggered per request.
+
+## 35. API security acceptance
 
 - anonymous user cannot access another guest's project;
 - permanent user cannot access another user's project/report/order;

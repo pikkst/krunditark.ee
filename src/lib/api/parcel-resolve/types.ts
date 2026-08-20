@@ -1,8 +1,12 @@
 export type ParcelResolveErrorCode =
   | "INVALID_INPUT"
+  | "INVALID_CADASTRAL_ID"
   | "PARCEL_NOT_FOUND"
-  | "SOURCE_UNAVAILABLE"
+  | "AMBIGUOUS_RESULT"
+  | "UPSTREAM_ERROR"
   | "PARSE_ERROR"
+  | "SOURCE_TIMEOUT"
+  | "PARCEL_UNAVAILABLE"
   | "NETWORK_ERROR"
   | "CONFIG_ERROR";
 
@@ -11,24 +15,43 @@ export interface ParcelResolveError {
   message: string;
 }
 
-export interface ParcelResolveCandidateSource {
-  id: string;
-  datasetVersionId: string;
-  retrievedAt: string;
+export interface ParcelGeometry {
+  type: "Polygon" | "MultiPolygon";
+  coordinates: number[][][] | number[][][][];
 }
 
-export interface ParcelResolveCandidate {
+export interface ParcelFacts {
+  areaM2Computed: number;
+  addressText?: string;
+  landUseData?: Record<string, unknown>;
+}
+
+export interface ParcelSource {
+  sourceId: string;
+  sourceDatasetVersionId: string;
+  sourceSyncRunId: string;
+  sourceObjectId?: string;
+  normalizerVersion: string;
+  retrievedAt: string;
+  sourceEffectiveAt?: string;
+}
+
+export interface ParcelResolveParcel {
+  id: string;
   cadastralId: string;
-  address: string;
-  areaM2: number;
-  geometry: unknown;
-  source: ParcelResolveCandidateSource;
+  geometry: ParcelGeometry;
+  geometryCrs: string;
+  facts: ParcelFacts;
+  source: ParcelSource;
+  freshnessState: string;
+  contentHash: string;
 }
 
 export interface ParcelResolveSuccess {
   valid: true;
-  status: "resolved" | "ambiguous";
-  candidates: ParcelResolveCandidate[];
+  parcel: ParcelResolveParcel;
+  retrievedAt: string;
+  sourceVersion: string;
 }
 
 export interface ParcelResolveFailure {
@@ -37,24 +60,3 @@ export interface ParcelResolveFailure {
 }
 
 export type ParcelResolveResponse = ParcelResolveSuccess | ParcelResolveFailure;
-
-export interface ResolveParcelByCadastralIdInput {
-  cadastralId: string;
-}
-
-export interface ResolveParcelByAddressResultInput {
-  addressResultId: string;
-  addressId: string;
-}
-
-export interface ResolveParcelByPointInput {
-  point: {
-    type: "Point";
-    coordinates: [number, number];
-  };
-}
-
-export type ResolveParcelInput =
-  | ResolveParcelByCadastralIdInput
-  | ResolveParcelByAddressResultInput
-  | ResolveParcelByPointInput;

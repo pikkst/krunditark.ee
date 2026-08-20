@@ -116,9 +116,9 @@ describe("edgeParcelResolve (KT-034)", () => {
   const retrievedAt = new Date().toISOString();
 
   test("returns resolved when WFS returns exactly one feature", async () => {
-    global.fetch = vi.fn().mockResolvedValue(
-      mockFetchResponse(singleFeatureResponse("78401:101:3143"))
-    );
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(mockFetchResponse(singleFeatureResponse("78401:101:3143")));
 
     const result = await edgeParcelResolve({
       cadastralId: "784011013143",
@@ -140,9 +140,11 @@ describe("edgeParcelResolve (KT-034)", () => {
   });
 
   test("returns ambiguous when WFS returns multiple features", async () => {
-    global.fetch = vi.fn().mockResolvedValue(
-      mockFetchResponse(ambiguousFeatureResponse("78401:101:3143", "78401:101:3144"))
-    );
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        mockFetchResponse(ambiguousFeatureResponse("78401:101:3143", "78401:101:3144"))
+      );
 
     const result = await edgeParcelResolve({
       cadastralId: "784011013143",
@@ -206,9 +208,7 @@ describe("edgeParcelResolve (KT-034)", () => {
   });
 
   test("returns unavailable on non-JSON response", async () => {
-    global.fetch = vi.fn().mockResolvedValue(
-      mockFetchResponse("not json", 200)
-    );
+    global.fetch = vi.fn().mockResolvedValue(mockFetchResponse("not json", 200));
 
     const result = await edgeParcelResolve({
       cadastralId: "784011013143",

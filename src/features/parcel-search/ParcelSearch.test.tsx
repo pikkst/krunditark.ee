@@ -133,6 +133,67 @@ describe("ParcelSearch", () => {
     });
   });
 
+  it("shows invalid for malformed cadastral input without making requests", async () => {
+    renderWithI18n(<ParcelSearch onParcelResolved={() => {}} onAmbiguousResolve={() => {}} />);
+
+    const input = screen.getByLabelText("Aadress või katastritunnus");
+    fireEvent.change(input, { target: { value: "12345:678:90" } });
+
+    const button = screen.getByRole("button", { name: "Otsi" });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByText("Vigane sisend. Kontrolli katastritunnuse vormingut.")).toBeDefined();
+    });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("shows invalid for cadastral input with invalid characters without making requests", async () => {
+    renderWithI18n(<ParcelSearch onParcelResolved={() => {}} onAmbiguousResolve={() => {}} />);
+
+    const input = screen.getByLabelText("Aadress või katastritunnus");
+    fireEvent.change(input, { target: { value: "12345:678:90" } });
+
+    const button = screen.getByRole("button", { name: "Otsi" });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByText("Vigane sisend. Kontrolli katastritunnuse vormingut.")).toBeDefined();
+    });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("shows unavailable when address-search returns UPSTREAM_ERROR and user submits", async () => {
+    fetchSpy.mockResolvedValueOnce({
+      ok: false,
+      status: 502,
+      json: () => Promise.resolve({ error: "UPSTREAM_ERROR", message: "upstream failed" }),
+    } as unknown as Response);
+
+    renderWithI18n(<ParcelSearch onParcelResolved={() => {}} onAmbiguousResolve={() => {}} />);
+
+    const input = screen.getByLabelText("Aadress või katastritunnus");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "Mustamäe" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Aadressiotsing ei ole hetkel saadaval. Proovi uuesti.")).toBeDefined();
+    });
+
+    const button = screen.getByRole("button", { name: "Otsi" });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Krundiandmeid ei õnnestunud praegu laadida. Proovi uuesti.")
+      ).toBeDefined();
+    });
+
+    expect(screen.queryByText("Katastriüksust ei leitud")).toBeNull();
+  });
+
   it("shows unavailable when parcel service is down", async () => {
     fetchSpy.mockResolvedValueOnce({
       ok: false,

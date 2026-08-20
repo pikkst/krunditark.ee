@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { INAKS_GAZETTEER_BASE } from "../_shared/inaks.ts";
 import { edgeParcelResolve } from "../../../src/lib/parcel-adapter/maru-wfs.resolve-handler.ts";
 import { edgeParcelLookup } from "../../../src/lib/parcel-adapter/maru-wfs.edge-handler.ts";
 import { projectLonLatToEpsg3301 } from "../../../src/lib/crs/transform.ts";
@@ -113,7 +114,7 @@ async function resolveCadastral(rawId: string) {
 }
 
 async function resolveAddress(addressResultId: string, addressId: string) {
-  const inaksUrl = new URL("https://aks.geoportaal.ee/inaks/inaadress/gazetteer/");
+  const inaksUrl = new URL(INAKS_GAZETTEER_BASE);
   inaksUrl.searchParams.set("adrid", addressId.trim());
 
   if (!isAllowedInAksUrl(inaksUrl)) {

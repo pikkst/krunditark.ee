@@ -63,6 +63,7 @@
     "loading": "Searching...",
     "noMatch": "No parcel found",
     "unavailable": "Parcel data could not be loaded. Please try again.",
+    "invalid": "Invalid input. Check the cadastral identifier format.",
     "addressSearchUnavailable": "Address search is unavailable. Please try again.",
     "resolutionUnavailable": "Parcel resolution service is unavailable. Please try again.",
     "mapSelect": "Select parcel on map",

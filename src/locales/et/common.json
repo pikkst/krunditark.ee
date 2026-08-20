@@ -63,6 +63,7 @@
     "loading": "Otsin...",
     "noMatch": "Katastriüksust ei leitud",
     "unavailable": "Krundiandmeid ei õnnestunud praegu laadida. Proovi uuesti.",
+    "invalid": "Vigane sisend. Kontrolli katastritunnuse vormingut.",
     "addressSearchUnavailable": "Aadressiotsing ei ole hetkel saadaval. Proovi uuesti.",
     "resolutionUnavailable": "Krundi lahendamise teenus ei ole saadaval. Proovi uuesti.",
     "mapSelect": "Vali krunt kaardilt",

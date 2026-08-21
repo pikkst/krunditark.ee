@@ -1,6 +1,6 @@
 # Testing Strategy — Krunditark
 
-Last test-strategy review: **2026-08-15**
+Last test-strategy review: **2026-08-21**
 
 ## 1. Goal
 
@@ -45,9 +45,9 @@ Network-free:
 - geometry predicates;
 - immutable snapshots;
 - source/rule/data release relations;
-- commerce uniqueness/idempotency when enabled.
-- clean-start regression: drop all schemas, re-run migrations, verify tables/RLS/policies/grants from scratch (`rls-clean-start-migration.test.ts`).
-- live database regression: advisory-lock isolated clean-start + immutability/provenance checks (`rls-clean-start-db.test.ts`, requires `DATABASE_URL`).
+- commerce uniqueness/idempotency when enabled;
+- clean-start regression: drop all schemas, re-run migrations, verify tables/RLS/policies/grants from scratch;
+- live database regression using an isolated test database where `DATABASE_URL` is required.
 
 ### Edge Function/API integration
 
@@ -57,15 +57,18 @@ Network-free:
 - Gemini fake provider;
 - payment fake/provider webhook sandbox where applicable;
 - CORS/rate/resource limits;
-- transaction/idempotency.
+- transaction/idempotency;
+- correlation/request IDs and privacy-safe diagnostics for public APIs.
 
 ### Component/UI
 
-Behavior-heavy components.
+Behavior-heavy components using deterministic mocks/fixtures.
 
 ### E2E
 
-Playwright against production-like built frontend + controlled backend/test fixtures.
+Playwright against the **production-like built frontend** + controlled backend/test fixtures.
+
+Playwright becomes an active Phase 4 gate because MapLibre, real routing, pointer/touch events, browser focus and responsive bottom-sheet behavior cannot be proven completely by jsdom.
 
 ### Scheduled contract checks
 
@@ -73,7 +76,7 @@ Optional controlled internet workflow for official provider capabilities/schema/
 
 ## 3. No live external dependencies in normal CI
 
-Normal unit/integration tests must not call live:
+Normal unit/integration/E2E tests must not call live:
 
 - In-AKS/MaRu;
 - PLANIS;
@@ -83,36 +86,74 @@ Normal unit/integration tests must not call live:
 - Riigi Teataja;
 - Gemini;
 - Stripe/Montonio/another payment provider;
-- SMTP provider.
+- SMTP provider;
+- production map/tile provider when deterministic interception/local fixtures can cover the application behavior.
 
 Use sanitized deterministic fixtures/fakes.
 
 Live contract/sandbox tests are separate and cannot turn a provider outage into an apparent code regression without clear classification.
 
-## 4. Address search tests
+## 4. Phase 4 browser E2E foundation
+
+Before the map/proposal editor is considered stable, the repository must have a real-browser Playwright foundation.
+
+Minimum configuration:
+
+- Playwright dependency pinned through the lockfile;
+- explicit `test:e2e` or equivalent script;
+- production build served for tests rather than only Vite dev mode;
+- deterministic API/backend interception or local test backend;
+- desktop Chromium;
+- mobile viewport/project;
+- traces/screenshots on failure where useful;
+- CI execution for PRs touching the critical journey once implemented.
+
+Minimum early Phase 4 scenario:
+
+1. built app loads a locale route;
+2. deterministic parcel discovery succeeds;
+3. free parcel overview renders;
+4. build intent is selected;
+5. map/proposal route opens;
+6. selected parcel/intent are preserved;
+7. beginner proposal draft appears when implemented;
+8. locale switch/navigation does not silently discard active work;
+9. mobile layout remains usable.
+
+Extend this scenario as drag/rotate/resize, server validation and proposal persistence land.
+
+Do not postpone the first browser test until the final public-beta phase; later beta E2E extends this foundation.
+
+## 5. Address search tests
 
 Required:
 
 - normal address result;
-- partial query;
+- partial query submitted explicitly;
 - Estonian diacritics;
 - multiple candidate results;
 - no match;
 - source unavailable;
+- upstream timeout;
 - malformed source response;
+- oversized/unreasonable provider response handling;
 - result with building/address but multiple candidate parcels;
 - bounded result count;
 - query length/resource limits;
-- short-cache hit/miss semantics.
+- short-cache hit/miss semantics;
+- rate/burst-limit semantics when implemented;
+- request/correlation ID on success/failure.
 
 UI:
 
-- keyboard autocomplete;
-- screen reader labels;
-- no-match != unavailable copy;
+- submit by button and Enter;
+- no upstream request merely from typing;
+- accessible candidate list after submitted multi-result search;
+- screen-reader labels;
+- no-match != unavailable/rate-limited copy;
 - selecting candidate preserves exact normalized ID.
 
-## 5. Parcel resolution tests
+## 6. Parcel resolution tests
 
 - exact cadastral ID;
 - address -> one parcel;
@@ -122,9 +163,30 @@ UI:
 - parcel not found;
 - provider/data release unavailable;
 - correct official geometry/CRS conversion;
-- no ownership claim in response/domain.
+- no ownership claim in response/domain;
+- point selection sends WGS84 latitude/longitude in the documented order;
+- map pointer movement does not continuously trigger parcel resolution;
+- explicit click/selection triggers at most the intended bounded request flow.
 
-## 6. Source adapter fixture requirements
+## 7. Map parcel-selection tests
+
+Component/integration:
+
+- `Vali krunt kaardilt` opens/navigates to the map workflow;
+- resolved point selection shows candidate summary;
+- ambiguous point selection requires explicit confirmation;
+- not-found/unavailable/invalid-source/loading are distinct;
+- confirming a parcel reaches the same free overview/intent flow as text search;
+- map source attribution UI remains present;
+- locale is preserved.
+
+Playwright:
+
+- map entry -> explicit point selection -> candidate -> confirm -> free overview;
+- desktop and mobile viewport;
+- back/forward does not lose confirmed project state unexpectedly.
+
+## 8. Source adapter fixture requirements
 
 Each source adapter should include:
 
@@ -140,7 +202,7 @@ Each source adapter should include:
 
 Schema drift must fail safely, not silently coerce.
 
-## 7. Data refresh/change-watch tests
+## 9. Data refresh/change-watch tests
 
 ### Heavy sync
 
@@ -174,11 +236,11 @@ Schema drift must fail safely, not silently coerce.
 ### In-AKS interactive cache
 
 - short cache semantics;
-- no national refresh triggered by autocomplete.
+- no national refresh triggered by address search.
 
 Gemini call count in routine source sync must be **zero**.
 
-## 8. GIS fixture suite
+## 10. GIS fixture suite
 
 Use synthetic metric EPSG:3301 geometries.
 
@@ -208,7 +270,7 @@ Use synthetic metric EPSG:3301 geometries.
 
 Epsilon must reflect domain semantics rather than floating-point accident.
 
-## 9. Rule tests
+## 11. Rule tests
 
 Each verified rule version:
 
@@ -230,7 +292,7 @@ When law changes:
 
 Do not delete old rule fixtures because law changed.
 
-## 10. Analysis tests
+## 12. Analysis tests
 
 - same frozen inputs/data/rules/engine => same canonical structured output;
 - conflict precedence;
@@ -243,9 +305,9 @@ Do not delete old rule fixtures because law changed.
 - user cannot control national refresh policy;
 - data release/rule manifest selection deterministic.
 
-AI output excluded from factual reproducibility hash.
+AI output is excluded from the factual reproducibility hash.
 
-## 11. Analysis cache tests
+## 13. Analysis cache tests
 
 - exact compatible inputs => safe hit;
 - proposal geometry differs => miss;
@@ -255,55 +317,88 @@ AI output excluded from factual reproducibility hash.
 - cached factual result cannot leak another user's private project metadata;
 - idempotent concurrent request doesn't create conflicting duplicate analyses.
 
-## 12. Proposal/variant tests
+## 14. Proposal/editor tests
 
 ### Beginner templates
 
-- known dimensions produce expected geometry/area;
+- known dimensions produce expected deterministic **draft** geometry;
+- template is convenience metadata, not authoritative analysis provenance;
 - rotate/move preserves dimensions;
 - numerical edits synchronize with map;
 - invalid values rejected.
 
-### Server validation
+### Browser draft vs canonical server proposal
 
+- browser draft interchange uses the documented CRS/contract;
+- server transforms to EPSG:3301;
 - malicious/client-forged area ignored;
+- client perimeter/area preview never overrides server/PostGIS calculation;
+- canonical area matches PostGIS/expected metric result;
+- canonical perimeter matches PostGIS/expected metric result;
 - out-of-Estonia/unreasonable extent rejected;
 - too many vertices rejected;
-- invalid topology handled per policy.
+- invalid topology handled per explicit repair/reject policy;
+- server result cannot be mistaken for raw browser geometry.
 
 ### Versioning
 
-- duplicate creates new proposal version;
-- analyzed proposal cannot be silently mutated;
-- A/B comparison uses exact analysis IDs;
-- differences factual/deterministic;
+- unpersisted draft can be edited/reset/deleted without creating historical versions;
+- saving creates the intended new proposal version;
+- editing a previously persisted scenario creates a new version under the canonical lifecycle;
+- analyzed/terminal proposal cannot be silently mutated;
+- retries/concurrency do not create conflicting version numbers when the persistence implementation lands;
+- later A/B comparison uses exact analysis IDs;
 - AI wording changes do not appear as factual scenario differences.
 
-## 13. Anonymous/permanent Auth and RLS tests
+Full variant duplication/comparison remains the later variant workflow; Phase 4 tests should not falsely claim it is complete.
+
+## 15. Structure-support tests
+
+Before KT-043 can call a structure fully supported:
+
+- every verified-supported card maps to the explicit verified scenario matrix;
+- a valid domain enum that is not verified-supported cannot render as fully supported;
+- planned/unsupported structure stays unsupported;
+- custom/`Muu` follows the documented limited-check flow;
+- custom/unsupported input cannot fall back to a supported analysis profile;
+- labels/locales do not change the stable structure/support identity.
+
+OQ-005 must be resolved from current official law before these become production support tests.
+
+## 16. Anonymous/permanent Auth and RLS tests
 
 Supabase anonymous users use `authenticated`; tests must reflect that.
 
-Required:
+### Phase 4 minimum guest ownership
 
-- public unauthenticated cannot read private project;
+Required before owner-RLS proposal persistence:
+
+- public unauthenticated visitor can perform allowed parcel discovery/free overview;
+- anonymous session is created/reused only when stateful project work becomes necessary;
 - anonymous user creates/reads own bounded guest project;
-- anonymous A cannot access anonymous B project;
+- anonymous A cannot access anonymous B project/proposal;
+- selected parcel + canonical intent survive route/locale changes once project state exists;
+- owner-RLS proposal create/read works through the anonymous user's own JWT;
+- anonymous bootstrap failure does not fall back to a shared/service-role browser path;
+- user cannot self-promote role;
+- internal source/rules/audit schemas remain unavailable.
+
+### Permanent user/later conversion
+
 - permanent user own project allowed;
 - user A cannot access user B project;
 - anonymous user cannot access permanent-only commerce/monitoring action;
 - `is_anonymous` restrictive policy works even with other permissive policies;
-- user cannot self-promote role;
-- internal source/rules/audit/commerce event schemas not directly exposed;
 - expired/deleted session denied.
 
-## 14. Guest -> permanent conversion E2E
+## 17. Guest -> permanent conversion E2E — later account phase
 
-Must test the actual product journey:
+Must test the actual product journey when permanent Auth is implemented:
 
 1. visitor searches address;
 2. selects parcel;
 3. creates anonymous project/proposal;
-4. chooses save/pay;
+4. chooses save/pay/durable recovery;
 5. email OTP or Google conversion/link flow;
 6. exact project/proposal remains;
 7. new permanent session can recover it;
@@ -317,11 +412,11 @@ Failure cases:
 - browser refresh during flow;
 - double-click/retry.
 
-## 15. Auth email tests
+## 18. Auth email tests
 
 Local development uses Mailpit/fake SMTP where supported.
 
-Test:
+Test later:
 
 - OTP request/resend cooldown UI;
 - locale template selection;
@@ -331,7 +426,7 @@ Test:
 
 Do not send real Auth email in normal CI.
 
-## 16. Localization tests
+## 19. Localization tests
 
 ### Static/catalog
 
@@ -362,11 +457,11 @@ For critical finding/action states, verify all locales preserve:
 
 Switching ET/RU/EN:
 
-- keeps parcel/project/proposal;
+- keeps parcel/project/proposal draft;
 - does not rerun GIS/rules;
 - explanation cache changes locale only.
 
-## 17. AI tests
+## 20. AI tests
 
 Use deterministic fake providers.
 
@@ -386,7 +481,7 @@ Cases:
 
 Fallback must remain understandable in ET and enabled locales.
 
-## 18. Explanation cache tests
+## 21. Explanation cache tests
 
 - same result+locale+prompt+model+schema => hit;
 - locale change => separate explanation;
@@ -394,7 +489,7 @@ Fallback must remain understandable in ET and enabled locales.
 - factual data release change => miss;
 - invalid cached object not returned.
 
-## 19. Commerce tests — when enabled
+## 22. Commerce tests — when enabled
 
 Normal CI uses `FakePaymentProvider`.
 
@@ -439,7 +534,7 @@ Normal CI uses `FakePaymentProvider`.
 
 Live payment sandbox tests belong to isolated integration workflow.
 
-## 20. Entitlement/usage tests
+## 23. Entitlement/usage tests
 
 - one-time report scoped correctly;
 - entitlement cannot be forged client-side;
@@ -450,7 +545,7 @@ Live payment sandbox tests belong to isolated integration workflow.
 - technical retry not double-consume;
 - expired entitlement still allows historical report read where product policy says so.
 
-## 21. Sharing tests — when enabled
+## 24. Sharing tests — when enabled
 
 - high-entropy token;
 - only chosen report/scope visible;
@@ -461,57 +556,63 @@ Live payment sandbox tests belong to isolated integration workflow.
 - shared route noindex header/meta behavior;
 - recipient cannot mutate project.
 
-## 22. Component tests
+## 25. Component tests
 
 Prioritize:
 
 - combined address/cadastral search;
 - candidate parcel selector;
+- map parcel selector;
 - intent cards;
 - template/dimension/placement synchronization;
-- finding cards;
+- proposal validation errors;
 - freshness/unknown states;
-- variant comparison;
-- Auth sheet/OTP;
+- finding cards later;
+- variant comparison later;
+- Auth sheet/OTP later;
 - paywall/order status later;
-- project newer-data banner.
+- project newer-data banner later.
 
 Avoid snapshot-testing static markup heavily.
 
-## 23. Playwright public-beta journey
+## 26. Playwright public-beta journey
 
-At minimum:
+The beta suite extends the Phase 4 browser foundation.
+
+At minimum as features become available:
 
 1. landing;
 2. address search;
 3. ambiguous parcel choice;
-4. free parcel overview;
-5. choose build intent;
-6. select sauna/house template;
-7. drag/edit proposal;
-8. run deterministic analysis;
-9. inspect conflict;
-10. inspect condition;
-11. inspect unknown;
-12. map evidence;
-13. official source link;
-14. duplicate/move proposal;
-15. compare variant;
-16. guest -> permanent Auth;
-17. reopen saved project;
-18. mobile path;
-19. RU and EN critical flow smoke when enabled.
+4. map parcel selection;
+5. free parcel overview;
+6. choose build intent;
+7. select supported template;
+8. drag/edit proposal;
+9. server validate/persist proposal;
+10. run deterministic analysis;
+11. inspect conflict;
+12. inspect condition;
+13. inspect unknown;
+14. map evidence;
+15. official source link;
+16. duplicate/move proposal;
+17. compare variant;
+18. guest -> permanent Auth;
+19. reopen saved project;
+20. mobile path;
+21. RU and EN critical-flow smoke when enabled.
 
 Paid launch adds checkout/recovery using provider sandbox/fake-controlled test environment.
 
-## 24. Accessibility tests
+## 27. Accessibility tests
 
 Automated + manual:
 
 - keyboard full core flow;
 - focus/skip links;
 - labels/errors;
-- autocomplete accessibility;
+- submitted result-list accessibility;
 - dialogs/bottom sheets;
 - status not color-only;
 - contrast;
@@ -523,14 +624,15 @@ Automated + manual:
 
 Target WCAG 2.2 AA.
 
-## 25. Performance tests
+## 28. Performance tests
 
 Track:
 
 - landing bundle before map;
 - lazy MapLibre load;
 - address search latency/caching;
-- parcel lookup;
+- parcel lookup/map point resolution;
+- map tile/source behavior separately from analytical source calls;
 - PostGIS p50/p95 representative analysis;
 - national dataset index/query plans;
 - evidence geometry payload size;
@@ -539,7 +641,7 @@ Track:
 
 Normal local data-release analysis should not expose serial upstream-provider waits.
 
-## 26. Product/trust quality tests
+## 29. Product/trust quality tests
 
 Automated tests cannot replace human domain validation.
 
@@ -551,16 +653,18 @@ Before supported rule/source launch:
 - current legal effective date reverified;
 - source attribution links work.
 
+Before marking a Phase 4 structure card fully supported, the verified scenario matrix must be reviewed from current official law.
+
 Do not use user conversion as the only definition of correctness.
 
-## 27. Security tests
+## 30. Security tests
 
 - RLS bypass attempts;
 - IDOR on project/analysis/order/share;
 - admin role spoof;
 - anonymous rate abuse;
 - SSRF URL manipulation;
-- oversized WFS/source payload handling;
+- upstream timeout/oversized response handling;
 - geometry DoS;
 - stored/reflected source/user text XSS;
 - prompt injection;
@@ -568,7 +672,7 @@ Do not use user conversion as the only definition of correctness.
 - payment webhook replay/signature;
 - upload parser/resource abuse later.
 
-## 28. CI gates
+## 31. CI gates
 
 Base PR:
 
@@ -581,13 +685,26 @@ npm run test
 npm run build
 ```
 
-As implemented add:
+Existing database setup/clean-start tests remain mandatory.
 
-- clean Supabase migration/RLS;
-- Edge Function tests;
+### Phase 4 additions
+
+As the map/editor work lands, add:
+
+- Playwright installation/browser setup;
+- critical production-build E2E;
+- deterministic map/API fixtures/interception;
+- guest ownership/RLS integration tests;
+- proposal canonicalization/PostGIS regression tests;
+- public Edge Function timeout/resource/rate/correlation tests as implemented.
+
+Do not wait until KT-136 to add the first Playwright job.
+
+### Later additions
+
+- Edge Function suites as server functionality expands;
 - GIS regression;
 - i18n completeness;
-- critical Playwright;
 - commerce fake-provider tests;
 - security checks.
 
@@ -599,7 +716,9 @@ Optional scheduled workflows:
 - EHR cursor integration;
 - payment-provider sandbox smoke.
 
-## 29. Test data/privacy
+A scheduled live-provider failure must be classified separately from deterministic PR CI.
+
+## 32. Test data/privacy
 
 Prefer synthetic data.
 
@@ -613,7 +732,9 @@ Never commit:
 
 Public-source fixtures are minimized, attributed and used according to source terms.
 
-## 30. Release test evidence
+Routine diagnostic/test logs must not contain full private/user-entered address text when a hash/redacted value is sufficient.
+
+## 33. Release test evidence
 
 PR/release notes for material changes should list:
 
@@ -625,3 +746,5 @@ PR/release notes for material changes should list:
 - E2E scenarios;
 - known limitations;
 - live integration verification where applicable.
+
+For Phase 4 UI, include screenshots/manual evidence where meaningful, but screenshots do not replace browser assertions.

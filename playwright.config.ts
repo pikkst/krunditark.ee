@@ -30,5 +30,12 @@ export default defineConfig({
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
+    env: {
+      VITE_APP_ENV: "local",
+      VITE_APP_ORIGIN: "http://localhost:5173",
+      VITE_BASE_PATH: "/",
+      VITE_SUPABASE_URL: "https://example.supabase.co",
+      VITE_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_example",
+    },
   },
 });

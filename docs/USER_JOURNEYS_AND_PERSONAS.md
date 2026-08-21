@@ -1,8 +1,10 @@
 # User Journeys and Personas — Krunditark
 
-Last product review: **2026-08-15**
+Last product review: **2026-08-21**
 
 This document defines the user problems Krunditark solves from first visit through long-term project use. It is intentionally broader than the initial MVP.
+
+For the current map/proposal implementation boundary, also read `PHASE_4_READINESS.md`.
 
 ## 1. Product job
 
@@ -52,8 +54,8 @@ Pain points:
 
 Desired experience:
 
-- find parcel by address;
-- choose “Saun” or “Kuur” template;
+- find parcel by address or map;
+- choose a verified-supported “Saun”/other structure scenario when available;
 - enter dimensions;
 - drag/rotate it on the map;
 - receive understandable findings and next steps.
@@ -183,13 +185,15 @@ The first post-parcel question should be:
 
 > **Mida soovid selle krundiga teha?**
 
-Choices:
+Choices map to stable locale-independent codes:
 
-1. **Soovin midagi ehitada**
-2. **Kaalun selle krundi ostmist**
-3. **Tahan olemasolevat hoonet muuta**
-4. **Tahan lihtsalt krundi piiranguid mõista**
-5. **Töötan kliendi/projekti kallal** (professional mode)
+1. **Soovin midagi ehitada** -> `build`
+2. **Kaalun selle krundi ostmist** -> `pre_purchase`
+3. **Tahan olemasolevat hoonet muuta** -> `existing_building_modification`
+4. **Tahan lihtsalt krundi piiranguid mõista** -> `understand_parcel`
+5. **Töötan kliendi/projekti kallal** -> `professional`
+
+Support status is separate from code identity. Planned flows must not silently enter the supported `build` analysis path.
 
 Why this matters:
 
@@ -199,7 +203,7 @@ The same parcel needs a different workflow depending on the decision the user is
 
 Do not require cadastral ID as the only starting point.
 
-Supported entry hierarchy should become:
+Supported entry hierarchy:
 
 1. **Address search** — primary consumer method.
 2. **Cadastral identifier** — precise known input.
@@ -209,12 +213,19 @@ Supported entry hierarchy should become:
 
 ### Address capability
 
-Maa- ja Ruumiamet introduced In-AKS in 2026. The official In-AKS service exposes address/Gazetteer APIs and the predecessor In-ADS was described as free, fast and based on current official address data. This makes official address autocomplete a realistic Krunditark entry path.
+Maa- ja Ruumiamet introduced In-AKS in 2026. The official In-AKS Gazetteer makes an official address candidate-search path realistic.
 
-Research:
+Current Krunditark interaction is **submit-driven**:
 
-- https://geoportaal.maaruum.ee/est/teenused/in-ads-in-aks/nb-muudatused-in-adsis-p1038.html
-- https://geoportaal.maaruum.ee/est/teenused/integreeritav-aadressiotsing-in-ads-p504.html
+- typing only changes local input;
+- `Otsi`/Enter triggers the upstream-backed search;
+- 0 results -> not found;
+- multiple results -> accessible candidate list + explicit selection;
+- provider failure -> unavailable, never no-match.
+
+Do not reintroduce per-keystroke upstream traffic merely because older product language used the word “autocomplete”. Candidate-list UX after explicit submit remains appropriate.
+
+Research/source details live in `DATA_SOURCES.md`.
 
 ## 5. Consumer happy path — build something
 
@@ -228,15 +239,24 @@ Secondary action:
 
 `Vali krunt kaardilt`
 
-No account creation is required.
+No permanent-account creation is required.
 
 ### Step 1 — Parcel selection
 
-If address maps to several objects/parcels:
+Text path:
 
-- show candidates on map;
-- show address + cadastral ID + area;
+- user explicitly submits address/cadastral input;
+- if address maps to several objects/parcels, show candidates;
+- show address + cadastral ID + area where available;
 - require user to select the exact parcel.
+
+Map path:
+
+- open the MapLibre selection experience;
+- user explicitly clicks/selects a location;
+- canonical server point resolver finds candidate parcel(s);
+- ambiguity requires explicit confirmation;
+- confirmed parcel enters the same overview flow.
 
 Do not silently choose one.
 
@@ -250,32 +270,45 @@ Show immediate value:
 - area;
 - supported land-use/basic facts;
 - existing buildings when supported;
-- current data-release date;
+- current data/source freshness information;
 - “what Krunditark can check here”.
 
-This is where trust is earned before signup/payment.
+This is where trust is earned before permanent signup/payment.
 
 ### Step 3 — Intent
 
-User chooses `Soovin midagi ehitada`.
+User chooses `Soovin midagi ehitada` (`build`).
 
-### Step 4 — Building template
+At this point, when the workflow becomes stateful, the application may create/reuse a **Supabase anonymous Auth identity and owner-scoped guest project**. This happens as technical ownership behind the guest flow; it is not shown as a permanent-account signup requirement.
 
-Beginner mode:
+Persist/reference the exact selected parcel and canonical intent so routing/locale changes do not throw away the workflow.
+
+### Step 4 — Building/scenario selection
+
+Beginner mode may offer domain labels such as:
 
 - Elamu;
 - Saun;
 - Kuur / abihoone;
 - Garaaž;
-- `Muu` with clear supported-scope handling.
+- `Muu` with clear limited supported-scope handling.
 
-Then choose a template, for example:
+Important:
+
+- a valid domain enum/code is **not** proof that the legal/product scenario has been verified;
+- OQ-005 defines the first verified-supported matrix;
+- only verified scenarios may be marked fully supported;
+- `Muu`/unsupported input may retain generic spatial checks but must not fall back to a supported legal/process profile.
+
+Then choose a beginner template, for example:
 
 - `Saun 4 × 6 m`;
 - `Saun 6 × 8 m`;
 - `Kuur 3 × 4 m`;
 - `Elamu 10 × 12 m`;
 - `Sisestan ise mõõdud`.
+
+Templates are UI conveniences, not legal/design advice or authoritative analysis provenance.
 
 Do not make a non-GIS user draw a polygon as the default interaction.
 
@@ -287,26 +320,40 @@ Ask only facts that materially affect analysis:
 - height;
 - storeys;
 - intended use;
-- new building vs extension where relevant.
+- scenario type where relevant.
 
 Use progressive disclosure. Do not front-load optional legal/technical fields.
 
 ### Step 6 — Place on map
 
-User sees the building rectangle/model on the selected parcel and can:
+User sees the building draft on the selected parcel and can:
 
 - drag;
 - rotate;
 - edit dimensions;
-- reset;
-- switch to orthophoto;
-- see simple distance labels to parcel boundaries when useful.
+- reset/delete an unpersisted draft;
+- switch to orthophoto when the verified map provider supports it;
+- see convenience distance/geometry feedback where useful.
 
-Advanced mode allows polygon editing/import later.
+Advanced mode allows polygon editing later in Phase 4.
+
+The browser object is a **proposal draft**, not authoritative legal geometry. Client area/perimeter/distance are previews only.
+
+### Step 6A — Canonical server validation/persistence
+
+Before a proposal version becomes authoritative project state:
+
+1. send the typed browser draft through the proposal validation boundary;
+2. transform/canonicalize to EPSG:3301 server-side;
+3. validate topology/bounds/resource limits;
+4. compute authoritative area/perimeter in PostGIS/server logic;
+5. persist a new owner-scoped proposal version only after validation succeeds.
+
+A persisted proposal referenced by terminal analysis is never silently mutated in place.
 
 ### Step 7 — Pre-check
 
-Before payment/account gate, show enough value to establish that analysis is real, for example:
+Before permanent-account/payment gate, show enough value to establish that analysis is real, for example:
 
 - correct parcel/proposal summary;
 - number/categories of checks available;
@@ -317,18 +364,20 @@ Do not use manipulative teaser wording such as “3 SECRET PROBLEMS FOUND”.
 
 Do not show a false green “safe to build” state from an intentionally reduced free check.
 
-### Step 8 — Account/payment conversion
+### Step 8 — Permanent account/payment conversion
 
-Only now ask the user to preserve/complete the project.
+This step means **permanent identity**, not the anonymous technical owner created earlier.
 
-Preferred flow:
+Only when durable/cross-device/paid value requires it, ask the user to link/convert the existing guest project:
 
-- preserve anonymous project;
+- preserve exact anonymous project/proposal;
 - `Jätka e-postiga` (email OTP);
 - `Jätka Google'iga`;
 - then payment when purchasing a paid product.
 
 Do not require a password during the first journey.
+
+Do not create a second replacement project during conversion.
 
 ### Step 9 — Full Ehituspass
 
@@ -366,7 +415,7 @@ After a result, show:
 
 `Proovi teist asukohta`
 
-The system duplicates the proposal, allowing user to move/rotate it.
+The later variant workflow duplicates the exact persisted scenario into a new scenario/version, allowing the user to move/rotate/edit it and run a separate analysis.
 
 Comparison UI:
 
@@ -377,16 +426,18 @@ Comparison UI:
 
 Do not rank solely by a fake “buildability score”.
 
+Phase 4 may build reusable proposal-version primitives, but full A/B analysis comparison remains the later variant phase.
+
 A later placement optimizer can suggest candidate areas, but every suggestion must remain an analysis scenario rather than official approval.
 
 ## 7. Pre-purchase journey — Ostukontroll
 
 Flow:
 
-1. Search address/cadastral parcel.
-2. Choose `Kaalun selle krundi ostmist`.
+1. Search address/cadastral/map parcel.
+2. Choose `Kaalun selle krundi ostmist` (`pre_purchase`).
 3. Show free parcel facts.
-4. Run/buy **Ostukontroll**.
+4. Run/buy **Ostukontroll** when implemented.
 5. Report sections:
    - planning context;
    - known restrictions;
@@ -406,7 +457,7 @@ The product must explicitly say that this is not title/ownership/legal transacti
 Future route:
 
 1. Search parcel.
-2. Choose `Muudan olemasolevat hoonet`.
+2. Choose `Muudan olemasolevat hoonet` (`existing_building_modification`).
 3. Select an existing EHR building.
 4. Choose action: extension, reconstruction, demolition/rebuild, use change, etc.
 5. Ask task-specific parameters.
@@ -417,7 +468,7 @@ Do not reuse “new building” rules blindly.
 
 ## 9. Professional journey
 
-Professionals can switch to `Pro režiim`.
+Professionals can later switch to `Pro režiim` / `professional` context.
 
 Differences:
 
@@ -443,7 +494,9 @@ States:
 ```text
 idea
  -> parcel selected
- -> proposal created
+ -> intent selected
+ -> proposal draft
+ -> proposal version persisted
  -> analyzed
  -> comparing variants
  -> preparing next action
@@ -485,17 +538,29 @@ Do not send alarmist messages before material impact is computed.
 
 Help correct it; do not dead-end.
 
+### Address/parcel provider is unavailable or rate-limited
+
+Show an unavailable/retry state. Do not show “parcel not found” merely because the provider failed.
+
+### Map selection is ambiguous
+
+Show candidates and require explicit confirmation. Never choose one silently.
+
+### Guest project bootstrap fails
+
+Keep safe in-memory/public state where possible and show a recoverable error. Never fall back to shared ownership, disabled RLS or browser service-role credentials.
+
 ### Source is stale
 
 Show last good data and its age where policy permits, with explicit stale warning.
 
 ### Building falls outside parcel
 
-Show geometry directly on map and offer `Paiguta krundi sisse` for simple templates.
+Show geometry directly on map and offer a correction path for simple templates where implemented.
 
 ### Unsupported building type
 
-Keep the parcel/project and say which checks are still available. Do not throw the user back to the landing page.
+Keep the parcel/project and say which checks are still available. Do not throw the user back to the landing page or silently reuse a supported legal profile.
 
 ### AI is unavailable
 
@@ -503,18 +568,22 @@ Show deterministic report and template explanation. AI downtime is never a block
 
 ### Payment succeeds but browser closes
 
-Order/report must be recoverable by account/email and idempotent payment state.
+Order/report must be recoverable by permanent account/email and idempotent payment state.
 
 ## 13. Support and escalation
 
 Every analysis has an ID.
+
+Public/server requests also use safe request/correlation IDs where appropriate so support can diagnose a provider failure without asking the user for raw internal payloads.
 
 Provide:
 
 - `Teata võimalikust andmeveast`;
 - `Kas see selgitus aitas?`;
 - `Vajan spetsialisti abi` later;
-- support message automatically includes safe analysis/source IDs, not secrets or unnecessary personal data.
+- support message automatically includes safe analysis/source/request IDs, not secrets or unnecessary personal data.
+
+Routine diagnostics should not require storing full user-entered addresses.
 
 This is also a feedback loop for source/rule quality.
 
@@ -522,16 +591,20 @@ This is also a feedback loop for source/rule quality.
 
 - Parcel lookup is not proof of ownership.
 - Public parcel data does not justify collecting owner identity.
-- Guest work can use an anonymous Supabase session.
+- Guest project work can use an anonymous Supabase session without collecting email/name.
+- Anonymous identity is created only when stateful ownership is needed, not necessarily for every landing visitor.
 - Saved/private projects are private by default.
 - Share links are opt-in and revocable.
 - Future uploaded plans remain private and follow explicit retention policy.
+- Third-party analytics do not receive full addresses/geometry/notes by default.
 
 ## 15. Research evidence behind these journeys
 
 ### Fragmentation and user complexity
 
 Maa- ja Ruumiamet itself states that construction law is complex and its e-ehituse platform is trying to translate that complexity into a simpler user experience. It also explicitly identifies future homeowners, architects, builders, banks and infrastructure/property companies as EHR users.
+
+Research references are evidence inputs and must be reverified when implementation depends on current facts:
 
 - https://maaruum.ee/blogi/mis-e-ehituse-platvorm
 - https://maaruum.ee/ruumiloome-ehitus-ja-planeerimine/e-ehitus/e-ehitus
@@ -540,18 +613,13 @@ Maa- ja Ruumiamet itself states that construction law is complex and its e-ehitu
 
 Major Ehitusseadustik changes entered into force on 1 August 2026 and changed important design-condition/detail-plan paths. This reinforces why the product needs versioned rules and an always-visible data/legal date rather than static advice pages.
 
-- https://kliimaministeerium.ee/uudised/ehitamine-muutub-lihtsamaks
-- https://www.riigikogu.ee/tegevus/eelnoud/eelnou/87821638-de39-45f9-8619-2f3b05a14aa3/ehitusseadustiku-ja-sellega-seonduvalt-teiste-seaduste-muutmise-seaduse-eelnou-743-se/
+The exact supported Phase 4 structure/scenario matrix remains gated by OQ-005 and must be verified against current official law before support claims.
 
 ### Existing professional demand
 
 Estonian professional firms already sell building-rights, restrictions, planning and due-diligence analysis. This validates the problem, while Krunditark's opportunity is to automate a fast first pass and route difficult cases to humans rather than pretending every case can be fully automated.
 
-Examples researched:
-
-- https://vanarc.ee/
-- https://standup.ee/teenused/
-- https://cityee.ee/konsultatsioon/
+Examples in research documentation are market evidence only, not authoritative sources for product findings.
 
 ## 16. Product success test
 
@@ -567,5 +635,10 @@ A first-time non-expert should be able to answer all of these without learning G
 8. Which official source supports this?
 9. How old are the underlying data/rules?
 10. Can I try another variant without starting over?
+
+And during the Phase 4 journey the system must also preserve two invisible safety properties:
+
+- the guest's state is owned by the correct anonymous/permanent identity;
+- browser map geometry is not mistaken for authoritative server analysis geometry.
 
 If any of these require reading raw WFS attributes or legislation, the UX is incomplete.

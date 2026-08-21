@@ -4,7 +4,7 @@ Last reviewed: **2026-08-21**
 
 This file lists only decisions that are genuinely still open. Coding agents must not silently invent them.
 
-For Phase 4 cross-cutting gates, also read `PHASE_4_READINESS.md`.
+For Phase 4 cross-cutting gates, also read `PHASE_4_READINESS.md` and `PHASE_4_IMPLEMENTATION_GUIDE.md`.
 
 ## Resolved decisions
 
@@ -31,13 +31,18 @@ The following are **not open questions**.
 ### Frontend/backend
 
 - React + TypeScript + Vite.
-- MapLibre GL JS.
+- **Leaflet 1.9.x stable** for the Phase 4 browser map, per ADR 0010.
+- Maa- ja Ruumiamet pre-tiled basemap services are the Phase 4 provider direction: `Kaart` default, `Ortofoto` optional.
+- Basemap requests use a Krunditark-owned fixed proxy; no direct production browser tile dependency on MaRu upstream.
+- Google Maps is not the Phase 4 basemap/SDK.
 - React Router.
 - GitHub Pages for current preview/development deployment.
 - Supabase Cloud backend.
 - PostgreSQL + PostGIS.
 - Supabase Auth/Storage/Edge Functions/scheduling.
 - Zone currently remains registrar unless a later verified migration decision changes it.
+
+See ADR 0010 and `MAP_STACK_AND_BASEMAP.md` for attribution, proxy, CRS and operational requirements.
 
 ADR 0009 clarifies the early stack list:
 
@@ -157,32 +162,6 @@ Before enabling AI in an environment:
 - run Krunditark adversarial/quality evaluation.
 
 Google changes model lifecycle, so an implementation agent must check current official documentation rather than trusting an old doc recommendation.
-
-## OQ-003 — Production base-map tile/style provider
-
-**Phase 4 gate: resolve before KT-040 is considered production-ready. Tracked by issue #50.**
-
-MapLibre is fixed; final production map/style/orthophoto source is not.
-
-Candidates can include properly licensed Maa- ja Ruumiamet tiled services and/or a justified commercial/open tile provider.
-
-Decision criteria:
-
-- Estonia quality;
-- orthophoto availability;
-- attribution text/link and terms;
-- proxy/contact/referrer requirements;
-- rate/availability expectations;
-- cost;
-- privacy / direct third-party browser requests;
-- MapLibre compatibility;
-- public token/configuration rules;
-- Cloudflare caching/proxy architecture;
-- local/preview/production configuration.
-
-Do not use an unlicensed/free public tile endpoint for production traffic merely because it works in development.
-
-A temporary development source must be labeled as such.
 
 ## OQ-004 — Production SMTP provider
 
@@ -430,11 +409,13 @@ This is required before commerce copy/terms are final.
 
 ## Phase 4 blocker rule
 
-If a Phase 4 task depends on OQ-003 or OQ-005:
+OQ-005 remains a Phase 4 support gate. The map-engine/basemap architecture formerly tracked as OQ-003 is resolved by ADR 0010; its proxy/attribution/provider-contact requirements are implementation/operational DoD items under KT-040 rather than an architectural open question.
+
+If a Phase 4 task depends on OQ-005:
 
 1. implementation may build independent foundations;
 2. development-only placeholders must be labeled explicitly;
-3. the task must not be marked production-ready/supported until the open item is resolved from current authoritative evidence;
+3. the task must not mark a scenario fully supported until the open item is resolved from current authoritative evidence;
 4. do not convert the open item into a guessed code constant.
 
 ## General agent rule

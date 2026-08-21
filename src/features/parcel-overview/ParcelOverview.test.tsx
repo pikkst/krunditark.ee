@@ -36,6 +36,7 @@ const MOCK_PARCEL: Parcel = {
     sourceObjectId: "obj-1",
     normalizerVersion: "1",
     retrievedAt: "2026-08-16T00:00:00Z",
+    sourceEffectiveAt: "2026-08-01T00:00:00Z",
   },
   freshnessState: "fresh",
   contentHash: "hash-1",
@@ -58,9 +59,53 @@ describe("ParcelOverview", () => {
     expect(screen.getByLabelText("Katastriüksuse piiride kaart")).toBeDefined();
   });
 
-  it("renders supported coverage statement", () => {
+  it("renders available and planned coverage sections", () => {
     renderWithI18n(<ParcelOverview parcel={MOCK_PARCEL} onIntentSelected={() => {}} />);
-    expect(screen.getByText("Mida Krunditark saab kontrollida?")).toBeDefined();
+    expect(screen.getByText("Praegu saadaval")).toBeDefined();
+    expect(screen.getByText("Hiljem saadav")).toBeDefined();
+    expect(screen.getByText("Katastripiir ja pindala")).toBeDefined();
+    expect(screen.getByText("Planeeringud ja ehitusõigus")).toBeDefined();
+  });
+
+  it("does not render unsupported categories as available", () => {
+    renderWithI18n(<ParcelOverview parcel={MOCK_PARCEL} onIntentSelected={() => {}} />);
+    const availableTitle = screen.getByText("Praegu saadaval");
+    const availableList = availableTitle.nextElementSibling;
+    expect(availableList).not.toBeNull();
+    expect((availableList as HTMLElement).tagName).toBe("UL");
+    expect((availableList as HTMLElement).textContent).not.toContain("Planeeringud ja ehitusõigus");
+    expect((availableList as HTMLElement).textContent).not.toContain(
+      "Kitsendused ja kaitsevööndid"
+    );
+  });
+
+  it("renders freshness badge for fresh state", () => {
+    renderWithI18n(<ParcelOverview parcel={MOCK_PARCEL} onIntentSelected={() => {}} />);
+    expect(screen.getByText("Värsked")).toBeDefined();
+  });
+
+  it("renders freshness badge for stale state", () => {
+    const staleParcel = { ...MOCK_PARCEL, freshnessState: "stale" as const };
+    renderWithI18n(<ParcelOverview parcel={staleParcel} onIntentSelected={() => {}} />);
+    expect(screen.getByText("Vananenud")).toBeDefined();
+  });
+
+  it("renders freshness badge for warning state", () => {
+    const warningParcel = { ...MOCK_PARCEL, freshnessState: "warning" as const };
+    renderWithI18n(<ParcelOverview parcel={warningParcel} onIntentSelected={() => {}} />);
+    expect(screen.getByText("Hoiatus")).toBeDefined();
+  });
+
+  it("renders freshness badge for unknown state", () => {
+    const unknownParcel = { ...MOCK_PARCEL, freshnessState: "unknown" as const };
+    renderWithI18n(<ParcelOverview parcel={unknownParcel} onIntentSelected={() => {}} />);
+    expect(screen.getByText("Teadmata")).toBeDefined();
+  });
+
+  it("renders source provenance with effective and retrieved dates", () => {
+    renderWithI18n(<ParcelOverview parcel={MOCK_PARCEL} onIntentSelected={() => {}} />);
+    expect(screen.getByText(/Andmete kehtivus/)).toBeDefined();
+    expect(screen.getByText(/Laetud/)).toBeDefined();
   });
 
   it("renders intent choice buttons", () => {

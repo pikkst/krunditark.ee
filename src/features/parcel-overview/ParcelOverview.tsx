@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { cn } from "../../lib/cn";
+import FreshnessBadge from "../../components/ui/FreshnessBadge";
 import type { Parcel } from "../../domain/parcel/types";
 import type { IntentCode } from "../../domain/intent/types";
 import { INTENT_I18N_KEYS, isIntentSupported, isIntentPlanned } from "../../domain/intent/types";
@@ -48,6 +49,16 @@ function geometryToSvgPaths(geometry: Parcel["geometry"]): string[] {
   });
 }
 
+function formatSourceDate(parcel: Parcel, locale?: string): string | undefined {
+  const raw = parcel.source.sourceEffectiveAt || parcel.source.retrievedAt;
+  if (!raw) return undefined;
+  try {
+    return new Date(raw).toLocaleDateString(locale);
+  } catch {
+    return undefined;
+  }
+}
+
 export interface ParcelOverviewProps {
   parcel: Parcel;
   onIntentSelected: (code: IntentCode) => void;
@@ -57,7 +68,12 @@ export default function ParcelOverview({ parcel, onIntentSelected }: ParcelOverv
   const { t, i18n } = useTranslation();
   const paths = geometryToSvgPaths(parcel.geometry);
   const area = formatArea(parcel.facts.areaM2Computed, i18n.language);
-  const sourceDate = parcel.source.retrievedAt
+  const sourceDate = formatSourceDate(parcel, i18n.language);
+  const freshnessLevel = parcel.freshnessState;
+  const effectiveDate = parcel.source.sourceEffectiveAt
+    ? new Date(parcel.source.sourceEffectiveAt).toLocaleDateString(i18n.language)
+    : undefined;
+  const retrievedDate = parcel.source.retrievedAt
     ? new Date(parcel.source.retrievedAt).toLocaleDateString(i18n.language)
     : undefined;
 
@@ -67,6 +83,18 @@ export default function ParcelOverview({ parcel, onIntentSelected }: ParcelOverv
     "understand_parcel",
     "existing_building_modification",
     "professional",
+  ];
+
+  const availableCategories = [
+    t("parcelOverview.coverageBoundary"),
+    t("parcelOverview.coverageBasicFacts"),
+  ];
+
+  const plannedCategories = [
+    t("parcelOverview.coveragePlanning"),
+    t("parcelOverview.coverageRestrictions"),
+    t("parcelOverview.coverageEnvironment"),
+    t("parcelOverview.coveragePartial"),
   ];
 
   return (
@@ -111,18 +139,44 @@ export default function ParcelOverview({ parcel, onIntentSelected }: ParcelOverv
         <div className="parcel-overview__fact">
           <span className="parcel-overview__fact-label">{t("parcelOverview.dataFreshness")}</span>
           <span className="parcel-overview__fact-value">
-            {sourceDate || t("ui.freshness.unknown")}
+            <FreshnessBadge level={freshnessLevel} date={sourceDate} />
+          </span>
+        </div>
+        <div className="parcel-overview__fact">
+          <span className="parcel-overview__fact-label">{t("parcelOverview.sourceDate")}</span>
+          <span className="parcel-overview__fact-value">
+            {effectiveDate && retrievedDate && effectiveDate !== retrievedDate ? (
+              <>
+                <span>
+                  {t("parcelOverview.sourceEffective")}: {effectiveDate}
+                </span>
+                <span className="parcel-overview__provenance">
+                  ({t("parcelOverview.retrieved")}: {retrievedDate})
+                </span>
+              </>
+            ) : retrievedDate ? (
+              retrievedDate
+            ) : (
+              t("ui.freshness.unknown")
+            )}
           </span>
         </div>
       </div>
 
       <div className="parcel-overview__coverage">
-        <h3 className="parcel-overview__coverage-title">{t("parcelOverview.supportedCoverage")}</h3>
+        <h3 className="parcel-overview__coverage-title">{t("parcelOverview.availableTitle")}</h3>
         <ul className="parcel-overview__coverage-list">
-          <li>{t("parcelOverview.coveragePlanning")}</li>
-          <li>{t("parcelOverview.coverageRestrictions")}</li>
-          <li>{t("parcelOverview.coverageEnvironment")}</li>
-          <li>{t("parcelOverview.coveragePartial")}</li>
+          {availableCategories.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+        <h3 className="parcel-overview__coverage-title parcel-overview__coverage-title--secondary">
+          {t("parcelOverview.plannedTitle")}
+        </h3>
+        <ul className="parcel-overview__coverage-list">
+          {plannedCategories.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
         </ul>
         <p className="parcel-overview__coverage-note">{t("parcelOverview.coverageNote")}</p>
       </div>

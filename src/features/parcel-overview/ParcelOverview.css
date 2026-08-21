@@ -68,6 +68,12 @@
   color: var(--color-foreground);
 }
 
+.parcel-overview__provenance {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+  font-weight: 400;
+}
+
 .parcel-overview__coverage {
   display: flex;
   flex-direction: column;
@@ -93,6 +99,27 @@
   gap: var(--spacing-2);
   font-size: var(--text-sm);
   color: var(--color-foreground);
+}
+
+.parcel-overview__coverage-title--secondary {
+  margin-top: var(--spacing-2);
+  color: var(--color-muted);
+}
+
+.parcel-overview__coverage-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.parcel-overview__coverage-list li::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--color-muted);
+  flex-shrink: 0;
 }
 
 .parcel-overview__coverage-note {

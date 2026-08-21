@@ -2,6 +2,8 @@
 
 Last test-strategy review: **2026-08-21**
 
+For Phase 4, `PHASE_4_IMPLEMENTATION_GUIDE.md` contains mandatory task-specific tests/DoD in addition to this strategy.
+
 ## 1. Goal
 
 Krunditark is regulation-, GIS-, identity- and eventually payment-adjacent software. Tests must protect:
@@ -44,6 +46,7 @@ Network-free:
 - anonymous/permanent user distinctions;
 - geometry predicates;
 - immutable snapshots;
+- proposal version allocation/idempotency when Phase 4 persistence lands;
 - source/rule/data release relations;
 - commerce uniqueness/idempotency when enabled;
 - clean-start regression: drop all schemas, re-run migrations, verify tables/RLS/policies/grants from scratch;
@@ -53,6 +56,7 @@ Network-free:
 
 - Auth/authorization;
 - source adapters using mocks/fixtures;
+- map-tile proxy allow-list/coordinates/timeouts/response limits;
 - analysis orchestration;
 - Gemini fake provider;
 - payment fake/provider webhook sandbox where applicable;
@@ -68,17 +72,18 @@ Behavior-heavy components using deterministic mocks/fixtures.
 
 Playwright against the **production-like built frontend** + controlled backend/test fixtures.
 
-Playwright becomes an active Phase 4 gate because MapLibre, real routing, pointer/touch events, browser focus and responsive bottom-sheet behavior cannot be proven completely by jsdom.
+Playwright becomes an active Phase 4 gate because Leaflet lifecycle, real routing, map container sizing, pointer/touch events, browser focus, plugin behavior and responsive bottom-sheet interactions cannot be proven completely by jsdom.
 
-### Scheduled contract checks
+### Scheduled/controlled contract checks
 
-Optional controlled internet workflow for official provider capabilities/schema/health; not normal unit/PR tests.
+Optional controlled internet workflow for official provider capabilities/schema/health and target-environment map-provider integration; not normal unit/PR tests.
 
 ## 3. No live external dependencies in normal CI
 
 Normal unit/integration/E2E tests must not call live:
 
-- In-AKS/MaRu;
+- In-AKS/MaRu analytical endpoints;
+- MaRu production tile origin;
 - PLANIS;
 - EELIS;
 - EHR;
@@ -86,27 +91,26 @@ Normal unit/integration/E2E tests must not call live:
 - Riigi Teataja;
 - Gemini;
 - Stripe/Montonio/another payment provider;
-- SMTP provider;
-- production map/tile provider when deterministic interception/local fixtures can cover the application behavior.
+- SMTP provider.
 
-Use sanitized deterministic fixtures/fakes.
+Use sanitized deterministic fixtures/fakes/interception.
 
 Live contract/sandbox tests are separate and cannot turn a provider outage into an apparent code regression without clear classification.
 
 ## 4. Phase 4 browser E2E foundation
 
-Before the map/proposal editor is considered stable, the repository must have a real-browser Playwright foundation.
+KT-038 creates the real-browser safety net before the map/proposal editor becomes complex.
 
 Minimum configuration:
 
 - Playwright dependency pinned through the lockfile;
 - explicit `test:e2e` or equivalent script;
 - production build served for tests rather than only Vite dev mode;
-- deterministic API/backend interception or local test backend;
+- deterministic API/backend/tile interception or local test backend;
 - desktop Chromium;
 - mobile viewport/project;
 - traces/screenshots on failure where useful;
-- CI execution for PRs touching the critical journey once implemented.
+- CI execution for the critical journey.
 
 Minimum early Phase 4 scenario:
 
@@ -116,13 +120,14 @@ Minimum early Phase 4 scenario:
 4. build intent is selected;
 5. map/proposal route opens;
 6. selected parcel/intent are preserved;
-7. beginner proposal draft appears when implemented;
-8. locale switch/navigation does not silently discard active work;
-9. mobile layout remains usable.
+7. Leaflet map mounts with non-zero usable dimensions;
+8. beginner proposal draft appears when implemented;
+9. locale switch/navigation does not silently discard active work;
+10. mobile layout remains usable.
 
-Extend this scenario as drag/rotate/resize, server validation and proposal persistence land.
+Extend this scenario as click selection, drag/rotate/resize, server validation and proposal persistence land.
 
-Do not postpone the first browser test until the final public-beta phase; later beta E2E extends this foundation.
+Do not postpone the first browser test until the final public-beta phase; KT-136 extends this foundation.
 
 ## 5. Address search tests
 
@@ -168,16 +173,37 @@ UI:
 - map pointer movement does not continuously trigger parcel resolution;
 - explicit click/selection triggers at most the intended bounded request flow.
 
-## 7. Map parcel-selection tests
+## 7. Leaflet map and parcel-selection tests
+
+### Renderer/lifecycle
+
+- Leaflet module is lazy-loaded where required by KT-040;
+- map container has usable dimensions in desktop/mobile routes;
+- mount/unmount/remount does not duplicate map/plugin listeners;
+- Leaflet object instances are not stored as persisted project/domain state.
+
+### Basemap
+
+- `Kaart` default through the owned proxy;
+- `Ortofoto` mode switch;
+- switching base layer preserves parcel/proposal overlays and project/editor state;
+- source/data-age attribution remains visible;
+- tile-proxy/provider failure shows degraded basemap state;
+- tile failure does not become parcel `not_found`, analysis `clear` or project loss;
+- normal CI intercepts/fixtures tile requests rather than calling MaRu production tiles.
+
+### Map parcel selection
 
 Component/integration:
 
 - `Vali krunt kaardilt` opens/navigates to the map workflow;
+- one deliberate click/tap triggers the canonical point selector;
+- pointer movement triggers zero parcel-resolution requests;
+- rapid/repeated clicks while pending are bounded/cancelled/serialized according to implementation contract;
 - resolved point selection shows candidate summary;
 - ambiguous point selection requires explicit confirmation;
 - not-found/unavailable/invalid-source/loading are distinct;
 - confirming a parcel reaches the same free overview/intent flow as text search;
-- map source attribution UI remains present;
 - locale is preserved.
 
 Playwright:
@@ -186,9 +212,28 @@ Playwright:
 - desktop and mobile viewport;
 - back/forward does not lose confirmed project state unexpectedly.
 
-## 8. Source adapter fixture requirements
+## 8. Map-tile proxy tests
 
-Each source adapter should include:
+When KT-040 implements the proxy, cover at minimum:
+
+- only `kaart`/`ortofoto` approved modes accepted;
+- numeric tile coordinate/zoom validation;
+- unsupported mode/zoom rejected without upstream fetch;
+- no arbitrary `url=`/host injection path;
+- fixed upstream allow-list;
+- timeout mapping;
+- non-image/oversized upstream response rejection;
+- safe cache/content-type propagation;
+- provider 4xx/5xx classification;
+- CORS for intended environments;
+- logs/request IDs contain no project/address/proposal payload;
+- no secret required in browser bundle.
+
+A controlled preview/manual integration verifies real MaRu behavior separately from normal CI and records attribution/proxy operational evidence.
+
+## 9. Source adapter fixture requirements
+
+Each analytical source adapter should include:
 
 - successful response;
 - successful empty response;
@@ -202,7 +247,7 @@ Each source adapter should include:
 
 Schema drift must fail safely, not silently coerce.
 
-## 9. Data refresh/change-watch tests
+## 10. Data refresh/change-watch tests
 
 ### Heavy sync
 
@@ -240,7 +285,9 @@ Schema drift must fail safely, not silently coerce.
 
 Gemini call count in routine source sync must be **zero**.
 
-## 10. GIS fixture suite
+The visual MaRu basemap is not an analytical data-release source and is tested under the map/proxy sections above.
+
+## 11. GIS fixture suite
 
 Use synthetic metric EPSG:3301 geometries.
 
@@ -270,7 +317,7 @@ Use synthetic metric EPSG:3301 geometries.
 
 Epsilon must reflect domain semantics rather than floating-point accident.
 
-## 11. Rule tests
+## 12. Rule tests
 
 Each verified rule version:
 
@@ -292,7 +339,7 @@ When law changes:
 
 Do not delete old rule fixtures because law changed.
 
-## 12. Analysis tests
+## 13. Analysis tests
 
 - same frozen inputs/data/rules/engine => same canonical structured output;
 - conflict precedence;
@@ -307,7 +354,7 @@ Do not delete old rule fixtures because law changed.
 
 AI output is excluded from the factual reproducibility hash.
 
-## 13. Analysis cache tests
+## 14. Analysis cache tests
 
 - exact compatible inputs => safe hit;
 - proposal geometry differs => miss;
@@ -317,15 +364,39 @@ AI output is excluded from the factual reproducibility hash.
 - cached factual result cannot leak another user's private project metadata;
 - idempotent concurrent request doesn't create conflicting duplicate analyses.
 
-## 14. Proposal/editor tests
+## 15. Proposal/editor tests
 
 ### Beginner templates
 
 - known dimensions produce expected deterministic **draft** geometry;
 - template is convenience metadata, not authoritative analysis provenance;
-- rotate/move preserves dimensions;
-- numerical edits synchronize with map;
-- invalid values rejected.
+- invalid/zero/negative/non-finite dimensions rejected;
+- previewing/changing a template does not silently create persisted history.
+
+### Placement editor
+
+- drag updates the typed draft;
+- rotate updates draft orientation/geometry;
+- numeric resize updates geometry and preview values;
+- reset/delete semantics are explicit for unpersisted draft;
+- map pan/base-layer switch does not mutate proposal;
+- map/form controls remain synchronized after a sequence of edits;
+- route/locale change preserves active draft according to KT-039;
+- plugin/listener cleanup works after unmount/remount;
+- mobile pointer/touch flow passes Playwright;
+- essential precision has a numeric/keyboard alternative.
+
+Use `@geoman-io/leaflet-geoman-free` only for features available in the free package; no test may hide a Phase 4 dependency on a Pro-only feature.
+
+### Advanced polygon mode
+
+- opt-in rather than beginner default;
+- draw/edit vertex;
+- deterministic GeoJSON serialization;
+- vertex/resource limits;
+- invalid/self-intersection feedback;
+- unsupported hole/MultiPolygon semantics fail safely;
+- leaving/switching modes handles potential data loss explicitly.
 
 ### Browser draft vs canonical server proposal
 
@@ -333,26 +404,30 @@ AI output is excluded from the factual reproducibility hash.
 - server transforms to EPSG:3301;
 - malicious/client-forged area ignored;
 - client perimeter/area preview never overrides server/PostGIS calculation;
-- canonical area matches PostGIS/expected metric result;
-- canonical perimeter matches PostGIS/expected metric result;
+- canonical area matches expected metric result;
+- canonical perimeter matches expected metric result;
 - out-of-Estonia/unreasonable extent rejected;
 - too many vertices rejected;
 - invalid topology handled per explicit repair/reject policy;
+- same valid input produces the same canonical output;
 - server result cannot be mistaken for raw browser geometry.
 
-### Versioning
+### Versioning/idempotency
 
 - unpersisted draft can be edited/reset/deleted without creating historical versions;
 - saving creates the intended new proposal version;
-- editing a previously persisted scenario creates a new version under the canonical lifecycle;
+- same semantic save retry returns/reuses the same outcome according to the selected idempotency contract;
+- same idempotency key with different payload fails safely;
+- concurrent saves do not collide/overwrite version numbers;
+- database rollback leaves no partial version;
+- editing a persisted scenario creates a new version under the canonical lifecycle;
 - analyzed/terminal proposal cannot be silently mutated;
-- retries/concurrency do not create conflicting version numbers when the persistence implementation lands;
-- later A/B comparison uses exact analysis IDs;
-- AI wording changes do not appear as factual scenario differences.
+- server save failure preserves the client draft/retry path;
+- later A/B comparison uses exact analysis IDs.
 
-Full variant duplication/comparison remains the later variant workflow; Phase 4 tests should not falsely claim it is complete.
+Full variant duplication/comparison remains the later Phase 9 workflow; Phase 4 tests must not falsely claim it is complete.
 
-## 15. Structure-support tests
+## 16. Structure-support tests
 
 Before KT-043 can call a structure fully supported:
 
@@ -361,11 +436,12 @@ Before KT-043 can call a structure fully supported:
 - planned/unsupported structure stays unsupported;
 - custom/`Muu` follows the documented limited-check flow;
 - custom/unsupported input cannot fall back to a supported analysis profile;
-- labels/locales do not change the stable structure/support identity.
+- stale/missing support matrix fails safe rather than defaulting all types to supported;
+- labels/locales do not change stable structure/support identity.
 
 OQ-005 must be resolved from current official law before these become production support tests.
 
-## 16. Anonymous/permanent Auth and RLS tests
+## 17. Anonymous/permanent Auth and RLS tests
 
 Supabase anonymous users use `authenticated`; tests must reflect that.
 
@@ -380,6 +456,7 @@ Required before owner-RLS proposal persistence:
 - selected parcel + canonical intent survive route/locale changes once project state exists;
 - owner-RLS proposal create/read works through the anonymous user's own JWT;
 - anonymous bootstrap failure does not fall back to a shared/service-role browser path;
+- repeated route/retry flow does not create uncontrolled duplicate guest projects;
 - user cannot self-promote role;
 - internal source/rules/audit schemas remain unavailable.
 
@@ -391,18 +468,17 @@ Required before owner-RLS proposal persistence:
 - `is_anonymous` restrictive policy works even with other permissive policies;
 - expired/deleted session denied.
 
-## 17. Guest -> permanent conversion E2E — later account phase
+## 18. Guest -> permanent conversion E2E — later account phase
 
 Must test the actual product journey when permanent Auth is implemented:
 
-1. visitor searches address;
-2. selects parcel;
-3. creates anonymous project/proposal;
-4. chooses save/pay/durable recovery;
-5. email OTP or Google conversion/link flow;
-6. exact project/proposal remains;
-7. new permanent session can recover it;
-8. old anonymous isolation does not create duplicate ownership/leak.
+1. visitor searches/selects parcel;
+2. creates anonymous project/proposal;
+3. chooses durable save/pay/recovery;
+4. email OTP or Google conversion/link flow;
+5. exact project/proposal remains;
+6. new permanent session can recover it;
+7. old anonymous isolation does not create duplicate ownership/leak.
 
 Failure cases:
 
@@ -412,7 +488,7 @@ Failure cases:
 - browser refresh during flow;
 - double-click/retry.
 
-## 18. Auth email tests
+## 19. Auth email tests
 
 Local development uses Mailpit/fake SMTP where supported.
 
@@ -426,7 +502,7 @@ Test later:
 
 Do not send real Auth email in normal CI.
 
-## 19. Localization tests
+## 20. Localization tests
 
 ### Static/catalog
 
@@ -457,11 +533,12 @@ For critical finding/action states, verify all locales preserve:
 
 Switching ET/RU/EN:
 
-- keeps parcel/project/proposal draft;
+- keeps parcel/project/proposal draft and persisted proposal identity;
+- does not recreate Leaflet/editor state in a way that loses draft/project facts;
 - does not rerun GIS/rules;
 - explanation cache changes locale only.
 
-## 20. AI tests
+## 21. AI tests
 
 Use deterministic fake providers.
 
@@ -481,7 +558,7 @@ Cases:
 
 Fallback must remain understandable in ET and enabled locales.
 
-## 21. Explanation cache tests
+## 22. Explanation cache tests
 
 - same result+locale+prompt+model+schema => hit;
 - locale change => separate explanation;
@@ -489,7 +566,7 @@ Fallback must remain understandable in ET and enabled locales.
 - factual data release change => miss;
 - invalid cached object not returned.
 
-## 22. Commerce tests — when enabled
+## 23. Commerce tests — when enabled
 
 Normal CI uses `FakePaymentProvider`.
 
@@ -534,7 +611,7 @@ Normal CI uses `FakePaymentProvider`.
 
 Live payment sandbox tests belong to isolated integration workflow.
 
-## 23. Entitlement/usage tests
+## 24. Entitlement/usage tests
 
 - one-time report scoped correctly;
 - entitlement cannot be forged client-side;
@@ -545,7 +622,7 @@ Live payment sandbox tests belong to isolated integration workflow.
 - technical retry not double-consume;
 - expired entitlement still allows historical report read where product policy says so.
 
-## 24. Sharing tests — when enabled
+## 25. Sharing tests — when enabled
 
 - high-entropy token;
 - only chosen report/scope visible;
@@ -556,15 +633,17 @@ Live payment sandbox tests belong to isolated integration workflow.
 - shared route noindex header/meta behavior;
 - recipient cannot mutate project.
 
-## 25. Component tests
+## 26. Component tests
 
 Prioritize:
 
 - combined address/cadastral search;
 - candidate parcel selector;
-- map parcel selector;
+- Leaflet map parcel selector;
 - intent cards;
+- structure support cards;
 - template/dimension/placement synchronization;
+- advanced polygon invalid states;
 - proposal validation errors;
 - freshness/unknown states;
 - finding cards later;
@@ -575,7 +654,7 @@ Prioritize:
 
 Avoid snapshot-testing static markup heavily.
 
-## 26. Playwright public-beta journey
+## 27. Playwright public-beta journey
 
 The beta suite extends the Phase 4 browser foundation.
 
@@ -587,25 +666,28 @@ At minimum as features become available:
 4. map parcel selection;
 5. free parcel overview;
 6. choose build intent;
-7. select supported template;
-8. drag/edit proposal;
-9. server validate/persist proposal;
-10. run deterministic analysis;
-11. inspect conflict;
-12. inspect condition;
-13. inspect unknown;
-14. map evidence;
-15. official source link;
-16. duplicate/move proposal;
-17. compare variant;
-18. guest -> permanent Auth;
-19. reopen saved project;
-20. mobile path;
-21. RU and EN critical-flow smoke when enabled.
+7. select supported/limited structure scenario;
+8. select template;
+9. drag/rotate/resize proposal;
+10. advanced polygon smoke where supported;
+11. server validate/persist proposal;
+12. refresh/reopen persisted guest proposal in same session;
+13. run deterministic analysis;
+14. inspect conflict;
+15. inspect condition;
+16. inspect unknown;
+17. map evidence;
+18. official source link;
+19. duplicate/move proposal;
+20. compare variant;
+21. guest -> permanent Auth;
+22. reopen saved project;
+23. mobile path;
+24. RU and EN critical-flow smoke when enabled.
 
 Paid launch adds checkout/recovery using provider sandbox/fake-controlled test environment.
 
-## 27. Accessibility tests
+## 28. Accessibility tests
 
 Automated + manual:
 
@@ -617,22 +699,26 @@ Automated + manual:
 - status not color-only;
 - contrast;
 - touch targets;
-- map result text equivalent;
+- Leaflet controls have accessible labels;
+- map selection/results have textual equivalents;
+- essential proposal dimensions can be changed without precision pointer-only input;
 - comparison table/text equivalent;
 - reduced motion;
 - ET/RU/EN screen-reader labeling.
 
 Target WCAG 2.2 AA.
 
-## 28. Performance tests
+## 29. Performance tests
 
 Track:
 
 - landing bundle before map;
-- lazy MapLibre load;
+- lazy Leaflet/map-editor load;
+- map/plugin bundle impact;
 - address search latency/caching;
 - parcel lookup/map point resolution;
-- map tile/source behavior separately from analytical source calls;
+- tile-proxy latency/error/cache behavior separately from analytical source calls;
+- avoid unnecessary map recreation/tile reload on locale/state changes;
 - PostGIS p50/p95 representative analysis;
 - national dataset index/query plans;
 - evidence geometry payload size;
@@ -641,7 +727,7 @@ Track:
 
 Normal local data-release analysis should not expose serial upstream-provider waits.
 
-## 29. Product/trust quality tests
+## 30. Product/trust quality tests
 
 Automated tests cannot replace human domain validation.
 
@@ -655,15 +741,18 @@ Before supported rule/source launch:
 
 Before marking a Phase 4 structure card fully supported, the verified scenario matrix must be reviewed from current official law.
 
+Before public map traffic, manually verify target-environment MaRu `Kaart`/`Ortofoto`, attribution/data age, proxy behavior and provider operational requirements.
+
 Do not use user conversion as the only definition of correctness.
 
-## 30. Security tests
+## 31. Security tests
 
 - RLS bypass attempts;
 - IDOR on project/analysis/order/share;
 - admin role spoof;
 - anonymous rate abuse;
 - SSRF URL manipulation;
+- tile-proxy arbitrary-host/mode/path manipulation;
 - upstream timeout/oversized response handling;
 - geometry DoS;
 - stored/reflected source/user text XSS;
@@ -672,7 +761,7 @@ Do not use user conversion as the only definition of correctness.
 - payment webhook replay/signature;
 - upload parser/resource abuse later.
 
-## 31. CI gates
+## 32. CI gates
 
 Base PR:
 
@@ -689,20 +778,22 @@ Existing database setup/clean-start tests remain mandatory.
 
 ### Phase 4 additions
 
-As the map/editor work lands, add:
+As map/editor work lands, add:
 
 - Playwright installation/browser setup;
 - critical production-build E2E;
-- deterministic map/API fixtures/interception;
+- deterministic Leaflet/tile/API fixtures/interception;
 - guest ownership/RLS integration tests;
+- map-tile proxy security/error tests;
 - proposal canonicalization/PostGIS regression tests;
+- proposal persistence idempotency/concurrency tests;
 - public Edge Function timeout/resource/rate/correlation tests as implemented.
 
 Do not wait until KT-136 to add the first Playwright job.
 
 ### Later additions
 
-- Edge Function suites as server functionality expands;
+- expanded Edge Function suites;
 - GIS regression;
 - i18n completeness;
 - commerce fake-provider tests;
@@ -711,6 +802,7 @@ Do not wait until KT-136 to add the first Playwright job.
 Optional scheduled workflows:
 
 - official API/WFS capability smoke;
+- controlled MaRu map proxy/provider smoke;
 - source schema drift;
 - legal change-watch integration;
 - EHR cursor integration;
@@ -718,7 +810,7 @@ Optional scheduled workflows:
 
 A scheduled live-provider failure must be classified separately from deterministic PR CI.
 
-## 32. Test data/privacy
+## 33. Test data/privacy
 
 Prefer synthetic data.
 
@@ -732,9 +824,27 @@ Never commit:
 
 Public-source fixtures are minimized, attributed and used according to source terms.
 
-Routine diagnostic/test logs must not contain full private/user-entered address text when a hash/redacted value is sufficient.
+Routine diagnostic/test logs must not contain full private/user-entered address text when a hash/redacted value is sufficient. Map tile URLs/fixtures should not encode parcel/project identity.
 
-## 33. Release test evidence
+## 34. Phase 4 exit evidence
+
+Before Phase 5 starts, execute the integrated Phase 4 exit scenario in `PHASE_4_IMPLEMENTATION_GUIDE.md` and record at minimum:
+
+- exact commit/PR;
+- desktop/mobile Playwright result;
+- anonymous owner/RLS evidence;
+- map selection evidence;
+- Kaart/Ortofoto + attribution/degraded-state verification;
+- template/editor operations tested;
+- server canonical EPSG:3301 area/perimeter tests;
+- persistence idempotency/concurrency tests;
+- locale/refresh recovery behavior;
+- no live-provider dependency in normal CI;
+- known limitations/OQ-005 support scope.
+
+Individual green component tests are not sufficient to declare Phase 4 complete.
+
+## 35. Release test evidence
 
 PR/release notes for material changes should list:
 
@@ -745,6 +855,6 @@ PR/release notes for material changes should list:
 - UI locales tested;
 - E2E scenarios;
 - known limitations;
-- live integration verification where applicable.
+- controlled live integration verification where applicable.
 
 For Phase 4 UI, include screenshots/manual evidence where meaningful, but screenshots do not replace browser assertions.

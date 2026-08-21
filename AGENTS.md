@@ -34,6 +34,19 @@ Before implementing a task, read:
 9. relevant ADRs in `docs/adr/`
 10. `docs/DEFINITION_OF_DONE.md`
 
+### Phase 4 mandatory reading
+
+For KT-038 through KT-048, also read **before coding**:
+
+- `docs/PHASE_4_READINESS.md`
+- `docs/AUTH_AND_ONBOARDING.md`
+- `docs/API_SPECIFICATION.md`
+- ADR 0006
+- ADR 0009
+- `docs/OPEN_QUESTIONS.md` OQ-003 and OQ-005 when the task touches map provider or supported structure/scenario claims.
+
+Do not mark KT-040 production-ready while OQ-003 is unresolved. Do not mark a KT-043 structure/scenario fully supported while OQ-005 is unresolved.
+
 ### Task-specific reading
 
 For source/data work:
@@ -41,6 +54,8 @@ For source/data work:
 - `docs/DATA_SOURCES.md`
 - `docs/DATA_REFRESH_AND_CACHE.md` (**canonical refresh policy**)
 - `docs/GIS_AND_RULES_ENGINE.md`
+
+`docs/DATA_REFRESH_AND_VERSIONING.md` is compatibility-only and must not be used as current implementation authority.
 
 For AI:
 
@@ -51,6 +66,7 @@ For auth/account:
 
 - `docs/AUTH_AND_ONBOARDING.md`
 - ADR 0006
+- ADR 0009 for Phase 4 state ownership/boundaries
 
 For localization:
 
@@ -87,6 +103,8 @@ For active implementation:
 
 Do not use an old implementation shortcut as authority over current docs.
 
+A newer ADR may explicitly clarify an earlier ADR without invalidating its unaffected decisions. ADR 0009 currently clarifies the TanStack Query/Zod and Phase 4 client-state interpretation of ADR 0001.
+
 ## 4. Product boundary — not a generic chatbot
 
 Krunditark's strategic value is the persistent spatial decision workflow:
@@ -106,7 +124,7 @@ Do not turn the product into:
 cadastral ID -> Gemini -> free-form “yes/no” answer
 ```
 
-Maa- ja Ruumiamet is already developing conversational guidance in e-ehitus. Krunditark must differentiate through exact scenario modeling, workflow, evidence, history, comparison and professional/B2B capabilities.
+Krunditark must differentiate through exact scenario modeling, workflow, evidence, history, comparison and professional/B2B capabilities.
 
 ## 5. Non-negotiable truth model
 
@@ -193,15 +211,19 @@ Consumer UX must support:
 
 Do not require ordinary users to visit another service to find a cadastral ID first.
 
+The map path is real functionality: `Vali krunt kaardilt` must lead to an explicit map selection/resolution/confirmation flow, not an inert button.
+
 ### 6.2 Intent before legal terminology
 
-Ask what user wants to do:
+Ask what user wants to do using canonical intent codes underneath localized labels:
 
-- build;
-- buy;
-- understand parcel;
-- later modify existing building;
-- professional mode.
+- `build`;
+- `pre_purchase`;
+- `understand_parcel`;
+- `existing_building_modification` later;
+- `professional` context later.
+
+Do not persist translated labels. Do not use legacy aliases as canonical identifiers.
 
 Do not force a buyer through a building wizard.
 
@@ -210,6 +232,8 @@ Do not force a buyer through a building wizard.
 Default consumer placement should offer structure templates/dimensions and drag/rotate.
 
 Do not require polygon drawing as the first interaction.
+
+A valid `structure_type` enum/code is **not automatically a verified-supported legal product scenario**. OQ-005 must be resolved before supported-card claims.
 
 ### 6.4 Every report ends with next actions
 
@@ -226,6 +250,8 @@ Actions distinguish:
 
 Scenario A/B comparison is a core product capability. Preserve exact differences; no black-box score.
 
+Do not prematurely claim full variant comparison during Phase 4 just because reusable proposal-version primitives exist.
+
 ### 6.6 Map is not the only output
 
 Every spatial finding has a text equivalent for accessibility and comprehension.
@@ -236,17 +262,23 @@ Searching a parcel does not prove ownership. Use `selected parcel/project parcel
 
 ## 7. Guest-first authentication rules
 
-See ADR 0006.
+See ADR 0006 and ADR 0009.
 
-- No mandatory account before meaningful parcel/proposal value.
-- Use Supabase anonymous Auth for stateful guest ownership when needed.
+- No **permanent account** before meaningful parcel/proposal value.
+- Public parcel search/selection/free overview may remain unauthenticated/bounded.
+- When stateful proposal/project ownership becomes necessary, create/reuse Supabase anonymous Auth and an owner-scoped guest project.
+- Anonymous Auth is a technical owner identity, not a signup wall.
+- Phase 4 owner-RLS proposal persistence must not precede this guest owner identity.
 - Anonymous users use `authenticated`; RLS must explicitly inspect `is_anonymous` when permanent identity is required.
-- Preserve anonymous project through identity conversion.
-- Primary permanent methods: email OTP + Google.
+- Anonymous A must never access anonymous B project/proposal state.
+- Preserve selected parcel, intent and proposal state across route/locale changes.
+- Preserve anonymous project through later identity conversion.
+- Primary permanent methods later: email OTP + Google.
 - No password required by default.
 - Public email Auth requires custom SMTP.
-- Anonymous drafts need abuse limits/retention cleanup.
+- Anonymous projects/drafts need abuse limits and later retention cleanup.
 - Auth/payment dialogs never discard current project state.
+- Never use browser service-role credentials/shared ownership to avoid RLS.
 
 ## 8. Localization rules
 
@@ -259,7 +291,7 @@ See ADR 0008.
 - Domain codes/facts remain locale-independent.
 - Official Estonian legal source remains traceable.
 - Gemini localized explanation cannot change the finding.
-- Locale change preserves project and does not rerun deterministic analysis.
+- Locale change preserves selected project/parcel/proposal draft and does not rerun deterministic analysis.
 - Test Cyrillic/long-text/mobile layout.
 
 ## 9. Commercial/product-neutrality rules
@@ -340,6 +372,8 @@ Every source adapter has:
 - typed failure classes;
 - attribution/terms review.
 
+Public interactive source functions additionally need bounded caller/request behavior appropriate to their traffic. Frontend submit/debounce behavior is not the only abuse control.
+
 Unit tests do not depend on public internet.
 
 Prefer official machine-readable API/WFS/download over scraping.
@@ -347,14 +381,23 @@ Prefer official machine-readable API/WFS/download over scraping.
 ## 13. GIS rules
 
 - PostGIS authoritative for material spatial calculations.
-- Estonia metric analysis normally EPSG:3301.
-- Browser GeoJSON/display may use 4326/3857 as needed.
+- Canonical Parcel/Proposal/Constraint geometry is EPSG:3301.
+- Browser/API map interchange may use EPSG:4326 as documented.
 - Never calculate legal distance using naive degrees.
 - Use correct spatial predicate for domain semantics.
 - `ST_Intersects` is not synonymous with `legal violation`.
 - Test touching/crossing/contained/near-threshold/invalid/multipolygon/holes.
 - Index spatial query columns (GiST etc.).
 - Preserve evidence/measurement.
+
+### Phase 4 proposal geometry
+
+- browser/editor draft is mutable preview/input state;
+- canonical persisted proposal is server-validated EPSG:3301 state;
+- server/PostGIS computes authoritative area/perimeter;
+- client area/perimeter are preview values only;
+- geometry repair, if any, follows an explicit policy;
+- a proposal referenced by terminal analysis is never mutated in place.
 
 ## 14. Rules-engine rules
 
@@ -381,19 +424,29 @@ detected -> candidate -> review -> draft rule -> tests -> verified promotion
 
 Never automatically turn LLM/document diff into production legal interpretation.
 
+A Phase 4 structure-support matrix is a product-scope gate; Phase 7/KT-072 re-verifies and deepens it into exact deterministic legal/process semantics.
+
 ## 15. Frontend architecture
 
-Target:
+Target foundation:
 
 - React;
 - TypeScript strict;
 - Vite;
 - MapLibre GL JS;
 - React Router;
-- TanStack Query;
-- Zod at boundaries;
-- i18n library chosen during implementation;
+- typed Krunditark-owned API clients;
+- runtime validation at external trust boundaries;
+- ET/RU/EN i18n;
 - accessible reusable component system.
+
+ADR 0009 clarifies ADR 0001:
+
+- **TanStack Query is optional**, not a dependency to install merely to match an old stack list; introduce it only when shared remote-state orchestration/invalidation justifies it.
+- **Zod is optional**; explicit deterministic parsers/validators are valid when they accept `unknown`, return typed errors and are well-tested.
+- runtime validation itself is mandatory.
+- if TanStack Query is introduced, do not duplicate source/HTTP cache ownership with inconsistent freshness semantics.
+- domain models must not depend on provider SDK/schema-library types.
 
 Suggested feature structure:
 
@@ -423,6 +476,12 @@ Do not create a monolithic `App.tsx` with provider/domain/business logic.
 
 GitHub Pages is static. No secret/server runtime in frontend bundle.
 
+### Map-specific frontend rule
+
+MapLibre is fixed; the **production map/style/orthophoto provider is not**. OQ-003 / issue #50 must be resolved from current provider terms before production-ready status. A development tile/style source must be explicitly temporary.
+
+Map point parcel resolution happens on explicit user click/selection, not continuous pointer movement.
+
 ## 16. Backend architecture
 
 Supabase Cloud:
@@ -442,15 +501,19 @@ All database changes:
 
 Privileged operations happen server-side.
 
+Normal owner project/proposal operations use the user's authenticated/anonymous RLS path rather than service-role bypass.
+
 ## 17. Database/RLS rules
 
 - RLS on all client-accessible user tables.
 - Default deny, least privilege.
 - Internal `geo`, `rules`, ingestion, audit, commerce event tables not exposed broadly merely because source data is public.
 - Users access own projects/reports/orders.
+- Anonymous users own their own guest projects through `auth.uid()`.
 - Admin role server-verified; never trust client `isAdmin`.
 - Anonymous/permanent distinction enforced where needed.
 - Completed analyses immutable.
+- Persisted proposal versions used by terminal analyses immutable.
 - Price/order/source/rule history versioned.
 - Critical relationships not hidden only in arbitrary JSON.
 - indexes reviewed for FK/filter/spatial usage.
@@ -480,10 +543,12 @@ Model lifecycle changes; always verify current official Google docs before upgra
 - validate Edge Function input;
 - resource limits for geometry/uploads/source calls;
 - SSRF-safe source allow-lists;
+- bounded public discovery request behavior;
+- request/correlation IDs for supportable server/provider failures;
+- logs exclude tokens/credentials/full sensitive payloads and should not store full user-entered addresses by default;
 - production CORS origins explicit;
 - secure high-entropy revocable share links;
 - payment webhook verification;
-- logs exclude tokens/credentials/full sensitive payloads;
 - account/project deletion/retention implemented before public production;
 - analytics data minimized.
 
@@ -549,7 +614,7 @@ B2B APIs need explicit `/v1` versioning/contracts before external consumers depe
 - Estonian canonical user copy through i18n keys.
 - small pure functions for normalization/rules.
 - provider types stay at adapter boundaries.
-- external inputs schema-validated.
+- external inputs runtime-validated.
 - no hidden network calls in domain logic.
 - no hard-coded secret/production credentials.
 - no giant god services.
@@ -563,12 +628,27 @@ Relevant changes require appropriate:
 - source fixture/parser tests;
 - DB migration/RLS tests;
 - PostGIS boundary/regression tests;
-- Edge Function auth/contract tests;
+- Edge Function auth/contract/resource-limit tests;
 - UI/component tests;
 - Playwright critical journeys;
 - i18n missing-key/layout tests;
 - payment fake-provider/webhook/idempotency tests when commerce exists;
 - prompt-injection/AI fallback tests.
+
+### Phase 4 browser rule
+
+Do not wait until final beta to add the first Playwright test.
+
+Map/editor work needs production-like browser coverage because jsdom cannot prove:
+
+- WebGL/MapLibre initialization;
+- actual routing/history;
+- pointer/touch interaction;
+- browser focus sequencing;
+- viewport/map sizing;
+- responsive bottom-sheet behavior.
+
+Normal CI E2E uses deterministic backend fixtures and must not depend on live government/map/provider availability.
 
 No normal unit test uses live government service, live Gemini or real payment API.
 
@@ -593,14 +673,15 @@ For each task:
 
 1. pick unblocked item from `TASKS.md`;
 2. read mandatory/task docs;
-3. verify dependencies;
-4. verify current external provider/law docs if implementation depends on unstable details;
-5. implement smallest complete vertical slice;
-6. add tests;
-7. run checks;
-8. update docs/contracts;
-9. update task status only when acceptance passes;
-10. summarize known limitations.
+3. for Phase 4 read `PHASE_4_READINESS.md` and ADR 0009;
+4. verify dependencies/open questions;
+5. verify current external provider/law docs if implementation depends on unstable details;
+6. implement smallest complete vertical slice;
+7. add tests, including real-browser tests for map/editor behavior;
+8. run checks;
+9. update docs/contracts;
+10. update task status only when acceptance passes;
+11. summarize known limitations.
 
 Future `PRODUCT_EXPANSION_BACKLOG.md` items must first be promoted to `TASKS.md` with concrete acceptance criteria.
 
@@ -616,6 +697,7 @@ Update when changing:
 - source/cadence;
 - rule semantics;
 - auth/RLS;
+- client/server state ownership;
 - language/terminology;
 - payment/entitlement;
 - pricing product definition;
@@ -624,7 +706,9 @@ Update when changing:
 - analytics;
 - roadmap/active scope.
 
-Significant decisions require ADR; supersede history rather than silently rewriting accepted architecture.
+Significant decisions require ADR; supersede/clarify history rather than silently relying on a contradictory old decision.
+
+Do not edit an applied database migration merely to make documentation match new intent; add a forward migration if persistence must change.
 
 ## 28. Definition of done
 
@@ -635,6 +719,8 @@ A task is not done until it meets:
 - applicable source/security/i18n/payment/accessibility requirements;
 - documentation consistency.
 
+Phase 4 tasks additionally require applicable `PHASE_4_READINESS.md` gates.
+
 Analysis tasks additionally require reproducibility/provenance/deterministic tests.
 
 ## 29. Explicitly forbidden shortcuts
@@ -643,14 +729,19 @@ Do not:
 
 - ask Gemini “can this be built?” and make it the authority;
 - expose Supabase elevated keys, Gemini keys or payment secrets in frontend;
-- disable RLS for convenience;
-- trust client geometry for authoritative results;
+- disable/bypass RLS for convenience;
+- use a browser service-role/shared identity to persist guest projects;
+- trust client geometry/area/perimeter for authoritative results;
+- treat a valid structure enum as verified legal support;
+- silently map `Muu`/unsupported scenario to a supported rule profile;
+- choose a production basemap merely because an unverified public tile endpoint works;
+- fire map parcel-resolution requests continuously on pointer movement;
 - hard-code a legal interpretation without version/source;
-- label missing/stale data “no restrictions”;
+- label missing/stale/provider-failed data “no restrictions” or `not_found`;
 - fetch every official source per user analysis;
 - call Gemini during routine data sync;
-- require signup on landing solely because account features exist;
-- lose guest project during auth/payment;
+- require permanent signup on landing/proposal entry solely because account features exist;
+- lose guest project during route/locale/auth/payment transitions;
 - hard-code user strings so RU/EN require a rewrite;
 - use banner ads in finding/report UI;
 - let partner revenue affect findings;
@@ -660,7 +751,7 @@ Do not:
 - claim utility capacity/price from line proximity;
 - claim parcel ownership from cadastral selection;
 - use AI-generated price/legal source as fact;
-- silently mutate old reports to current data;
+- silently mutate old reports/proposal history to current state;
 - generate thin parcel SEO pages exposing/projecting user intent.
 
 ## 30. When uncertain
@@ -668,3 +759,9 @@ Do not:
 For regulatory/data uncertainty, choose `unknown` or `condition` with an explicit next verification step.
 
 For architecture/product uncertainty, check accepted ADR/spec first. If still unresolved and task is blocked, record it in `OPEN_QUESTIONS.md`/task notes and request the project-owner decision rather than inventing one.
+
+For current Phase 4 work specifically:
+
+- OQ-003 remains open until the production map provider is verified;
+- OQ-005 remains open until the first legal/product scenario matrix is verified;
+- independent work may continue, but production/supported claims must remain blocked at those gates.

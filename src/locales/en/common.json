@@ -67,6 +67,13 @@
     "addressSearchUnavailable": "Address search is unavailable. Please try again.",
     "resolutionUnavailable": "Parcel resolution service is unavailable. Please try again.",
     "mapSelect": "Select parcel on map",
+    "disambiguationTitle": "We found multiple possible parcels",
+    "disambiguationDescription": "Select the correct parcel from the list below.",
+    "disambiguationLabel": "Parcel selection",
+    "disambiguationCandidate": "Candidate {{index}}",
+    "disambiguationNoAddress": "No address",
+    "disambiguationUseParcel": "Use this parcel",
+    "disambiguationArea": "Area",
     "error": {
       "SOURCE_TIMEOUT": "Parcel data could not be loaded. Please try again.",
       "PARCEL_UNAVAILABLE": "Parcel resolution service is unavailable. Please try again.",

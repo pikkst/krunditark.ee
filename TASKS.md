@@ -309,9 +309,9 @@ Read `UX_UI_SPEC.md`.
 
 ## KT-036 — Build parcel selection/disambiguation
 
-- [ ] candidate outlines.
-- [ ] address/cadastral/area summary.
-- [ ] user explicitly confirms correct parcel.
+- [x] candidate outlines.
+- [x] address/cadastral/area summary.
+- [x] user explicitly confirms correct parcel.
 
 ## KT-037 — Build free parcel overview
 

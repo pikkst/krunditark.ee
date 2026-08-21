@@ -67,6 +67,13 @@
     "addressSearchUnavailable": "Поиск адреса недоступен. Попробуйте снова.",
     "resolutionUnavailable": "Служба определения участка недоступна. Попробуйте снова.",
     "mapSelect": "Выбрать участок на карте",
+    "disambiguationTitle": "Мы нашли несколько возможных кадастровых участков",
+    "disambiguationDescription": "Выберите правильный участок из списка ниже.",
+    "disambiguationLabel": "Выбор кадастрового участка",
+    "disambiguationCandidate": "Кандидат {{index}}",
+    "disambiguationNoAddress": "Адрес отсутствует",
+    "disambiguationUseParcel": "Использовать этот участок",
+    "disambiguationArea": "Площадь",
     "error": {
       "SOURCE_TIMEOUT": "Не удалось загрузить данные об участке. Попробуйте снова.",
       "PARCEL_UNAVAILABLE": "Служба определения участка недоступна. Попробуйте снова.",

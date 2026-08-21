@@ -1,12 +1,14 @@
 # Open Questions — Krunditark
 
-Last reviewed: **2026-08-15**
+Last reviewed: **2026-08-21**
 
 This file lists only decisions that are genuinely still open. Coding agents must not silently invent them.
 
+For Phase 4 cross-cutting gates, also read `PHASE_4_READINESS.md`.
+
 ## Resolved decisions
 
-The following are **not open questions**:
+The following are **not open questions**.
 
 ### Product/market
 
@@ -14,25 +16,63 @@ The following are **not open questions**:
 - Market: Estonia only for initial product.
 - Core product: Ehituspass.
 - Positioning: property/buildability decision workflow, not generic AI chatbot.
-- Free discovery before payment/account friction.
+- Free discovery before permanent-account/payment friction.
 - Dedicated later buyer product: Ostukontroll.
 - Variant comparison is a core differentiation direction.
+
+### Parcel discovery
+
+- Consumer discovery supports address, cadastral identifier and map selection.
+- Address lookup uses the approved In-AKS path and is submit-driven, not per-keystroke upstream traffic.
+- Address/map ambiguity requires explicit parcel confirmation.
+- Parcel resolution/source failure is not `not_found`.
+- Map point selection uses the canonical server-side parcel resolver; pointer movement does not continuously resolve parcels.
 
 ### Frontend/backend
 
 - React + TypeScript + Vite.
 - MapLibre GL JS.
+- React Router.
 - GitHub Pages for current preview/development deployment.
 - Supabase Cloud backend.
 - PostgreSQL + PostGIS.
 - Supabase Auth/Storage/Edge Functions/scheduling.
-- Cloudflare later for DNS/edge/possibly frontend hosting.
 - Zone currently remains registrar unless a later verified migration decision changes it.
+
+ADR 0009 clarifies the early stack list:
+
+- TanStack Query is optional until shared server-state/cache complexity justifies it;
+- Zod is optional; explicit tested runtime parsers/validators are acceptable;
+- runtime trust-boundary validation itself is mandatory;
+- domain models remain provider/library independent.
+
+### Phase 4 workflow state
+
+- Public parcel discovery/free overview does not require permanent identity.
+- When stateful proposal work begins, create/reuse Supabase anonymous Auth and an owner-scoped guest project.
+- This anonymous technical identity is not a permanent-account/signup wall.
+- Persisted project state owns selected parcel/intent and persisted proposal versions.
+- Mutable editor draft is separate from canonical persisted proposal state.
+- Permanent email OTP/Google conversion remains later.
+
+See ADR 0006, ADR 0009 and `AUTH_AND_ONBOARDING.md`.
+
+### Proposal boundary
+
+- Browser/editor draft and canonical persisted proposal are distinct contracts.
+- Browser interchange may use EPSG:4326.
+- Canonical persisted proposal geometry is EPSG:3301.
+- Server/PostGIS computes authoritative material geometry metrics.
+- An unpersisted draft may be edited freely.
+- Saving creates a proposal version; a terminal-analysis proposal is not mutated in place.
+- Beginner template ID is non-authoritative UI provenance in Phase 4 and is not required in canonical proposal persistence.
+- Full A/B variant workflow remains later.
 
 ### Auth/onboarding
 
 - Guest-first flow.
 - Supabase anonymous Auth for stateful guest ownership when needed.
+- Minimum anonymous ownership is promoted into the Phase 4 dependency chain before owner-RLS proposal persistence.
 - Permanent consumer auth: email OTP + Google as primary methods.
 - No password required in default consumer flow.
 - Preserve anonymous project through identity conversion.
@@ -62,10 +102,11 @@ See `LOCALIZATION_AND_LANGUAGE.md`.
 ### Data refresh
 
 - `DATA_REFRESH_AND_CACHE.md` is canonical.
+- `DATA_REFRESH_AND_VERSIONING.md` is compatibility-only.
 - No universal “fetch all sources per analysis”.
-- Heavy analytical spatial data uses scheduled releases (monthly baseline where appropriate).
+- Heavy analytical spatial data uses scheduled releases, with monthly baseline only where source policy says so.
 - Cheap source-specific legal/EHR/schema change watches may run daily/weekly.
-- In-AKS address search may be live/short-cache.
+- In-AKS address search is live/short-cache.
 - Last-known-good data survives failed refresh.
 - Rules require verified promotion after legal changes.
 
@@ -119,29 +160,35 @@ Google changes model lifecycle, so an implementation agent must check current of
 
 ## OQ-003 — Production base-map tile/style provider
 
-MapLibre is fixed; final base map is not.
+**Phase 4 gate: resolve before KT-040 is considered production-ready. Tracked by issue #50.**
 
-Candidates can include properly licensed Maa- ja Ruumiamet tiled services and/or a commercial/open tile provider.
+MapLibre is fixed; final production map/style/orthophoto source is not.
+
+Candidates can include properly licensed Maa- ja Ruumiamet tiled services and/or a justified commercial/open tile provider.
 
 Decision criteria:
 
 - Estonia quality;
 - orthophoto availability;
-- attribution/terms;
-- proxy/contact requirements;
+- attribution text/link and terms;
+- proxy/contact/referrer requirements;
 - rate/availability expectations;
 - cost;
-- privacy;
+- privacy / direct third-party browser requests;
 - MapLibre compatibility;
-- Cloudflare caching/proxy architecture.
+- public token/configuration rules;
+- Cloudflare caching/proxy architecture;
+- local/preview/production configuration.
 
-Do not use an unlicensed/free public tile endpoint for production traffic.
+Do not use an unlicensed/free public tile endpoint for production traffic merely because it works in development.
+
+A temporary development source must be labeled as such.
 
 ## OQ-004 — Production SMTP provider
 
 Custom SMTP is required; provider not selected.
 
-Compare at least:
+Compare at implementation time:
 
 - Resend;
 - Postmark;
@@ -160,18 +207,25 @@ Criteria:
 
 ## OQ-005 — First verified building/scenario matrix
 
-Before implementing permit rules, select exact first supported scenarios and verify current law.
+**Phase 4 gate: resolve before KT-043 marks any structure card as fully supported. Tracked by issue #51.**
 
-Candidate new-building types:
+Candidate new-building domain types include:
 
 - detached house;
 - sauna;
 - shed/auxiliary building;
 - garage/auxiliary building.
 
-Need explicit parameters/boundaries and current post-01.08.2026 Ehitusseadustik/annex review.
+Need explicit supported scenario combinations, required parameters/boundaries and current official-law verification including the post-01.08.2026 state relevant at implementation time.
 
-Do not treat candidate labels as verified legal categories.
+Required distinction:
+
+```text
+valid domain structure code
+!= verified-supported product scenario
+```
+
+The decision must also define the `Muu`/custom limited-check behavior. Do not silently map custom input to a verified legal/process profile.
 
 ## OQ-006 — Heritage machine-readable source
 
@@ -185,7 +239,7 @@ Exact official source/layer and semantic mapping for road/protection/access chec
 
 ## OQ-008 — EHR production API access/terms/scope
 
-Public OpenAPI capability exists, including actual-building and changed-after endpoints, but implementation must verify:
+Public OpenAPI capability exists, including actual-building and changed-after concepts, but implementation must verify current:
 
 - access/auth;
 - rate limits;
@@ -216,31 +270,13 @@ Do not copy one arbitrary `30/60 days` rule everywhere.
 
 Commerce architecture is provider-neutral.
 
-Before paid launch compare current:
-
-### Stripe
-
-Strengths to evaluate:
-
-- one-time + subscriptions;
-- cards/wallets;
-- mature checkout/webhooks;
-- international expansion;
-- invoicing capabilities.
-
-### Montonio
-
-Strengths to evaluate:
-
-- Estonia/Baltic bank payments;
-- local conversion behavior;
-- current per-transaction/plan economics.
+Before paid launch compare current Stripe/Montonio/other justified options.
 
 Decision criteria:
 
 - payment methods desired by Estonian users;
 - actual fees at launch date;
-- subscriptions/Project Pass needs;
+- one-time purchases/subscriptions/Project Pass needs;
 - refunds;
 - invoices/receipts;
 - webhook/idempotency quality;
@@ -254,7 +290,7 @@ Choose one first unless evidence justifies multiple providers.
 
 Business model direction is resolved; exact price is not.
 
-Initial hypotheses:
+Initial hypotheses remain research inputs only, for example:
 
 - Ostukontroll: €14.90–19.90;
 - Ehituspass: test €19.90 / €24.90 / €29.90;
@@ -275,7 +311,7 @@ Prices belong to versioned product catalog/configuration, not scattered constant
 
 ## OQ-012 — Analytics provider and legal basis
 
-Product-event taxonomy is defined, provider is not.
+Product-event taxonomy direction exists, provider/legal basis is not selected.
 
 Evaluate:
 
@@ -291,15 +327,17 @@ Do not install Google Analytics or another tracker by default.
 
 ## OQ-013 — Production frontend hosting
 
-Development uses GitHub Pages.
+Development/preview uses GitHub Pages.
 
-Before public production decide:
+Before public production decide the exact deployment between justified static/edge options such as:
 
 - GitHub Pages + custom domain;
 - Cloudflare Pages/static assets;
 - Cloudflare Workers/static assets if architecture evolves.
 
 Backend remains Supabase unless separate ADR changes it.
+
+Documentation may describe Cloudflare as the production **direction**, but must not claim the final hosting decision is closed while this OQ remains open.
 
 ## OQ-014 — Cloudflare registrar/DNS final setup
 
@@ -390,7 +428,16 @@ This is required before commerce copy/terms are final.
 
 ---
 
-## Agent rule
+## Phase 4 blocker rule
+
+If a Phase 4 task depends on OQ-003 or OQ-005:
+
+1. implementation may build independent foundations;
+2. development-only placeholders must be labeled explicitly;
+3. the task must not be marked production-ready/supported until the open item is resolved from current authoritative evidence;
+4. do not convert the open item into a guessed code constant.
+
+## General agent rule
 
 When a task depends on an open item:
 

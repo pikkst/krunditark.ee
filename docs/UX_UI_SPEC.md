@@ -1,6 +1,8 @@
 # UX/UI Specification — Krunditark
 
-Last comprehensive product review: **2026-08-15**
+Last comprehensive product review: **2026-08-21**
+
+For current Phase 4 implementation, also read `PHASE_4_READINESS.md`, ADR 0006 and ADR 0009.
 
 ## 1. UX north star
 
@@ -67,7 +69,13 @@ The map is powerful but never the only representation. Every geometry conflict h
 
 ### 2.7 Preserve user work through every gate
 
-Auth, payment, errors, language change and navigation must not discard the selected parcel or proposal.
+Anonymous ownership bootstrap, permanent Auth, payment, errors, language change and navigation must not discard the selected parcel or proposal.
+
+### 2.8 Technical guest identity is invisible product plumbing
+
+Supabase anonymous Auth may be created when the user enters a stateful proposal workflow so RLS has a real owner ID. Do not present that technical operation as “create an account”.
+
+Permanent identity prompts appear only when identity creates user-facing value such as durable recovery, purchase, monitoring or sharing.
 
 ## 3. Visual identity direction
 
@@ -151,6 +159,8 @@ Production target:
 
 GitHub Pages preview uses repository-path base, but component/domain design must target clean production routing.
 
+Phase 4 route transitions must preserve the selected parcel, canonical intent and active proposal draft rather than keeping them only inside a landing-page component.
+
 ## 5. Global navigation
 
 ### Logged out / guest
@@ -163,6 +173,8 @@ Krunditark      Kuidas töötab   Hinnad   Pro   Abi      ET ▾   [Logi sisse]
 
 Primary contextual CTA on landing is the search, not a generic `Register` button.
 
+An anonymously authenticated guest still looks like a guest until they deliberately link a permanent identity.
+
 Mobile:
 
 - compact logo;
@@ -170,7 +182,7 @@ Mobile:
 - menu;
 - project action remains accessible.
 
-### Logged in
+### Logged in / permanent identity
 
 ```text
 Krunditark    [Projektid] [Uus kontroll] ...   ET ▾   [Konto]
@@ -209,7 +221,7 @@ Primary input must accept:
 - official address search;
 - cadastral identifier.
 
-The current official MaRu In-AKS service makes address autocomplete a realistic primary entry path. Do not force ordinary consumers to find a cadastral ID elsewhere first.
+The MaRu In-AKS path makes official address candidate search a realistic primary entry method. Krunditark's current interaction is submit-driven, not per-keystroke upstream autocomplete. Do not force ordinary consumers to find a cadastral ID elsewhere first.
 
 ### 6.2 Trust strip
 
@@ -326,16 +338,16 @@ Search is **submit-driven**, not reactive to typing:
 - an address search is triggered only when the user explicitly submits (presses **Otsi** or **Enter**);
 - a minimum of **3 characters** is required for an address lookup;
 - exact cadastral identifiers bypass address search and call the parcel resolver directly;
-- malformed cadastrial-like input (wrong length, invalid characters) is validated locally and shown as an **invalid** state without any upstream request.
+- malformed cadastral-like input (wrong length/invalid characters) is validated locally and shown as an **invalid** state without any upstream request.
 
 After submit:
 
-- **0 candidates** → `not_found` ("Katastriüksust ei leitud");
-- **1 candidate** → resolve automatically;
-- **>1 candidates** → show the accessible suggestion/listbox UI and require explicit selection;
-- provider/network/parse failure → `unavailable` ("Krundiandmeid ei õnnestunud praegu laadida. Proovi uuesti.").
+- **0 candidates** -> `not_found` (`Katastriüksust ei leitud`);
+- **1 candidate** -> resolve automatically when safe;
+- **>1 candidates** -> show accessible candidate/listbox UI and require explicit selection;
+- provider/network/parse/rate failure -> `unavailable`/retry state, never `not_found`.
 
-Autocomplete result card may show:
+Submitted address candidate card may show:
 
 - official address;
 - object type;
@@ -349,19 +361,33 @@ Address can map to a building/address object rather than one unique cadastral un
 
 When ambiguous:
 
-> `Leidsime mitu võimalikku katastriüksust. Vali kaardilt õige.`
+> `Leidsime mitu võimalikku katastriüksust. Vali õige.`
 
-Show candidates with area and outline.
+Show candidates with area and outline where available.
 
 ### 7.3 Map selection
 
-`Vali krunt kaardilt` opens map with:
+`Vali krunt kaardilt` is a functional Phase 4 entry path.
 
-- location/address search;
-- cadastral boundaries at suitable zoom;
-- click parcel;
+It opens/navigates to MapLibre with:
+
+- Estonia-useful initial viewport;
+- location/search assistance where appropriate;
+- cadastral/parcel context at suitable zoom;
+- explicit click/select action;
+- server-side `parcel-resolve` point lookup using WGS84 lat/lng;
+- candidate outline + address/cadastral/area summary;
 - bottom/side result sheet;
 - `Kasuta seda krunti`.
+
+Rules:
+
+- pointer movement does **not** continuously resolve parcels;
+- ambiguous candidates require explicit confirmation;
+- not-found/unavailable/invalid-source are distinct;
+- confirmed map parcel enters the same free-overview/intent flow as text search;
+- source attribution remains visible;
+- map selection never implies ownership.
 
 ## 8. Free parcel overview
 
@@ -381,35 +407,45 @@ Mida soovid selle krundiga teha?
 [ Ehitan ] [ Kaalun ostmist ] [ Muudan hoonet ] [ Vaata piiranguid ]
 ```
 
-Do not make the user sign in here.
+Do not require permanent sign-in here. No anonymous technical identity is required merely to display this bounded overview unless the implementation later demonstrates a concrete need and the docs are deliberately changed.
 
 ## 9. Intent selection
 
-### Build
+Localized choices map to canonical codes:
+
+### Build — `build`
 
 `Soovin midagi ehitada`
 
-### Buy
+Active Phase 4 proposal flow.
+
+### Buy — `pre_purchase`
 
 `Kaalun selle krundi ostmist`
 
-### Existing building
+Known/planned dedicated Ostukontroll flow. Do not fall through to build rules.
+
+### Existing building — `existing_building_modification`
 
 `Soovin olemasolevat hoonet muuta`
 
-### Understand parcel
+Known/planned separate scenario profile; not supported by new-building fallback.
+
+### Understand parcel — `understand_parcel`
 
 `Tahan lihtsalt piiranguid ja planeeringuid vaadata`
 
-### Professional
+### Professional — `professional`
 
-Professional users can switch to a denser workflow and skip education steps.
+Future denser context/workflow, not a legal-analysis fallback.
+
+When the user enters a **stateful proposal flow** such as `build`, create/reuse the anonymous Auth owner/project as required by ADR 0009. Preserve exact parcel + intent across routing.
 
 ## 10. Building proposal wizard — beginner mode
 
-### Step 1 — Type
+### Step 1 — Structure/scenario
 
-Use visual cards:
+Use visual cards for known candidate structure concepts such as:
 
 - `Elamu`
 - `Saun`
@@ -417,49 +453,69 @@ Use visual cards:
 - `Garaaž`
 - later more verified categories.
 
-Unsupported `Muu`:
+A valid domain/DB structure code does **not** mean the scenario is currently verified-supported.
+
+Before a card is labeled fully supported, OQ-005 must define the current verified scenario matrix from official law.
+
+Unsupported/custom `Muu`:
 
 > `Selle ehitise kohta ei pruugi Krunditark veel kõiki menetlusreegleid automaatselt kontrollida. Ruumi- ja piirangukontrolle saad siiski kasutada.`
+
+`Muu` must never silently inherit a verified legal/process profile.
 
 ### Step 2 — Size template
 
 Offer starting footprints:
 
-- common predefined dimensions;
+- common predefined dimensions for verified/product-approved scenarios;
 - `Sisestan ise mõõdud`.
 
-A template is convenience, not design advice.
+A template is UI convenience, not design advice or authoritative provenance. Phase 4 does not require persisting a `sourceTemplateId` as a material proposal fact.
 
 ### Step 3 — Other rule-relevant parameters
 
-Only ask what the rule profile needs, with `Miks seda küsime?` help.
+Only ask what the selected supported rule/profile needs, with `Miks seda küsime?` help.
 
-### Step 4 — Placement
+For unsupported scenarios, make the reduced scope explicit rather than inventing required legal parameters.
 
-Building appears as an object that can be:
+### Step 4 — Placement draft
+
+Building appears as a **mutable browser draft** that can be:
 
 - dragged;
 - rotated;
 - resized through numerical fields;
-- reset;
-- duplicated.
+- reset/deleted before persistence.
 
 Desktop uses map + side panel.
 
 Mobile uses full-screen map + bottom sheet.
 
-### Step 5 — Review
+Full persisted-scenario duplication/A-B comparison is a later variant workflow. Phase 4 may share lower-level version primitives but should not present variant comparison as complete.
 
-Summary:
+### Step 5 — Review and server validation
+
+Review summary before canonical persistence:
 
 - parcel;
-- building type;
-- footprint/area;
+- structure/scenario/support state;
+- footprint/dimensions;
 - height/storeys;
 - map thumbnail;
-- data categories available.
+- data categories available/unsupported.
 
-CTA:
+Then run the canonical server validation boundary:
+
+1. validate typed input/resource limits;
+2. transform browser geometry to EPSG:3301;
+3. validate topology/bounds;
+4. compute authoritative area/perimeter;
+5. show typed errors/warnings;
+6. persist a new owner-scoped proposal version only when valid.
+
+Client area/perimeter are previews only.
+
+CTA copy for the later analysis step:
 
 `Kontrolli ehitusvõimalust`
 
@@ -467,7 +523,7 @@ Better than `Kas tohib ehitada?` because Krunditark is not the authority.
 
 ## 11. Advanced proposal mode
 
-Available through `Täpsem paigutus` / Pro mode:
+Available through `Täpsem paigutus` / later Pro mode:
 
 - polygon drawing;
 - vertex editing;
@@ -477,7 +533,9 @@ Available through `Täpsem paigutus` / Pro mode:
 - layers;
 - future PDF/DXF/IFC import.
 
-Never expose raw provider-specific GIS controls to a beginner by default.
+Advanced polygon mode can exist in Phase 4 as a secondary path, but never expose raw provider-specific GIS controls to a beginner by default.
+
+All advanced draft geometry still crosses the same authoritative server validation boundary.
 
 ## 12. Live map feedback vs authoritative analysis
 
@@ -485,15 +543,16 @@ During placement, the UI may show fast convenience feedback such as:
 
 - outside parcel;
 - approximate boundary distance;
+- client-computed dimensions/area/perimeter;
 - visible known layer overlay.
 
-Clearly distinguish it from the saved authoritative server/PostGIS analysis.
+Clearly distinguish it from saved authoritative server/PostGIS geometry and later deterministic analysis.
 
 For example:
 
 `Eelvaade` vs `Kontrollitud tulemus`.
 
-Client-side geometry never becomes the authoritative legal measurement.
+Client-side geometry/measurements never become authoritative legal measurements by display alone.
 
 ## 13. Basemap modes
 
@@ -503,7 +562,11 @@ Recommended user modes:
 - `Ortofoto`
 - later `Reljeef`
 
-Official Maa- ja Ruumiamet tiled map services can be considered where terms/proxy/contact requirements are satisfied. Avoid querying a heavyweight WMS directly for every browser pan when tiled services are available.
+**Production map gate:** OQ-003 / issue #50 must verify the exact production style/tile/orthophoto provider, terms, attribution, privacy/referrer behavior, rate/availability expectations and deployment configuration.
+
+A temporary development map source may be used during KT-040 only when clearly identified as non-production. Do not let an arbitrary public tile endpoint become production by inertia.
+
+Avoid querying a heavyweight WMS directly for every browser pan when an approved tiled service/style exists.
 
 ## 14. Analysis progress UX
 
@@ -516,9 +579,9 @@ Show actual stages:
 - `Hindame toetatud reegleid`
 - `Koostame Ehituspassi`
 
-Do not pretend the system is currently calling each authority when it is using a monthly/local data release.
+Do not pretend the system is currently calling each authority when it is using a promoted local/versioned data release.
 
-Show data-release date separately.
+Show data-release/source freshness separately from analysis creation date.
 
 ## 15. Ehituspass — result hierarchy
 
@@ -645,13 +708,13 @@ Do not make recommendations look legally mandatory unless the verified rule says
 
 ## 20. Variant comparison
 
-This should become a signature experience.
+This should become a signature experience **after** persisted proposals and deterministic analyses exist.
 
 CTA after a conflict/condition:
 
 `Proovi teist asukohta`
 
-Duplicate the current proposal and let the user move/rotate it.
+Duplicate the exact persisted scenario into a new proposal version/scenario and let the user move/rotate/edit it.
 
 Comparison view:
 
@@ -662,7 +725,7 @@ Tingimused        2           1
 Teadmata          1           1
 ```
 
-Then list exact differences.
+Then list exact deterministic differences.
 
 Do not rank with an opaque AI score.
 
@@ -758,7 +821,9 @@ Desktop:
 +-------------------------+----------------------------------------+
 ```
 
-A project should feel persistent, not like a one-time wizard once onboarding is complete.
+A project should feel persistent, not like a one-time wizard once stateful onboarding begins.
+
+Anonymous guest ownership may back this workspace before permanent account conversion; project privacy/ownership semantics remain identical.
 
 ## 25. Change monitoring UX
 
@@ -806,22 +871,40 @@ No preselected recurring subscription for one-off users.
 
 Follow `AUTH_AND_ONBOARDING.md`.
 
-Principles:
+Two different concepts must remain visually separate:
 
-- no account before meaningful value;
-- account sheet appears contextually;
-- email OTP + Google;
-- preserve anonymous project;
+### Anonymous technical ownership
+
+- created/reused only when stateful guest project ownership is needed;
+- no email/name requested;
+- no “create account” wall;
+- no loss of parcel/intent/draft;
+- errors are recoverable and never bypass RLS.
+
+### Permanent account conversion
+
+Contextual sheet when identity provides value:
+
+- durable/cross-device save;
+- purchase/recovery;
+- monitoring/notifications;
+- sharing/pro features.
+
+Methods later:
+
+- email OTP;
+- Google;
 - no mandatory password;
-- show why identity is required (`save`, `buy`, `monitor`).
+- preserve the same anonymous project during conversion.
 
 ## 28. Language UX
 
 Follow `LOCALIZATION_AND_LANGUAGE.md`.
 
 - ET/RU/EN selector visible from landing;
-- switching language preserves current state;
+- switching language preserves current selected parcel/project/proposal draft;
 - critical legal/status terms use reviewed translations;
+- canonical intent/structure/finding codes remain locale-independent;
 - source identity remains official/Estonian where appropriate;
 - translated explanation never looks like an official translated decision.
 
@@ -846,16 +929,16 @@ Mobile is important for parcel owners physically on site, but exact site-plan wo
 
 Mobile must fully support:
 
-- search/select parcel;
+- search/select parcel including map entry;
 - view map;
 - place simple rectangle/template;
 - edit numeric dimensions;
 - run/read report;
 - source/action links;
-- pay/auth;
-- share.
+- pay/permanent auth later;
+- share later.
 
-For advanced polygon/import workflows, the UI may recommend desktop without making the account/project inaccessible.
+For advanced polygon/import workflows, the UI may recommend desktop without making the project inaccessible.
 
 Use bottom sheets carefully; do not cover the entire map with permanent controls.
 
@@ -869,6 +952,7 @@ Required:
 - keyboard operation;
 - visible focus;
 - labels/error associations;
+- submitted address candidate list accessibility;
 - status not color-only;
 - adequate contrast;
 - touch targets;
@@ -879,6 +963,8 @@ Required:
 - dialogs/sheets manage focus correctly;
 - charts/comparisons have tables/text equivalents.
 
+Real-browser Playwright coverage starts in Phase 4 because focus/pointer/touch/route behavior cannot be fully proven in jsdom.
+
 ## 32. Performance UX
 
 Targets are experience-based, then measured.
@@ -886,6 +972,8 @@ Targets are experience-based, then measured.
 - landing/search should be quick before loading heavy map code;
 - lazy-load MapLibre where possible;
 - cache address/parcel results within source policy;
+- address lookup only on explicit submit;
+- map parcel resolution only on explicit selection/click;
 - local data-release analysis should avoid a series of visible upstream waits;
 - render large vector evidence with simplification/tiles as needed;
 - skeletons preserve layout;
@@ -900,6 +988,18 @@ Targets are experience-based, then measured.
 ### Parcel source unavailable
 
 `Krundiandmeid ei õnnestunud praegu laadida. Proovi uuesti.`
+
+### Public request rate-limited
+
+Show a safe retry state. Do not display `Katastriüksust ei leitud`.
+
+### Ambiguous map/address parcel
+
+`Leidsime mitu võimalikku katastriüksust. Vali õige.`
+
+### Guest project bootstrap failed
+
+Keep recoverable draft/public state where safe, explain that project state could not yet be saved, and offer retry. Never silently use shared ownership or disable RLS.
 
 ### Unsupported rule scope
 
@@ -984,13 +1084,14 @@ Long-term, when official APIs/process allow it, prepare structured data/checklis
 
 ## 37. Design-system component inventory
 
-Initial reusable components:
+Initial/reusable components may include:
 
 - AppShell
 - Header / LocaleSwitcher
 - AddressParcelSearch
 - ParcelResultCard
 - MapShell
+- MapParcelSelectionSheet
 - ParcelLayer
 - ProposalLayer
 - EvidenceLayer
@@ -1006,7 +1107,7 @@ Initial reusable components:
 - VariantComparison
 - ProjectCard
 - Paywall/ProductCard
-- AuthSheet / OTPInput
+- AuthSheet / OTPInput later
 - EmptyState / ErrorState
 - ConfirmationDialog
 - BottomSheet
@@ -1030,7 +1131,7 @@ Tablet:
 Mobile:
 
 - map full-width;
-- bottom sheet for forms/findings;
+- bottom sheet for parcel candidates/forms/findings;
 - important CTA sticky but not obscuring map controls;
 - report becomes normal document flow.
 
@@ -1038,33 +1139,45 @@ Mobile:
 
 Subject to privacy approval:
 
-- landing search started/succeeded;
+- landing search submitted/succeeded;
+- map selection opened/parcel confirmed;
 - parcel selected;
 - intent selected;
 - proposal template chosen;
 - placement completed;
+- proposal validation/persistence succeeded/failed by safe code;
 - analysis started/completed;
 - finding/source opened;
-- variant duplicated;
-- auth conversion;
+- variant duplicated later;
+- permanent-auth conversion later;
 - paywall shown/purchase;
 - report reopened;
 - newer-data rerun;
 - support/data-error report.
 
-Use pseudonymous IDs; never send full addresses/parcel IDs to third-party analytics unless explicitly justified and disclosed.
+Use pseudonymous IDs; never send full addresses/parcel IDs/geometry to third-party analytics unless explicitly justified and disclosed.
 
 ## 40. UX acceptance test
 
 Test at least these people/tasks:
 
 1. homeowner who does not know cadastral ID;
-2. older/low-GIS-confidence user placing a sauna;
-3. Russian-speaking user completing the full consumer flow;
-4. English-speaking resident/buyer;
-5. architect who wants exact source details quickly;
-6. buyer comparing land before purchase;
-7. mobile user at the property;
-8. screen-reader/keyboard user reading findings without map dependency.
+2. user selecting an undeveloped parcel only from the map;
+3. older/low-GIS-confidence user placing a verified-supported sauna scenario;
+4. Russian-speaking user completing the critical consumer flow when enabled;
+5. English-speaking resident/buyer;
+6. architect who wants exact source details quickly;
+7. buyer comparing land before purchase later;
+8. mobile user at the property;
+9. screen-reader/keyboard user completing critical non-map alternatives.
+
+For Phase 4, the acceptance test must also confirm:
+
+- no permanent account wall before placement;
+- anonymous technical ownership does not disrupt the journey;
+- route/locale navigation preserves active work;
+- browser proposal geometry is clearly preview state until server validation;
+- ambiguous parcel selection is explicit;
+- mobile map/bottom-sheet interaction is usable in a real browser.
 
 A successful session ends with a user knowing **what to do next**, not merely having viewed more data.

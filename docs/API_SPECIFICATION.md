@@ -1,24 +1,27 @@
 # API Specification — Krunditark
 
-Last contract review: **2026-08-15**
+Last contract review: **2026-08-21**
 
 This document defines Krunditark-owned client/server contracts. Physical deployment may use multiple Supabase Edge Functions and RLS-protected Data API calls, but the frontend must not consume provider-specific WFS/EHR/Gemini/payment payloads as product contracts.
+
+ADR 0009 and `PHASE_4_READINESS.md` define the Phase 4 browser-draft / anonymous-owner / canonical-persistence boundary.
 
 ## 1. General rules
 
 - JSON over HTTPS for Krunditark application APIs.
 - UTF-8.
-- external input schema-validated.
+- external input is runtime validated; no particular schema library is mandatory.
 - stable typed error codes.
 - no stack traces/provider bodies/secrets returned.
 - authoritative geometry calculations server/PostGIS-side.
 - browser geometry interchange is GeoJSON EPSG:4326 unless explicitly documented.
-- persistent authoritative geometry follows EPSG:3301 policy.
+- persistent authoritative parcel/proposal geometry follows EPSG:3301 policy.
 - source/data/rule freshness is explicit.
 - no ordinary request may trigger national source synchronization.
-- expensive state-changing calls support idempotency.
+- expensive/state-changing calls support idempotency where retries could duplicate effects.
 - ownership and entitlements are checked server-side.
 - locale changes presentation, not deterministic result.
+- public/server APIs generate or propagate a request/correlation ID suitable for support diagnostics.
 
 Example envelope:
 
@@ -53,19 +56,27 @@ User-facing error text may be localized client-side by code; do not make changin
 
 ### Public
 
-No Auth required for static marketing/help/sample-report content.
+No permanent Auth is required for:
+
+- static marketing/help/sample-report content;
+- allowed address/cadastral/map parcel discovery;
+- bounded free parcel overview.
 
 ### Anonymous authenticated user
 
-Supabase anonymous Auth session. Owns temporary project state under RLS.
+Supabase anonymous Auth session. Owns temporary project/proposal state under RLS.
 
-Server can detect the anonymous identity through verified Auth/JWT claims; do not trust a client boolean.
+Phase 4 creates/reuses this identity when the user enters a **stateful proposal workflow**, not merely because they opened the landing page.
+
+Server detects the anonymous identity through verified Auth/JWT claims; never trust a client boolean.
+
+Anonymous Auth is not a permanent account/signup wall.
 
 ### Permanent authenticated user
 
 Email OTP/Google-linked account.
 
-Required for:
+Required later for:
 
 - durable cross-device saved work;
 - purchases/orders;
@@ -76,17 +87,21 @@ Required for:
 
 Explicit server-side role/credential path only.
 
+Service-role credentials never replace normal owner RLS for browser project/proposal writes.
+
 ## 3. Core error codes
 
 ### Input/search
 
 - `VALIDATION_ERROR`
+- `INVALID_INPUT`
 - `INVALID_CADASTRAL_ID`
 - `ADDRESS_QUERY_INVALID`
 - `ADDRESS_NOT_FOUND`
 - `ADDRESS_SEARCH_UNAVAILABLE`
 - `PARCEL_NOT_FOUND`
 - `PARCEL_SELECTION_AMBIGUOUS`
+- `RATE_LIMITED`
 
 ### Source/data
 
@@ -94,6 +109,7 @@ Explicit server-side role/credential path only.
 - `SOURCE_UNAVAILABLE`
 - `SOURCE_RESPONSE_INVALID`
 - `SOURCE_STALE`
+- `UPSTREAM_ERROR`
 - `DATA_RELEASE_UNAVAILABLE`
 - `DATA_RELEASE_INCOMPLETE`
 
@@ -101,6 +117,7 @@ Explicit server-side role/credential path only.
 
 - `PROPOSAL_GEOMETRY_INVALID`
 - `PROPOSAL_OUTSIDE_SUPPORTED_AREA`
+- `PROPOSAL_RESOURCE_LIMIT`
 - `ANALYSIS_SCOPE_UNSUPPORTED`
 - `ANALYSIS_IN_PROGRESS`
 - `ANALYSIS_FAILED`
@@ -130,15 +147,15 @@ Explicit server-side role/credential path only.
 - `USAGE_LIMIT_REACHED`
 - `FULFILLMENT_FAILED`
 
-Do not return `*_NOT_FOUND` when the relevant source request actually failed.
+Do not return `*_NOT_FOUND` when the relevant source request actually failed, timed out or was rate limited.
 
 ## 4. Address search
 
 ### `GET /functions/v1/address-search?q=<query>` or `?adrid=<id>`
 
-Public or anonymous-safe Supabase Edge Function proxy for official In-AKS Gazetteer API.
+Public/anonymous-safe Supabase Edge Function proxy for official In-AKS Gazetteer API.
 
-Purpose: normalized official address/place/object autocomplete.
+Purpose: normalized official address/place/object candidate search.
 
 Request parameters:
 
@@ -147,30 +164,37 @@ Request parameters:
 
 Exactly one of `q` or `adrid` must be provided.
 
-Success response body is raw normalized In-AKS JSON. Frontend client parses with `parseInAksAddressResponse` and returns domain `AddressSearchResult[]`.
+Success response is parsed/normalized by the Krunditark client boundary into `AddressSearchResult[]`; provider-specific fields must not become UI/domain contracts.
 
 Rules:
 
 - normalized bounded query length;
-- **submit-driven**: frontend triggers one `searchAddress()` call only on explicit user submit (Otsi/Enter), not on typing;
+- **submit-driven**: frontend triggers one search only on explicit user submit (`Otsi`/Enter), not on typing;
 - minimum query length **3 characters** for free-text address search;
-- short-cache per source policy (free-text 1h, exact adrid 24h, negative 5min);
-- unavailable != no matches;
-- raw In-AKS provider response not exposed as stable UI contract.
+- short-cache per source policy (free-text 1h, exact `adrid` 24h, negative 5min unless later source policy changes it);
+- explicit upstream timeout/resource budget;
+- server-side request/rate budget; frontend behavior alone is not abuse protection;
+- unavailable/rate-limited/timeout != no matches;
+- request/correlation ID available on success and failure;
+- routine logs do not store the full user-entered address by default.
 
-Error codes:
+Error codes include:
 
-- `INVALID_INPUT` — missing/invalid query parameters
-- `ADDRESS_SEARCH_UNAVAILABLE` — Edge Function cannot reach In-AKS
-- `UPSTREAM_ERROR` — In-AKS returned non-2xx
-- `PARSE_ERROR` — response structure or validation failed
-- `NETWORK_ERROR` — request aborted or network failure
+- `INVALID_INPUT`
+- `ADDRESS_SEARCH_UNAVAILABLE`
+- `SOURCE_TIMEOUT`
+- `UPSTREAM_ERROR`
+- `SOURCE_RESPONSE_INVALID` / parser-equivalent stable error
+- `RATE_LIMITED`
+- `NETWORK_ERROR` at the browser client boundary when the Edge Function itself cannot be reached.
 
 ## 5. Parcel candidate resolution
 
 ### `POST /functions/v1/parcel-resolve`
 
-Public Supabase Edge Function for parcel resolution. Request body must contain exactly one selector:
+Public Supabase Edge Function for parcel resolution. Request body contains exactly one selector.
+
+Cadastral:
 
 ```json
 {
@@ -178,7 +202,7 @@ Public Supabase Edge Function for parcel resolution. Request body must contain e
 }
 ```
 
-or
+Address:
 
 ```json
 {
@@ -186,13 +210,15 @@ or
 }
 ```
 
-or map selection:
+Map selection:
 
 ```json
 {
   "selector": { "type": "point", "point": { "lat": 59.437, "lng": 24.753 } }
 }
 ```
+
+Point selector coordinates are **WGS84 latitude/longitude**. Browser pointer movement does not continuously call the resolver; an explicit click/selection action triggers resolution.
 
 Response uses a shared resolution contract:
 
@@ -224,7 +250,10 @@ Response uses a shared resolution contract:
       "freshnessState": "fresh",
       "contentHash": "..."
     }
-  ]
+  ],
+  "meta": {
+    "requestId": "uuid"
+  }
 }
 ```
 
@@ -232,19 +261,21 @@ Resolution states:
 
 - `resolved` — exactly one valid candidate.
 - `ambiguous` — multiple valid candidates; UI must ask user to choose.
-- `not_found` — no valid candidate.
-- `unavailable` — upstream unreachable, timeout, or invalid response.
-- `invalid_source` — upstream returned features but one or more failed validation.
+- `not_found` — successful source resolution produced no valid candidate.
+- `unavailable` — upstream unreachable/timeout/degraded.
+- `invalid_source` — upstream returned data but validation failed.
 
 Rules:
 
 - validates selector exactly-one invariant;
-- cadastral path normalizes to 12-digit string and queries MaRu Inspire WFS with EPSG:3301;
-- address path calls verified In-AKS gazetteer by `addressId`, extracts cadastral units (`liik=4`), then resolves via MaRu WFS;
-- point path projects WGS84 to EPSG:3301 and uses `INTERSECTS(geometry, POINT(...))` spatial filter;
-- retries retryable upstream statuses once;
-- validates root FeatureCollection CRS is EPSG:3301 before parsing candidates;
-- never silently drops invalid features in multi-candidate responses.
+- cadastral path normalizes to a 12-digit string and queries the approved MaRu parcel source in EPSG:3301;
+- address path resolves the selected official address object and then candidate cadastral units;
+- point path projects WGS84 to EPSG:3301 server-side and performs the approved spatial parcel query;
+- bounded counts/timeouts/retries;
+- provider rate-limit response must not cause an unbounded retry storm;
+- validates expected source CRS before constructing canonical candidates;
+- never silently drops invalid features in a way that changes ambiguity semantics;
+- map ambiguity requires explicit confirmation.
 
 ## 6. Parcel lookup
 
@@ -312,13 +343,27 @@ Example:
         "status": "not_supported"
       }
     ]
-  }
+  },
+  "meta": { "requestId": "uuid" }
 }
 ```
 
 Do not construct a misleading free “all clear” from a deliberately reduced subset.
 
 ## 8. Projects
+
+### Phase 4 project bootstrap
+
+The application does not need to create a project during passive/public parcel search.
+
+When a user chooses a **stateful proposal flow**:
+
+1. create/reuse Supabase anonymous Auth if no suitable Auth session exists;
+2. create/reuse an owner-scoped guest project;
+3. persist/reference the exact selected parcel and stable intent code;
+4. continue proposal editing under normal owner RLS.
+
+No permanent email/Google account is required at this point.
 
 ### `POST /projects`
 
@@ -334,16 +379,18 @@ Request:
 }
 ```
 
-Server:
+Server/data layer:
 
-- validates ownership of Auth session, not parcel ownership;
-- resolves/attaches current eligible parcel snapshot;
+- uses current verified Auth identity;
+- never treats parcel selection as ownership proof;
+- resolves/attaches the current eligible parcel snapshot/reference as implemented;
 - stores owner as current `auth.uid()`;
-- applies guest limits if `is_anonymous=true`.
+- applies guest limits if `is_anonymous=true`;
+- rejects unsupported/legacy intent values rather than silently choosing another intent.
 
 ### `GET /projects`
 
-Permanent user by default; guest current-project retrieval may use a separate bounded path.
+Permanent user by default for dashboard/history. A guest current-project retrieval path may be bounded to the anonymous user's own project(s).
 
 ### `GET /projects/:projectId`
 
@@ -351,9 +398,9 @@ Owner only.
 
 ### `PATCH /projects/:projectId`
 
-Editable project metadata only.
+Editable project metadata/intent only as explicitly allowed.
 
-Do not mutate historical analysis/proposal facts.
+Do not mutate historical proposal/analysis facts.
 
 ### `DELETE /projects/:projectId`
 
@@ -361,25 +408,37 @@ Owner only, subject to documented retention/accounting constraints.
 
 ## 9. Intent codes
 
-Stable domain values may include:
+Canonical stable domain/database values are exactly:
 
 ```text
 build
-purchase_check
+pre_purchase
 understand_parcel
-modify_existing_building
+existing_building_modification
 professional
 ```
 
-Support status is separate from the code. A known intent can return `ANALYSIS_SCOPE_UNSUPPORTED` for a not-yet-implemented workflow.
+Support status is separate from identity.
 
-## 10. Proposals
+Current product meaning:
 
-### `POST /projects/:projectId/proposals`
+- `build` — active proposal workflow;
+- `understand_parcel` — supported parcel-understanding context;
+- `pre_purchase` — known/planned buyer flow;
+- `existing_building_modification` — known/planned separate scenario profile;
+- `professional` — context marker/future professional flow, not a fallback legal profile.
 
-Creates a new proposal version.
+Legacy/documentation aliases such as `purchase_check` or `modify_existing_building` are **not canonical persisted values**. If an external compatibility boundary ever accepts an alias, it must normalize explicitly and be tested; otherwise reject it with a typed validation error.
 
-Request:
+Translated labels never become persisted intent identifiers.
+
+## 10. Proposal contracts
+
+### 10.1 Browser/editor draft
+
+The mutable Phase 4 editor draft is **not** the canonical persisted `Proposal` object.
+
+Conceptual request shape:
 
 ```json
 {
@@ -392,28 +451,115 @@ Request:
   "heightM": 4.8,
   "storeys": 1,
   "widthM": 6,
-  "lengthM": 8,
-  "sourceTemplateId": "sauna-6x8"
+  "lengthM": 8
 }
 ```
 
-Input geometry EPSG:4326.
+Browser `footprint` interchange is EPSG:4326 unless an endpoint explicitly states otherwise.
+
+A beginner template ID such as `sauna-6x8` is Phase 4 UI convenience metadata only. It is **not** required in the authoritative proposal request/persistence contract and no rule/analysis may depend on it.
+
+### 10.2 Validate/canonicalize a draft
+
+Recommended Phase 4 application endpoint:
+
+### `POST /projects/:projectId/proposals/validate`
+
+Owner only (anonymous or permanent).
+
+Purpose: authoritative validation/canonicalization without creating a persisted proposal version.
 
 Server:
 
-1. validates schema;
-2. transforms to canonical CRS;
-3. validates topology/bounds/resource limits;
-4. computes authoritative metrics;
-5. creates immutable proposal version.
+1. validates request structure and bounded numeric/text/resource limits;
+2. validates/normalizes the selected structure/support context;
+3. transforms browser geometry into EPSG:3301;
+4. validates topology/bounds;
+5. applies any geometry repair only under an explicit documented policy;
+6. computes authoritative area/perimeter in metric CRS;
+7. returns canonical preview geometry/metrics and typed errors/warnings.
+
+Conceptual response:
+
+```json
+{
+  "data": {
+    "valid": true,
+    "canonical": {
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": []
+      },
+      "geometryCrs": "EPSG:3301",
+      "areaM2": 48.0,
+      "perimeterM": 28.0
+    },
+    "errors": [],
+    "warnings": []
+  },
+  "meta": { "requestId": "uuid" }
+}
+```
+
+`perimeterM` does not require a persisted database column in Phase 4 if it is deterministically derived from canonical geometry when needed. If later persistence of perimeter becomes a requirement, add it through a forward schema change.
+
+### 10.3 Persist a proposal version
+
+### `POST /projects/:projectId/proposals`
+
+Owner only (anonymous or permanent).
+
+Creates a **new persisted proposal version** after the same authoritative validation/canonicalization rules succeed.
+
+Server/PostGIS values win over any client preview values.
+
+Conceptual response:
+
+```json
+{
+  "data": {
+    "id": "uuid",
+    "projectId": "uuid",
+    "version": 1,
+    "structureType": "sauna",
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": []
+    },
+    "geometryCrs": "EPSG:3301",
+    "facts": {
+      "areaM2": 48.0,
+      "heightM": 4.8,
+      "storeys": 1,
+      "widthM": 6,
+      "lengthM": 8
+    },
+    "computed": {
+      "perimeterM": 28.0
+    },
+    "createdAt": "..."
+  },
+  "meta": { "requestId": "uuid" }
+}
+```
+
+Lifecycle:
+
+- unpersisted editor draft may change freely;
+- saving creates a proposal version;
+- later edits of a persisted scenario create another version when saved under the canonical lifecycle;
+- a proposal referenced by terminal/completed analysis is never mutated in place;
+- app code should not depend on direct UPDATE semantics merely because RLS/table grants technically permit them.
+
+### 10.4 Variant duplicate — later workflow
 
 ### `POST /projects/:projectId/proposals/:proposalId/duplicate`
 
-Creates a new version/scenario from exact prior proposal for variant testing.
+Reserved for the later variant workflow.
 
-Optional request modifications may be accepted if server revalidates them.
+Creates a new version/scenario from the exact prior proposal and revalidates any requested modifications.
 
-Do not update proposal geometry in-place if referenced by a completed analysis.
+Phase 4 may implement reusable version primitives, but must not claim A/B variant comparison is complete before the later variant tasks.
 
 ## 11. Analysis creation
 
@@ -443,7 +589,7 @@ Server:
 
 1. verifies owner/auth;
 2. verifies free/paid entitlement if applicable;
-3. validates proposal;
+3. validates exact persisted proposal/version;
 4. selects exact eligible `dataReleaseId` and rule-set manifest;
 5. tries safe compatible analysis cache;
 6. otherwise runs PostGIS/rules;
@@ -505,7 +651,7 @@ Example:
 }
 ```
 
-Rendered localized labels are preferably generated from stable codes/client translation catalogs, while dynamic Gemini explanation is a separate resource.
+Rendered localized labels are generated from stable codes/client translation catalogs where possible. Dynamic Gemini explanation is a separate resource.
 
 ## 13. Finding contract
 
@@ -552,6 +698,8 @@ Conceptual:
 ```
 
 No material factual relationship may exist only in translated prose.
+
+See issue #31 before Phase 8 authoritative persistence if the domain/database Finding mapping remains inconsistent.
 
 ## 14. Completeness/freshness
 
@@ -919,56 +1067,68 @@ Cursor pagination for growing collections:
 
 Do not make database offsets part of permanent contract unless intentionally approved.
 
-## 31. Rate limits
+## 31. Rate limits and public request budgets
 
 Especially:
 
-- address autocomplete/parcel lookup;
+- address search;
+- cadastral/map parcel resolution;
 - anonymous project creation;
+- proposal validation/persistence;
 - analysis creation;
 - AI explanation/questions;
 - checkout creation;
 - uploads;
 - future batch/API.
 
-Return `429` + typed error/safe retry info.
+Return `429` + typed error/safe retry info where appropriate.
 
-Rate limit state does not become source “not found”.
+Rate limit state does not become source `not_found`.
+
+For public parcel discovery:
+
+- frontend submit/click behavior reduces normal traffic but is not enforcement;
+- server-side burst/sustained budgets are required before high-volume public use;
+- logs should contain request ID, source/function, status, duration and safe error code without routinely logging full addresses.
 
 ## 32. API versioning
 
 Internal MVP contracts use:
 
-- typed schema versions;
+- typed schema versions where needed;
 - `analysisProfileVersion`;
 - `engineVersion`;
 - data/rule versions.
 
 External B2B consumers require explicit `/v1` or equivalent before launch.
 
-## 34. Parcel resolution Edge Function implementation
+## 33. Parcel resolution Edge Function implementation notes
 
 ### `POST /functions/v1/parcel-resolve`
 
-Server-side implementation notes for the public parcel resolution endpoint.
-
 - accepts JSON body with exactly one selector: `cadastral`, `address`, or `point`;
-- SSRF-safe upstream calls: `inspire.geoportaal.ee` for MaRu WFS, `aks.geoportaal.ee` / `aks-test.geoportaal.ee` for In-AKS;
-- CORS allows `POST` and `OPTIONS`;
-- request timeout 10s, retries retryable upstream statuses once;
-- validates FeatureCollection root CRS is `EPSG:3301` before parsing candidates;
-- returns canonical `Parcel` domain objects as candidates with full provenance and `freshnessState`;
-- address path maps In-AKS cadastral units (`liik=4`) to MaRu WFS queries;
-- point path projects WGS84 to EPSG:3301 server-side and uses `INTERSECTS(geometry, POINT(...))`.
+- SSRF-safe upstream host allow-list;
+- CORS for documented browser origins/policy;
+- bounded request timeout/retry/result count;
+- expected FeatureCollection/source CRS validation before parsing candidates;
+- returns canonical `Parcel` candidates with provenance/freshness;
+- address path resolves approved In-AKS objects to cadastral candidates;
+- point path projects WGS84 to EPSG:3301 server-side and uses an approved spatial parcel query;
+- point selection is explicit-click driven, not pointer-move driven;
+- application-level public request budgets/correlation are required as Phase 4 traffic expands.
 
-## 35. API security acceptance
+## 34. API security acceptance
 
-- anonymous user cannot access another guest's project;
+- public visitor can access only explicitly public parcel-discovery/free-overview behavior;
+- anonymous user cannot access another guest's project/proposals;
 - permanent user cannot access another user's project/report/order;
+- Phase 4 browser never uses service-role credentials to create owner state;
 - client cannot set admin role;
 - client cannot force source refresh;
 - client cannot select arbitrary source URL;
+- client cannot decide authoritative proposal area/perimeter/CRS;
 - client cannot set paid amount or grant entitlement;
 - invalid payment webhook rejected;
 - share token is only valid for explicit shared scope;
-- raw source/Gemini/payment secrets are never returned.
+- raw source/Gemini/payment secrets are never returned;
+- provider timeout/rate failure cannot be converted into a successful empty/no-risk result.

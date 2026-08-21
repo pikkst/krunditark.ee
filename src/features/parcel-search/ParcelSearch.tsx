@@ -357,7 +357,9 @@ export default function ParcelSearch({
 
   const handleInputBlur = useCallback(() => {
     setTimeout(() => {
-      if (!listboxRef.current?.contains(document.activeElement)) {
+      const activeInListbox = listboxRef.current?.contains(document.activeElement);
+      const activeIsInput = document.activeElement === inputRef.current;
+      if (!activeInListbox && !activeIsInput) {
         setIsFocused(false);
       }
     }, 150);

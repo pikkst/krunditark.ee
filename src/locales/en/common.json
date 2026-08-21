@@ -33,6 +33,7 @@
     },
     "freshness": {
       "fresh": "Fresh",
+      "warning": "Warning",
       "stale": "Stale",
       "unknown": "Unknown"
     },
@@ -80,5 +81,27 @@
       "NETWORK_ERROR": "Network request failed. Please try again.",
       "CONFIG_ERROR": "Service configuration is invalid. Please try again later."
     }
+  },
+  "parcelOverview": {
+    "noAddress": "No address",
+    "mapLabel": "Parcel boundary map",
+    "area": "Area",
+    "address": "Address",
+    "dataFreshness": "Data freshness",
+    "sourceDate": "Source date",
+    "sourceEffective": "Effective",
+    "retrieved": "Retrieved",
+    "availableTitle": "Currently available",
+    "plannedTitle": "Planned",
+    "coverageBoundary": "Parcel boundary and area",
+    "coverageBasicFacts": "Basic facts (address, area)",
+    "coveragePlanning": "Planning and building rights",
+    "coverageRestrictions": "Restrictions and protection zones",
+    "coverageEnvironment": "Environment and heritage",
+    "coveragePartial": "Roads and access",
+    "coverageNote": "Parcel boundary and basic facts are available. Planning, restrictions, environment/heritage, and road/access checks are still being added and have not been evaluated in this overview.",
+    "intentTitle": "What do you want to do with this parcel?",
+    "soon": "Coming soon",
+    "backToSearch": "Back to search"
   }
 }

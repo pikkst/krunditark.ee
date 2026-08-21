@@ -33,6 +33,7 @@
     },
     "freshness": {
       "fresh": "Värsked",
+      "warning": "Hoiatus",
       "stale": "Vananenud",
       "unknown": "Teadmata"
     },
@@ -80,5 +81,27 @@
       "NETWORK_ERROR": "Võrguühendus ebaõnnestus. Proovi uuesti.",
       "CONFIG_ERROR": "Teenuse konfiguratsioon on vigane. Proovi hiljem uuesti."
     }
+  },
+  "parcelOverview": {
+    "noAddress": "Aadress puudub",
+    "mapLabel": "Katastriüksuse piiride kaart",
+    "area": "Pindala",
+    "address": "Aadress",
+    "dataFreshness": "Andmete seis",
+    "sourceDate": "Andmete kuupäev",
+    "sourceEffective": "Andmete kehtivus",
+    "retrieved": "Laetud",
+    "availableTitle": "Praegu saadaval",
+    "plannedTitle": "Hiljem saadav",
+    "coverageBoundary": "Katastripiir ja pindala",
+    "coverageBasicFacts": "Põhiandmed (aadress, pindala)",
+    "coveragePlanning": "Planeeringud ja ehitusõigus",
+    "coverageRestrictions": "Kitsendused ja kaitsevööndid",
+    "coverageEnvironment": "Keskkond ja muinsuskaitse",
+    "coveragePartial": "Tee ja juurdepääs",
+    "coverageNote": "Katastripiir ja põhiandmed on saadaval. Planeeringud, kitsendused, keskkond/muinsuskaitse ning tee ja juurdepääs kontrollid lisanduvad hiljem; neid ei ole sellel ülevaatejal valmisoodud.",
+    "intentTitle": "Mida soovid selle krundiga teha?",
+    "soon": "Varsti",
+    "backToSearch": "Tagasi otsingusse"
   }
 }

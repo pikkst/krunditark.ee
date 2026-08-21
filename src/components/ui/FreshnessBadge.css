@@ -21,6 +21,12 @@
   border: 1px solid var(--color-status-clear-border);
 }
 
+.freshness-warning {
+  background-color: var(--color-status-condition-bg);
+  color: var(--color-status-condition-text);
+  border: 1px solid var(--color-status-condition-border);
+}
+
 .freshness-stale {
   background-color: var(--color-status-condition-bg);
   color: var(--color-status-condition-text);

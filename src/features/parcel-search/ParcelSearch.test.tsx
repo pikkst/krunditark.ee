@@ -299,9 +299,7 @@ describe("ParcelSearch", () => {
     });
     fetchSpy.mockReturnValueOnce(resolvePromise as unknown as Promise<Response>);
 
-    renderWithI18n(
-      <ParcelSearch onParcelResolved={onResolved} onAmbiguousResolve={() => {}} />
-    );
+    renderWithI18n(<ParcelSearch onParcelResolved={onResolved} onAmbiguousResolve={() => {}} />);
 
     const input = screen.getByLabelText("Aadress või katastritunnus");
     fireEvent.focus(input);

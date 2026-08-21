@@ -1,12 +1,12 @@
 # Authentication and Onboarding — Krunditark
 
-Last product review: **2026-08-15**
+Last product review: **2026-08-21**
 
 ## 1. Decision
 
 Krunditark uses a **guest-first, identity-later** onboarding model.
 
-A first-time consumer must not be required to create an account before:
+A first-time consumer must not be required to create a permanent account before:
 
 - searching/selecting a parcel;
 - seeing the parcel on the map;
@@ -14,27 +14,64 @@ A first-time consumer must not be required to create an account before:
 - placing a simple building template;
 - understanding what Krunditark can check.
 
-Account conversion happens when identity provides obvious value, for example:
+A Supabase **anonymous Auth identity is not a permanent-account/signup wall**. It is the technical owner identity used when stateful guest project/proposal persistence becomes necessary.
 
-- saving work across devices;
+Permanent-account conversion happens when identity provides obvious user value, for example:
+
+- durable cross-device recovery;
 - purchasing a report/project entitlement;
 - retrieving a purchased report later;
 - enabling monitoring/notifications;
 - sharing/collaborating;
 - entering professional mode.
 
-## 2. Why this is technically feasible
+## 2. Phase sequencing decision
 
-Supabase Auth supports anonymous sign-ins. An anonymous user receives a real Auth user ID and uses the `authenticated` Postgres role, while the JWT exposes an `is_anonymous` claim that can be used by RLS. Supabase also supports linking an email/OAuth identity later.
+The minimum anonymous Auth + guest project ownership slice is a **Phase 4 prerequisite** for owner-RLS proposal persistence.
 
-Official references:
+This resolves the earlier task-order ambiguity where proposal persistence appeared before anonymous Auth work.
+
+### Phase 4 minimum slice
+
+Implement/reuse:
+
+- Supabase anonymous sign-in configuration needed for guest ownership;
+- one anonymous `auth.uid()` per guest session as supported by Supabase;
+- owner-scoped guest project creation/read/update through RLS;
+- bounded guest project/proposal creation;
+- selected parcel + intent persistence when the stateful proposal flow starts;
+- proposal-version ownership through the existing project relationship;
+- same-browser recovery while the anonymous session remains available;
+- route/locale state preservation;
+- clear failure handling if anonymous session/project bootstrap fails.
+
+### Remains in the later account phase
+
+- email OTP permanent identity;
+- Google OAuth permanent identity;
+- anonymous -> permanent account conversion UX;
+- custom production SMTP;
+- account dashboard/privacy pages;
+- cross-device project recovery;
+- complete account deletion/export workflow;
+- full RU/EN auth UX and account settings.
+
+Do not defer safe guest ownership until after KT-048, and do not pull the entire permanent-account product into Phase 4.
+
+See ADR 0006, ADR 0009 and `PHASE_4_READINESS.md`.
+
+## 3. Why this is technically feasible
+
+Supabase Auth supports anonymous sign-ins. An anonymous user receives a real Auth user ID and uses the `authenticated` Postgres role, while the JWT exposes an `is_anonymous` claim that can be used by RLS. Supabase supports identity linking/conversion paths that must be reverified against current official documentation when permanent conversion is implemented.
+
+Official references to re-check at implementation time:
 
 - https://supabase.com/docs/guides/auth/auth-anonymous
 - https://supabase.com/docs/guides/auth/users
 
-This maps well to Krunditark's desired flow: an anonymous user can own a temporary project without Krunditark collecting email/name upfront.
+This maps to Krunditark's desired flow: an anonymous user can own temporary project state without Krunditark collecting email/name upfront.
 
-## 3. User states
+## 4. User states
 
 Do not conflate application user state with paid entitlements.
 
@@ -42,34 +79,39 @@ Do not conflate application user state with paid entitlements.
 
 No Supabase Auth user is required for:
 
-- landing content;
+- landing/public content;
 - public demo;
-- static pricing/about/help/privacy pages.
+- static pricing/about/help/privacy pages;
+- parcel address/cadastral search;
+- map parcel discovery;
+- bounded free parcel overview.
 
-The public parcel-search implementation may either create an anonymous session immediately or only when the first stateful project action occurs. Choose the implementation that avoids creating unnecessary abandoned Auth rows while keeping state recovery simple.
+The current product decision is to delay anonymous sign-in until the first **stateful project/proposal action** rather than creating abandoned Auth users for every visitor.
 
 ### U1 — Anonymous project user
 
-Created via Supabase anonymous sign-in when needed.
+Created via Supabase anonymous sign-in when the user enters a stateful project/proposal workflow.
 
 Can:
 
 - create a bounded temporary project;
-- select parcel;
-- create proposal draft;
+- persist the selected parcel/project parcel reference;
+- persist a stable intent code;
+- create versioned proposal state allowed by the current free/pre-check product policy;
 - run only explicitly allowed free/pre-check operations;
 - preserve state in the same browser/session.
 
 Cannot by default:
 
-- access paid report history after losing session;
+- rely on cross-device recovery;
+- access paid report history after losing the anonymous identity;
 - create organization/team;
 - use professional/API features;
 - receive email notifications;
 - create public share links;
 - exceed guest abuse/rate limits.
 
-RLS must check `is_anonymous` where permanent identity is required. Anonymous users use `authenticated`, so policies that say only `to authenticated` are not sufficient to distinguish them.
+Anonymous users use the `authenticated` Postgres role. Policies that merely say `TO authenticated` do **not** distinguish anonymous from permanent users. Use verified JWT `is_anonymous` semantics where permanent identity is required.
 
 ### U2 — Permanent consumer user
 
@@ -80,13 +122,13 @@ Recommended initial methods:
 
 No password is required in the default consumer UX.
 
-Can:
+Can later:
 
 - recover projects across devices;
 - purchase/own entitlements;
 - view orders/report history;
 - receive project notifications;
-- delete account/project;
+- delete account/project according to policy;
 - manage language/preferences.
 
 ### U3 — Professional user
@@ -108,16 +150,16 @@ Never granted through public signup/profile mutation.
 
 Admin/legal/source-verifier privileges are explicit server-side roles with audit logs and stronger access controls.
 
-## 4. Recommended onboarding flow
+## 5. Canonical onboarding flow
 
 ```text
-Landing
+Landing / public visitor
   |
   v
-Search address/cadastral ID
+Search address/cadastral ID OR select on map
   |
   v
-Select parcel
+Confirm exact parcel
   |
   v
 Free parcel overview
@@ -125,11 +167,28 @@ Free parcel overview
   v
 Choose intent
   |
-  v
-Place/test idea
+  +--> non-stateful parcel understanding can remain public/bounded
   |
   v
-Need persistent/full value?
+Build/proposal workflow needs state
+  |
+  v
+signInAnonymously() if no session
+  |
+  v
+create/reuse owner-scoped guest project
+  |
+  v
+Place/edit proposal draft
+  |
+  v
+server validates/canonicalizes
+  |
+  v
+persist proposal version
+  |
+  v
+Need durable/paid/cross-device value?
   |              \
   no              yes
   |                |
@@ -139,19 +198,35 @@ continue guest     v
               [Continue with email]
                       |
                       v
-                preserve same project
+              link/convert identity
                       |
                       v
-                  pay/save/run
+                preserve same project
 ```
 
-Never throw away the user's parcel/proposal when showing auth.
+Never throw away the user's parcel/proposal when creating anonymous ownership or showing permanent Auth.
 
-## 5. Account sheet UX
+## 6. Phase 4 state ownership rules
+
+The selected parcel/proposal must not exist only in one page component once the workflow becomes route-based.
+
+Required:
+
+- selected parcel is persisted/referenced by the guest project when stateful flow begins;
+- selected intent uses the canonical locale-independent code;
+- an in-progress editor footprint may be transient until explicit server validation/persistence;
+- persisted proposal versions are the durable project state;
+- locale switching preserves project and editor draft;
+- browser back/forward behavior is deterministic;
+- refresh behavior is explicit and tested;
+- anonymous session bootstrap failure never falls back to a globally writable/shared project;
+- service-role credentials are never used in the browser to bypass RLS.
+
+## 7. Account sheet UX
 
 Title depends on context.
 
-For save:
+For durable save:
 
 > **Salvesta oma projekt**
 >
@@ -171,7 +246,9 @@ Buttons:
 
 Do not use “Create account” as the only language when the user's actual goal is saving/buying.
 
-## 6. Email OTP UX
+This sheet is **not** shown merely because Phase 4 needed an anonymous technical identity.
+
+## 8. Email OTP UX — later permanent identity phase
 
 Preferred over magic-link-only flow because a numeric OTP can be entered without leaving the project tab and is less affected by mail-link scanners.
 
@@ -181,7 +258,7 @@ Flow:
 2. send OTP;
 3. show 6-digit input;
 4. verify;
-5. link/convert the anonymous identity according to current Supabase-supported account-linking flow;
+5. link/convert the anonymous identity according to then-current Supabase-supported account-linking flow;
 6. return to exact project/action.
 
 Requirements:
@@ -194,9 +271,7 @@ Requirements:
 - clear expired/incorrect-code errors;
 - preserve project state on refresh.
 
-## 7. Google sign-in
-
-Google is a good second primary method because it reduces email-delivery friction and Supabase supports OAuth identity linking for anonymous users.
+## 9. Google sign-in — later permanent identity phase
 
 Requirements:
 
@@ -206,44 +281,46 @@ Requirements:
 - do not request unnecessary Google scopes;
 - use a custom product/auth domain when production infrastructure supports it for trust.
 
-## 8. Production email requirement
+Reverify current Supabase identity-linking behavior before implementation rather than relying on stale provider assumptions.
 
-Supabase's default SMTP is for testing/demonstration and is not appropriate for public production. Current Supabase documentation states that without custom SMTP, delivery is restricted to project-team addresses and the default service has very low limits/no production SLA.
+## 10. Production email requirement
 
-Official references:
-
-- https://supabase.com/docs/guides/auth/auth-smtp
-- https://supabase.com/docs/guides/deployment/going-into-prod
+Supabase's default SMTP is for testing/demonstration and is not appropriate for public production.
 
 Before public email OTP:
 
 - configure a production SMTP provider;
 - set SPF/DKIM/DMARC;
 - use a Krunditark-controlled sender/domain;
-- disable email-provider link tracking that can break auth links;
+- disable email-provider link tracking when it can break auth links;
 - configure appropriate Auth rate limits;
 - monitor delivery failures.
 
-Potential providers may include Resend, Postmark, AWS SES, Brevo or another SMTP provider; selection is operational, not a core domain dependency.
+Potential providers may include Resend, Postmark, AWS SES, Brevo or another justified provider; provider selection is operational and remains an open decision until verified.
 
-## 9. Abuse prevention
+## 11. Abuse prevention
 
 Anonymous project creation and parcel analysis are valuable and therefore abuseable.
 
-Controls:
+Phase 4 minimum controls:
 
-- per-IP/per-anonymous-user rate limits at Edge Functions;
+- per-IP/per-anonymous-user request budgets at public/stateful boundaries;
 - bounded guest projects/proposals;
-- CAPTCHA/Turnstile after suspicious/burst behavior rather than on every normal first interaction where possible;
-- source/analysis cache;
+- no anonymous project creation on every passive page load;
+- map point parcel resolution only on explicit user selection/click, not pointer movement;
+- source/cache reuse where safe;
 - request size/geometry limits;
-- paid entitlements for expensive repeated workflows;
-- never allow a guest to trigger national source refresh;
-- clean abandoned anonymous users/projects under documented retention policy.
+- never allow a guest to trigger national source refresh.
 
-Supabase explicitly recommends CAPTCHA as an additional protection for anonymous sign-ins.
+Later/production controls:
 
-## 10. Anonymous data retention
+- CAPTCHA/Turnstile after suspicious/burst behavior rather than on every normal first interaction where possible;
+- abandoned anonymous users/projects cleaned under documented retention policy;
+- paid entitlements for expensive repeated workflows.
+
+Do not treat frontend debounce/disabled buttons as the only abuse control.
+
+## 12. Anonymous data retention
 
 Anonymous users cannot recover their identity after clearing browser data/signing out unless identity was linked.
 
@@ -259,7 +336,9 @@ Recommended policy hypothesis:
 
 Final retention numbers require production privacy review.
 
-## 11. Payment and identity ordering
+Phase 4 may implement only the minimum bounded guest-state behavior; it must not present a temporary anonymous project as guaranteed long-term storage.
+
+## 13. Payment and identity ordering
 
 Default paid consumer path:
 
@@ -282,7 +361,7 @@ Why identity before external checkout:
 
 A payment-provider customer object is not the Krunditark identity source of truth.
 
-## 12. Entitlements are not Auth roles
+## 14. Entitlements are not Auth roles
 
 Do not store product access as a mutable client-controlled profile flag.
 
@@ -308,7 +387,7 @@ Examples:
 
 Server APIs enforce entitlements independently from frontend UI.
 
-## 13. Account pages
+## 15. Account pages
 
 ### `/konto`
 
@@ -338,7 +417,9 @@ Server APIs enforce entitlements independently from frontend UI.
 - invoice/receipt when available;
 - support/refund state.
 
-## 14. Organization/team onboarding
+These are later permanent-account product surfaces, not Phase 4 prerequisites.
+
+## 16. Organization/team onboarding
 
 Post-consumer launch, Pro/Team flow:
 
@@ -350,7 +431,7 @@ Post-consumer launch, Pro/Team flow:
 6. team projects belong to organization, not accidentally to one member;
 7. audit meaningful billing/membership/project-share changes.
 
-## 15. Sharing and collaboration
+## 17. Sharing and collaboration
 
 Do not make reports public by predictable URL.
 
@@ -364,7 +445,7 @@ Future share model:
 - no account required for read-only shared report if owner chooses;
 - exclude private notes/files by default.
 
-## 16. Account deletion
+## 18. Account deletion
 
 Permanent account deletion must:
 
@@ -374,9 +455,11 @@ Permanent account deletion must:
 - retain only legally required billing/accounting records under documented basis;
 - not silently delete public-source data shared by the system.
 
-## 17. Authentication analytics
+Anonymous cleanup/retention is a separate lifecycle and must not accidentally delete another user's project.
 
-Privacy-approved product metrics:
+## 19. Authentication analytics
+
+Privacy-approved product metrics may later include:
 
 - anonymous parcel-to-proposal completion;
 - auth prompt shown;
@@ -386,16 +469,39 @@ Privacy-approved product metrics:
 - checkout recovery after auth;
 - account-link conflict/error rate.
 
-Do not send emails, parcel IDs or auth tokens to analytics.
+Do not send emails, parcel IDs, exact addresses, geometry or auth tokens to third-party analytics by default.
 
-## 18. Acceptance criteria
+## 20. Required tests
+
+### Phase 4 guest ownership
+
+- public visitor can search/select parcel without permanent account;
+- entering stateful proposal flow creates/reuses anonymous Auth safely;
+- anonymous user creates/reads own bounded project;
+- anonymous A cannot access B project/proposals;
+- project carries canonical parcel/intent state across route/locale changes;
+- anonymous bootstrap failure does not create an insecure fallback;
+- owner-RLS proposal persistence works with anonymous user JWT;
+- no service-role credential is present in browser paths.
+
+### Later permanent conversion
+
+- email OTP/Google conversion preserves exact project/proposal;
+- existing-account conflict handled safely;
+- cancelled/failed conversion returns to project;
+- cross-device recovery works after permanent identity;
+- permanent-only actions reject anonymous users.
+
+## 21. Acceptance criteria
 
 The onboarding system is correct when:
 
-- a guest reaches meaningful parcel/proposal value without registration;
-- guest work is owned by an anonymous Auth ID rather than globally public state;
-- account conversion preserves the exact project;
-- consumer can use email OTP or Google;
+- a guest reaches meaningful parcel/proposal value without permanent registration;
+- stateful guest work is owned by an anonymous Auth ID rather than globally public state;
+- Phase 4 proposal persistence does not precede safe owner identity;
+- anonymous A cannot access anonymous B;
+- later account conversion preserves the exact project;
+- consumer can later use email OTP or Google;
 - no password is required by default;
 - RLS distinguishes anonymous/permanent users where needed;
 - paid report is recoverable after browser/device failure once attached to permanent account;

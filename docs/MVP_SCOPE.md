@@ -1,32 +1,56 @@
 # MVP Scope — Krunditark
 
+Last scope review: **2026-08-21**
+
 ## Objective
 
 Deliver one trustworthy vertical slice:
 
-> A user enters an Estonian cadastral identifier, places a supported proposed building on that parcel, runs an analysis, and receives a source-backed Ehituspass showing supported spatial conflicts/conditions, supported permit-path implications, unknowns and official next steps.
+> A user finds and confirms an Estonian cadastral parcel by address, cadastral identifier or map, chooses a supported build intent, places a supported proposed building on that parcel, runs a deterministic analysis, and receives a source-backed Ehituspass showing supported spatial conflicts/conditions, supported permit-path implications, unknowns and official next steps.
 
 The MVP is successful when this works reliably for real supported Estonian parcels without using an LLM as the decision engine and without re-fetching every official source for every user request.
+
+The vertical slice is deliberately narrow, but the entry UX is **not cadastral-ID-only**.
 
 ## In scope
 
 ### Geography
 
 - Estonia only.
-- Estonian cadastral identifiers.
-- L-EST97 / EPSG:3301-aware spatial analysis.
-- Estonian UI.
+- Estonian official address/cadastral parcel discovery.
+- L-EST97 / EPSG:3301-aware authoritative spatial analysis.
+- Estonian canonical UI/copy with ET/RU/EN architecture preserved.
+
+### Parcel discovery
+
+The initial consumer may enter through:
+
+- official address search;
+- cadastral identifier;
+- map selection.
+
+Rules:
+
+- address search uses the approved In-AKS path;
+- cadastral identifiers are normalized/validated explicitly;
+- map point selection resolves the parcel server-side;
+- ambiguous results require explicit user confirmation;
+- source unavailable is never presented as `not_found`/no restriction;
+- parcel selection does not prove ownership.
 
 ### User input
 
-- cadastral identifier;
-- structure category;
+For the initial build vertical slice:
+
+- selected parcel;
+- stable intent code;
+- structure/scenario category;
 - footprint placement/drawing;
 - area/dimensions;
 - height;
 - storeys;
 - intended use;
-- optional project note.
+- optional project note where supported.
 
 ### Initial structure categories
 
@@ -37,7 +61,24 @@ Start with a deliberately small matrix that can be legally verified and tested, 
 - shed / small auxiliary building;
 - garage / auxiliary building.
 
-Do not mark a category supported until its permit/rule matrix is verified against the current official law.
+**Candidate domain labels are not automatically supported legal product scenarios.**
+
+Before KT-043 marks a structure as fully supported, OQ-005 / issue #51 must define the verified first scenario matrix against current official law. Unsupported/custom `Muu` may continue only under an explicitly limited-check contract and must never silently use a verified legal/process profile.
+
+### Proposal creation
+
+Beginner mode should provide templates/dimensions and map placement without requiring GIS expertise.
+
+Phase 4 proposal state is split deliberately:
+
+- browser/editor draft — mutable, browser-safe geometry/interchange;
+- canonical persisted proposal — server-validated EPSG:3301 versioned geometry.
+
+Server/PostGIS is authoritative for geometry validity and material metrics. Client-computed area/perimeter are previews only.
+
+A persisted proposal is versioned. A proposal referenced by terminal analysis is never silently mutated in place.
+
+See ADR 0009, `PHASE_4_READINESS.md` and `PHASE_4_IMPLEMENTATION_GUIDE.md`.
 
 ### Official data categories
 
@@ -54,22 +95,28 @@ EHR integration may enter late MVP only after exact API/access behavior is docum
 
 ### Data refresh and versioning
 
-MVP must include the foundation for scheduled, versioned official-data releases.
+`docs/DATA_REFRESH_AND_CACHE.md` is the **canonical** implementation policy.
+
+MVP must include the foundation for source-specific scheduled/versioned official-data releases.
 
 Required behavior:
 
 - approved replicated sources are synchronized server-side rather than bulk-fetched during each user request;
-- monthly full reconciliation is the baseline refresh policy;
-- source-specific manual/emergency refresh is possible;
+- heavy analytical spatial sources use scheduled baseline/incremental reconciliation appropriate to each source, with a monthly baseline where that source policy says so;
+- lightweight legal/source/schema/EHR change watches may run daily/weekly where appropriate;
+- In-AKS remains an interactive live/short-cache source;
+- source-specific manual/emergency refresh is possible through the same safety gates;
 - source data is staged/validated before promotion;
 - failed/incomplete refresh cannot replace the previous known-good version;
 - exact source dataset versions are grouped into a promoted `data_release`;
-- every analysis pins the exact `data_release_id` it used;
-- historical analyses remain reproducible after later monthly refreshes;
+- every completed analysis pins the exact `data_release_id` it used;
+- historical analyses remain reproducible after later source refreshes;
 - stale/carried-forward data is explicit in analysis freshness metadata;
-- normal scheduled source refresh uses zero Gemini tokens.
+- normal source synchronization uses zero Gemini tokens.
 
-For an initial narrow vertical slice, one or more source adapters may temporarily use bounded server-side lookups before full national replication is implemented, but the architecture and persisted analysis contract must already follow `docs/DATA_REFRESH_AND_VERSIONING.md`. Production should converge on versioned replicated datasets for sources classified as `monthly_snapshot`.
+For an initial narrow vertical slice, one or more source adapters may temporarily use bounded server-side lookups before full national replication is implemented, but persisted analysis/provenance contracts must still be compatible with versioned source/data releases.
+
+`docs/DATA_REFRESH_AND_VERSIONING.md` is compatibility-only and must not be treated as the implementation authority.
 
 ### Analysis categories
 
@@ -80,7 +127,7 @@ MVP must support:
 - supported distances needed by verified rules;
 - planning-area detection;
 - explicit statement when plan textual provisions have not been fully parsed;
-- verified basic permit/notification/project requirements for supported structure matrix;
+- verified basic permit/notification/project requirements for the supported structure matrix;
 - source freshness and completeness;
 - data release identification;
 - deterministic overall summary;
@@ -97,18 +144,51 @@ The product must remain fully functional without Gemini:
 - fallback templates explain findings;
 - only conversational/plain-language enhancement is reduced.
 
-Gemini is not used for normal monthly source synchronization and is not used to rediscover current laws/restrictions for each cadastral request.
+Gemini is not used for routine source synchronization and is not used to rediscover current laws/restrictions for every parcel request.
 
-### Accounts
+### Guest-first accounts and project ownership
 
-MVP should support:
+MVP uses a **guest-first, identity-later** model.
 
-- Supabase Auth;
-- saved projects;
-- own-project RLS;
-- analysis history.
+Public/identity-free value includes:
 
-A limited unauthenticated parcel preview can be considered if rate/security requirements are satisfied, but saved analyses require an account.
+- landing/public content;
+- parcel search and selection;
+- free parcel overview.
+
+When the user enters the **stateful proposal workflow**, the application creates/reuses a Supabase anonymous Auth identity and an owner-scoped guest project as needed. This is a technical ownership mechanism, not a permanent-account/signup wall.
+
+Required behavior:
+
+- guest project/proposal writes use normal `auth.uid()` + RLS ownership;
+- anonymous A cannot access anonymous B;
+- guest project creation is bounded/rate-controlled;
+- selected parcel/intent and persisted proposal versions survive route/locale transitions;
+- unlinked guest state may be lost if browser/session identity is lost and must be communicated before relying on long-lived recovery;
+- later email OTP/Google conversion preserves the exact project/proposal;
+- paid/durable cross-device recovery requires permanent identity according to the later account/commerce phases.
+
+The minimum anonymous Auth/project-ownership slice is therefore a **Phase 4 dependency** before owner-RLS proposal persistence; full permanent-account UX remains later.
+
+See ADR 0006, ADR 0009 and `AUTH_AND_ONBOARDING.md`.
+
+### Map stack and provider
+
+ADR 0010 resolves the Phase 4 map architecture:
+
+- browser renderer: **Leaflet 1.9.x stable**;
+- optional Phase 4 geometry editing: `@geoman-io/leaflet-geoman-free` where the required capability exists in the free package;
+- Maa- ja Ruumiamet pre-tiled **`Kaart`** as default basemap;
+- Maa- ja Ruumiamet **`Ortofoto`** as optional mode;
+- browser tile traffic through a Krunditark-owned fixed/allow-listed proxy;
+- required source/data-age attribution visible;
+- no Google Maps production dependency;
+- public OSM/demo tiles are not the production provider;
+- canonical GIS truth remains server/PostGIS-side in EPSG:3301.
+
+KT-040 must implement and prove this contract; it must not reopen renderer/provider selection as an implementation convenience.
+
+See `docs/MAP_STACK_AND_BASEMAP.md` and ADR 0010.
 
 ### Deployment
 
@@ -118,7 +198,7 @@ Development/public preview:
 - Supabase Cloud backend;
 - Supabase Cron / `pg_cron` for scheduled source synchronization where enabled.
 
-Production DNS/hosting migration is a separate release task.
+Production hosting/DNS remains a separate explicit release decision.
 
 ## Explicitly out of scope for first MVP
 
@@ -202,19 +282,20 @@ The date on which a user runs an analysis is not automatically the source-data d
 
 ## MVP acceptance scenario
 
-Given a deterministic test data release, parcel fixture and proposal fixture:
+Given deterministic source/data fixtures, a parcel fixture and a proposal fixture:
 
-1. source sync/version fixtures represent a promoted data release;
-2. parcel is resolved from that release;
-3. proposal geometry is validated;
-4. normalized source version fixtures are selected deterministically;
-5. PostGIS calculates expected intersections/distances;
-6. rules engine creates expected findings;
-7. analysis snapshot stores exact data release, source versions, rule versions and evidence;
-8. API returns the documented contract;
-9. UI renders findings, freshness and map evidence;
-10. Gemini can be disabled and the report remains understandable;
-11. all normal tests run without public network dependency.
+1. user resolves the exact parcel through address/cadastral/map discovery;
+2. stateful proposal work is safely owned by a guest/permanent `auth.uid()`;
+3. browser proposal draft is server-validated and canonicalized to EPSG:3301;
+4. source sync/version fixtures represent a promoted data release;
+5. normalized source version fixtures are selected deterministically;
+6. PostGIS calculates expected proposal metrics/intersections/distances;
+7. rules engine creates expected findings;
+8. analysis snapshot stores exact data release, source versions, rule versions and evidence;
+9. API returns the documented contract;
+10. UI renders findings, freshness and map evidence;
+11. Gemini can be disabled and the report remains understandable;
+12. all normal tests run without public network dependency.
 
 Source-sync tests additionally prove:
 
@@ -227,13 +308,35 @@ Source-sync tests additionally prove:
 
 A separate controlled integration environment may verify live official providers.
 
+## Phase 4 readiness before continuing the vertical slice
+
+Read `docs/PHASE_4_READINESS.md` and `docs/PHASE_4_IMPLEMENTATION_GUIDE.md` before KT-038–KT-048. Map/editor tasks additionally read `docs/MAP_STACK_AND_BASEMAP.md` and ADR 0010.
+
+At minimum:
+
+- Playwright real-browser foundation exists before complex editor work;
+- Leaflet + MaRu `Kaart`/`Ortofoto` + fixed-proxy/attribution architecture is implemented according to ADR 0010;
+- map-based parcel selection is wired end to end;
+- anonymous guest ownership is available before persisted owner-RLS proposal writes;
+- intent codes are canonical and locale-independent;
+- verified structure support is separate from a valid enum value;
+- proposal browser draft and canonical persisted proposal are separate contracts;
+- server/PostGIS owns authoritative geometry validation and area/perimeter;
+- proposal save/version allocation is idempotent and concurrency-safe before KT-048 is Done;
+- real-browser Playwright coverage protects critical map/editor routing/interaction;
+- public discovery functions have bounded resource/abuse behavior;
+- the Phase 4 final integration/exit scenario passes before Phase 5 begins.
+
 ## Launch blockers
 
 MVP must not launch publicly as a decision-support product if any of these are true:
 
 - service/elevated secret is exposed to browser;
-- user RLS isolation is not verified;
-- source failure is displayed as “no restriction”;
+- user/anonymous RLS isolation is not verified;
+- source failure is displayed as “no restriction”/not found;
+- map parcel ambiguity can silently select the wrong parcel;
+- persisted proposal geometry/metrics can be trusted from client input without server validation;
+- proposal save/version retry or concurrency can create ambiguous/duplicate historical versions;
 - a failed/incomplete scheduled import can replace the previous verified dataset;
 - analyses cannot identify the exact promoted data release/source versions used;
 - production legal rules lack official source/version metadata;
@@ -241,4 +344,6 @@ MVP must not launch publicly as a decision-support product if any of these are t
 - Gemini can change deterministic finding status;
 - Gemini is required for normal source synchronization;
 - map/report lacks required source attribution;
-- current law/source review has not been completed for the supported rule matrix.
+- production map usage violates ADR 0010 / MaRu proxy/attribution requirements;
+- current law/source review has not been completed for the supported rule matrix;
+- critical user journey lacks production-like browser E2E coverage before public beta.

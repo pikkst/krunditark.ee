@@ -1,8 +1,12 @@
 # Official Data Sources — Krunditark
 
-Last reviewed for project foundation: **2026-08-15**.
+Last reviewed: **2026-08-21**.
 
 This file is a source registry, not a guarantee that every endpoint is already implemented. Each source must pass technical, semantic, licensing/terms and freshness review before being promoted to a production analysis dependency.
+
+`DATA_REFRESH_AND_CACHE.md` is the **canonical** refresh/cache/release policy. `DATA_REFRESH_AND_VERSIONING.md` is compatibility-only and must not be used as implementation authority.
+
+The Phase 4 visual basemap is governed separately by `MAP_STACK_AND_BASEMAP.md` / ADR 0010; visual map tiles are presentation infrastructure and are not analytical data-release evidence.
 
 ## 1. Source hierarchy
 
@@ -18,42 +22,46 @@ Never use a secondary blog/forum/company site as the authoritative basis for a l
 
 ## 2. Refresh architecture
 
-Krunditark does **not** normally retrieve all official source data during each user analysis.
+Krunditark does **not** normally retrieve all official source data during each user analysis, and it does **not** apply one universal monthly cadence to every source.
 
-The default source lifecycle is:
+The canonical model is source-specific:
 
 ```text
 Official source
-   -> scheduled server-side sync
-   -> staging + validation
-   -> normalized versioned dataset
-   -> change detection
-   -> candidate source version
-   -> verified/promoted data release
-   -> user analysis from Postgres/PostGIS
+   +-> live/short-cache lookup where appropriate
+   +-> lightweight daily/weekly change watch where supported
+   +-> scheduled full/incremental analytical ingestion
+       -> staging + validation
+       -> normalized versioned dataset
+       -> change detection
+       -> candidate source version
+       -> verified/promoted data release
+       -> user analysis from PostgreSQL/PostGIS
 ```
 
-Baseline policy for replicated datasets:
+Rules:
 
-- full reconciliation **monthly**;
-- source-specific manual/emergency refresh available;
-- no Gemini usage required for synchronization;
+- heavy replicated spatial sources may use monthly full reconciliation or source-supported incremental strategies;
+- cheap metadata/legal/EHR change feeds may be checked daily/weekly and trigger targeted synchronization;
+- In-AKS remains interactive/live with bounded short cache;
+- source-specific manual/emergency refresh remains available through the same safety gates;
+- no Gemini usage is required for synchronization;
 - previous known-good version remains active when a refresh fails;
 - a completed analysis records the exact data release/source versions used.
 
-See `docs/DATA_REFRESH_AND_VERSIONING.md` and ADR 0005.
+See `docs/DATA_REFRESH_AND_CACHE.md` and ADR 0005.
 
-### Allowed refresh-policy values
+### Registered refresh-policy values
 
-Use one explicitly registered policy per source/layer:
+Use one explicitly registered policy per source/layer, together with source-specific cadence/freshness metadata:
 
-- `monthly_snapshot` — full replicated snapshot/reconciliation, normally monthly;
+- `monthly_snapshot` — replicated snapshot/reconciliation class; actual source implementation may combine scheduled baseline with supported incremental/change checks as documented;
 - `weekly_metadata_check` — lightweight source-version/schema metadata check, not a full reimport;
-- `manual_verified` — source changes are detected but production interpretation/promotion requires review;
+- `manual_verified` — source changes may be detected automatically but production interpretation/promotion requires review;
 - `live_lookup` — request-time lookup only when genuinely required;
 - `no_replication` — source cannot/should not be persisted locally beyond permitted metadata/evidence.
 
-`live_lookup` is an exception, not the default.
+Do not infer cadence solely from an enum name; `source_definitions` plus `DATA_REFRESH_AND_CACHE.md` own the effective source policy.
 
 ## 3. Maa- ja Ruumiamet — cadastral data
 
@@ -76,23 +84,36 @@ Relevant capabilities include cadastral parcel WMS/WFS and other national spatia
 - parcel address/basic supported metadata;
 - authoritative geometry source for project parcel snapshot.
 
-### Planned refresh policy
+### Refresh policy
 
-`monthly_snapshot` for the normalized parcel dataset when bulk/efficient replication is technically and contractually suitable.
+The current Phase 3 resolver uses a bounded server-side official lookup. Phase 5 may introduce versioned replicated parcel data where bulk/efficient replication is technically and contractually appropriate.
 
-During initial adapter development, an explicitly bounded server-side lookup may be used before the national snapshot pipeline is operational, but production architecture should converge on versioned replicated data rather than per-analysis WFS fan-out.
+For replicated parcel data, use source-specific snapshot/incremental policy from `DATA_REFRESH_AND_CACHE.md`; do not perform per-analysis national WFS fan-out.
 
 Parcel data freshness must be shown in analyses. A selected project does not prove parcel ownership.
 
 ### Adapter status
 
-**MVP required — implement and verify exact WFS service/layer names during KT-031.**
+**KT-033 implemented and verified for the current cadastral lookup path.**
 
-Do not hardcode a layer name based only on documentation text. Retrieve capabilities in a controlled research/integration step and add deterministic fixture tests.
+The current approved source/layer/normalization behavior lives in the adapter/code/tests. If the source endpoint/layer changes, re-check current capabilities and update fixtures/contract documentation rather than silently repointing the same source identity.
+
+Phase 5 national replication/source-release work is separate from the Phase 3 lookup adapter.
 
 ### Attribution
 
 MaRu public service guidance requires source attribution in products/printouts. Preserve source attribution in map/report UI.
+
+### Phase 4 visual basemap — separate presentation source
+
+ADR 0010 selects Maa- ja Ruumiamet pre-tiled basemap services for Phase 4 UI:
+
+- `Kaart` — default;
+- `Ortofoto` — optional.
+
+These tiles are **not** analytical parcel/restriction evidence and do not participate in the promoted analytical data release merely because they are visible behind overlays.
+
+Browser tile traffic uses a Krunditark-owned fixed/allow-listed proxy. Attribution/data age remains visible. See `MAP_STACK_AND_BASEMAP.md` for exact Phase 4 proxy, operational and degraded-state requirements.
 
 ### In-AKS — integrated address search
 
@@ -144,7 +165,7 @@ The official MaRu documents currently disagree on these paths. The newer MaRu ch
 
 **Legacy/manual discrepancy — `liik=3` / `EHITIS`:**
 
-The official In-AKS developer manual v3.3.0 section 7.2.15 lists Gazetteer `liik` values as `1, 2, B, 4, E`, but the same manual contains response examples with `liik: "3"` and `liikVal: "EHITIS"`. The committed raw fixtures captured from both production (`aks.geoportaal.ee`) and test (`aks-test.geoportaal.ee`) endpoints on 2026-08-19 only emit `liik: "E"` / `EHITISHOONE` for buildings. The parser accepts only the observed live contract (`1, 2, B, 4, E`). The `3/EHITIS` examples are treated as stale/manual legacy examples. If `3/EHITIS` reappears in production, it must be resolved via a controlled rule promotion rather than silent acceptance.
+The official In-AKS developer manual v3.3.0 section 7.2.15 lists Gazetteer `liik` values as `1, 2, B, 4, E`, but the same manual contains response examples with `liik: "3"` and `liikVal: "EHITIS"`. The committed raw fixtures captured from both production (`aks.geoportaal.ee`) and test (`aks-test.geoportaal.ee`) endpoints on 2026-08-19 only emit `liik: "E"` / `EHITISHOONE` for buildings. The parser accepts only the observed live contract (`1, 2, B, 4, E`). The `3/EHITIS` examples are treated as stale/manual legacy examples. If `3/EHITIS` reappears in production, it must be resolved through a controlled contract update rather than silent acceptance.
 
 **Coordinate systems in response:**
 
@@ -202,7 +223,7 @@ Source class: **Class C — Interactive official lookup**.
 **Cache-key isolation:**
 
 - Cache keys must include `{environment}:{contractVersion}:{queryType}:{queryHash}:{filtersHash}`.
-- `queryHash` must be a non-reversible hash (e.g., SHA-256 or HMAC) of the normalized query. The actual hashing implementation is deferred to KT-032; KT-031 locks only the policy that raw queries must not appear in cache keys.
+- `queryHash` must be a non-reversible hash (e.g., SHA-256 or HMAC) of the normalized query. Raw queries must not appear in cache keys.
 - Production (`aks.geoportaal.ee`) and test (`aks-test.geoportaal.ee`) entries must never share cache keys.
 - Contract version changes must invalidate prior cache namespaces.
 
@@ -250,22 +271,22 @@ The In-AKS provider contract defines object status (`olek`) as a finite set:
 **Downstream rules:**
 
 - Non-`K` results surface a `NON_CURRENT_OBJECT` warning in the parser result.
-- The address-search/parcel-resolution layer (KT-032) must respect this policy and not auto-select non-`K` candidates.
+- The address-search/parcel-resolution layer must respect this policy and not auto-select non-`K` candidates.
 - The exact UI treatment of `O`/`V`/`T` is a product decision, but the parser contract must preserve the status and warning deterministically.
 
 #### Adapter status
 
-**KT-031 locked — contract research and normalizer implemented.**
+**KT-031 contract locked; KT-032/KT-034 integration paths implemented.**
 
 - Production/test endpoints documented.
 - Response fields/object identifiers locked in `src/lib/inaks-adapter/types.ts`.
 - Object identity uses `ads_oid` (not `adr_id`) for canonical `id` and `sourceObjectId`.
 - `poid` treated as POI data; source authority fixed as `Maa- ja Ruumiamet`.
-- Normalizer and deterministic fixtures implemented in `src/lib/inaks-adapter/normalizer.test.ts`.
+- Normalizer and deterministic fixtures implemented.
 - Raw upstream fixtures captured from both production and test endpoints (`adrid=2105921`, 2026-08-19) with metadata.
 - Terms/attribution documented above.
 - Client vs Edge proxy decision: Edge Function only.
-- Rate/cache policy: short-lived cache (Class C) with upstream limits enforced.
+- Rate/cache policy: short-lived cache (Class C) with upstream limits/budget requirements.
 - Ambiguous behavior: explicit user selection required.
 - Canonical cadastral-ID validation reused from `src/domain/parcel`.
 - Coordinate domain validation enforces WGS84 lon/lat bounds and Estonia EPSG:3301 bounds.
@@ -289,11 +310,11 @@ The official page exposes restriction-zone WMS/WFS access and explains that the 
 
 ### Planned refresh policy
 
-`monthly_snapshot`.
+Class A replicated spatial data: monthly baseline **or** source-supported incremental reconciliation according to the source definition, with optional cheaper metadata/schema watch.
 
 Restriction geometries are a core candidate for local PostGIS replication because repeated request-time national WFS calls would directly affect latency and availability.
 
-A failed monthly refresh must retain the previous verified restriction dataset and mark freshness accordingly. An incomplete fetch must never be interpreted as deletion of missing restrictions.
+A failed refresh must retain the previous verified restriction dataset and mark freshness accordingly. An incomplete fetch must never be interpreted as deletion of missing restrictions.
 
 ### Important limitation
 
@@ -338,9 +359,7 @@ The exact WFS URL/layers must be read from current official capabilities/guidanc
 
 ### Planned refresh policy
 
-`monthly_snapshot` for supported structured planning records/geometries.
-
-If PLANIS exposes inexpensive update/version metadata, a future `weekly_metadata_check` may flag an earlier manual refresh without doing a full weekly import.
+Class A replicated/indexed planning data: monthly baseline/full reconciliation plus cheaper metadata/change detection where practical; an earlier emergency/targeted sync may run when a verified change is detected.
 
 Textual plan documents require separate parsing/verification policy and must not be automatically interpreted as complete legal compliance merely because the plan geometry was synchronized.
 
@@ -370,9 +389,9 @@ The e-ehitus API portal currently lists multiple services including public/open-
 
 ### Planned refresh policy
 
-To be decided during KT-120 after endpoint/access/terms analysis.
+To be finalized during KT-120 after endpoint/access/terms analysis.
 
-Preferred outcome for stable public building facts is `monthly_snapshot` or another documented incremental synchronization strategy. Truly request-specific/current proceeding data may remain `live_lookup` if justified.
+Current architecture preference is a source-supported incremental changed-after cursor where approved, with periodic reconciliation. Truly request-specific/current proceeding data may remain `live_lookup` if justified.
 
 ### Implementation rule
 
@@ -415,7 +434,7 @@ Selected public layers relevant to construction feasibility, for example where l
 
 ### Planned refresh policy
 
-`monthly_snapshot` per explicitly approved public layer where source terms and dataset size permit replication.
+Class A replicated/indexed data per explicitly approved public layer where source terms and dataset size permit replication: scheduled baseline/full reconciliation with optional source-health/metadata checks and emergency refresh when justified.
 
 Each layer is versioned independently enough to identify which source version contributed to an analysis. Large unexplained record-count/geometry diffs must be quarantined instead of automatically promoted.
 
@@ -464,7 +483,7 @@ Official Muinsuskaitse application guidance:
 
 To be selected during KT-053.
 
-Prefer `monthly_snapshot` if an official machine-readable dataset may lawfully and reliably be replicated. Otherwise use a documented controlled `live_lookup`/manual verification strategy.
+Prefer a replicated snapshot/incremental strategy if an official machine-readable dataset may lawfully and reliably be replicated. Otherwise use a documented controlled `live_lookup`/manual verification strategy.
 
 ### Adapter status
 
@@ -488,7 +507,7 @@ Official guidance explains, among other things, that a new access from a state r
 
 ### Planned refresh policy
 
-Select exact machine-readable road sources during KT-054. Prefer `monthly_snapshot` for stable road/protection-zone geometry and source metadata when permitted.
+Select exact machine-readable road sources during KT-054. Prefer replicated scheduled/incremental road/protection-zone geometry and source metadata when permitted.
 
 ### Important semantic rule
 
@@ -515,26 +534,30 @@ Key legal families expected to matter include, depending on supported rule scope
 - relevant implementing regulations;
 - relevant local-government legislation/plan decisions.
 
-### Refresh policy
+### Refresh/change-watch policy
 
-Legal-source inventory/change detection uses a **monthly baseline review/sync** with `manual_verified` production semantics.
+Riigi Teataja is a Class B + Class D source:
 
-A legal source change may be synchronized and diffed automatically, but it does not automatically change a production rule.
+- use a cheap **daily version/hash/effective-date watch** where the current official API/metadata path supports it;
+- fetch/reconcile changed acts when a change candidate is detected;
+- run periodic broader reconciliation as a safety net;
+- production rule semantics remain `manual_verified` and cannot be automatically promoted by the watcher.
 
 Pipeline:
 
 ```text
-monthly legal source refresh
-   -> identify current/effective document version
-   -> hash/diff relevant official content/metadata
-   -> legal_change_candidate
-   -> identify potentially affected rules
-   -> admin/legal interpretation review
-   -> tests + new rule version
-   -> verified promotion
+daily legal version/hash/effective watch
+   -> unchanged: no rule action
+   -> changed/new effective document
+      -> fetch/record changed official source version
+      -> legal_change_candidate
+      -> identify potentially affected rules
+      -> admin/legal interpretation review
+      -> tests + new rule version
+      -> verified promotion
 ```
 
-A major known legal change may trigger a manual/emergency refresh before the next monthly run.
+A watch failure is **not** “no legal change”. It must be observable/retryable and must not silently bless stale rule coverage.
 
 Gemini may later summarize a detected diff for an administrator, but Gemini output cannot verify or promote a legal rule.
 
@@ -598,7 +621,7 @@ Static network geometry may later be suitable for scheduled snapshotting, while 
 
 ## 13. Source registration template
 
-Every implemented data source/layer must have a record like:
+Every implemented analytical data source/layer must have a record like:
 
 ```yaml
 id: maru.cadastre.parcels
@@ -622,7 +645,9 @@ semantic_scope:
 failure_impact: critical
 ```
 
-Exact thresholds are source-specific and must be intentionally chosen during implementation.
+The values above are illustrative for the named source class, not universal defaults. Exact cadence/thresholds are source-specific and must be intentionally chosen during implementation.
+
+Visual Phase 4 basemap tiles follow `MAP_STACK_AND_BASEMAP.md` and are not forced into this analytical source-release registration shape.
 
 Do not leave semantic scope or refresh behavior implicit.
 
@@ -712,5 +737,7 @@ It should:
 3. run PostGIS + deterministic rules;
 4. store exact release/rule provenance;
 5. optionally call Gemini with the compact structured result for explanation.
+
+Interactive discovery (for example In-AKS) and visual basemap tiles follow their own bounded source contracts and are not evidence that all analytical sources were checked live.
 
 This is the default production contract.

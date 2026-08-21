@@ -1,6 +1,10 @@
 # Database Schema — Krunditark
 
+Last schema review: **2026-08-21**
+
 This document defines the intended PostgreSQL/PostGIS data model. Exact migration syntax may evolve, but relationships, provenance, versioning and security semantics are requirements.
+
+For Phase 4 proposal state/persistence also read ADR 0009, `PHASE_4_READINESS.md`, `PHASE_4_IMPLEMENTATION_GUIDE.md` and issue #53.
 
 ## 1. General conventions
 
@@ -17,6 +21,7 @@ This document defines the intended PostgreSQL/PostGIS data model. Exact migratio
 - Completed analyses are immutable snapshots from the application perspective.
 - Official replicated datasets are versioned; never model them as one silently overwritten “current” copy.
 - A promoted data release is an immutable composition of exact source dataset versions.
+- Applied migrations are never rewritten to retrofit a later Phase 4 requirement; add a forward migration.
 
 ## 2. Logical schemas
 
@@ -51,6 +56,8 @@ RLS:
 - role cannot be updated through ordinary client policy;
 - admin changes only server-side.
 
+Supabase anonymous Auth users use the `authenticated` database role. Product language “guest/anonymous” must not be confused with PostgreSQL/Supabase `anon` role.
+
 ## 4. Projects and proposals
 
 ### `public.projects`
@@ -58,7 +65,7 @@ RLS:
 | Column                       | Type                 | Notes                                                                             |
 | ---------------------------- | -------------------- | --------------------------------------------------------------------------------- |
 | `id`                         | uuid PK              |                                                                                   |
-| `user_id`                    | uuid FK auth.users   | owner                                                                             |
+| `user_id`                    | uuid FK auth.users   | owner; may be a Supabase anonymous Auth identity during Phase 4                   |
 | `name`                       | text                 | user label                                                                        |
 | `cadastral_id`               | text                 | 12-digit Estonian kadastritunnus (normalized, no separators)                      |
 | `intent_code`                | text/enum nullable   | stable locale-independent user intent (KT-024)                                    |
@@ -74,7 +81,8 @@ Indexes:
 
 RLS:
 
-- owner CRUD only;
+- owner CRUD only through current `auth.uid()`;
+- Supabase anonymous Auth owner and permanent owner use the same owner-RLS principle;
 - admin access through verified server path only.
 
 #### Intent codes
@@ -122,6 +130,27 @@ Constraints:
 
 GiST index on `footprint` if proposal-spatial queries justify it.
 
+#### Phase 4 save/version allocation requirement
+
+The existing KT-013 migration already provides canonical EPSG:3301 geometry, server-computed area, owner-through-project RLS and `UNIQUE (project_id, version)`.
+
+That uniqueness constraint is necessary but **not sufficient** for KT-048 retry/concurrency semantics. A naïve `SELECT max(version) + 1` followed by an unrelated insert can race, and a retry after a committed response is lost can create a second semantic version.
+
+KT-048 / issue #53 must implement one explicit transaction-safe mechanism that provides the API semantics in `API_SPECIFICATION.md`, for example:
+
+- project-scoped transactional/advisory locking plus persisted idempotency key/request hash; or
+- an equivalent atomic version allocator + idempotency record/constraint.
+
+Required properties:
+
+- same owner/key/same semantic payload reuses the same save outcome;
+- same owner/key/different semantic payload conflicts safely;
+- concurrent saves do not overwrite or allocate an ambiguous duplicate version;
+- failed transaction leaves no partial proposal version;
+- terminal-analysis referenced proposal history cannot be mutated.
+
+The exact persistence columns/table/RPC are deliberately **not guessed in this document before KT-048 implementation**. If the selected mechanism requires schema support, add a new forward migration; do not edit `20260815000002_create_project_proposal_model.sql` in place.
+
 ## 5. Official source registry and synchronization
 
 ### `private.source_definitions`
@@ -151,6 +180,8 @@ One stable row per approved source/layer contract.
 | `updated_at`               | timestamptz          |                                                                                   |
 
 Changing a source ID to point to a semantically different dataset is forbidden. Create a new source definition/versioned migration instead.
+
+The `refresh_policy` enum is not a universal cadence guarantee. `refresh_interval`, source-specific change-watch state and `DATA_REFRESH_AND_CACHE.md` define effective behavior.
 
 ### `private.source_sync_runs`
 
@@ -567,17 +598,26 @@ Never log credentials or auth tokens.
 
 ## 14. Idempotency and sync locking
 
-### `private.idempotency_keys`
+### Application idempotency
 
-For expensive analysis orchestration where needed:
-
-- scope/user;
-- key;
-- request hash;
-- result analysis ID;
-- created/expires timestamps.
+For expensive/state-changing operations where retries can duplicate semantic work, persist or otherwise atomically enforce a scoped idempotency key + request/semantic hash + result identity.
 
 Same idempotency key with different request hash must be rejected.
+
+Current examples:
+
+- analysis orchestration;
+- **KT-048 proposal save/version creation**.
+
+The generic conceptual model may include:
+
+- scope/user/project;
+- key;
+- request/semantic hash;
+- result resource ID;
+- created/expires timestamps.
+
+Do not assume one shared table is automatically correct for every domain operation; the selected Phase 4 proposal mechanism is finalized in KT-048 / issue #53 and, if schema support is needed, must use a forward migration.
 
 ### Source synchronization
 
@@ -593,18 +633,20 @@ A duplicate scheduled invocation must not create duplicate promoted versions or 
 
 ## 15. RLS/exposure matrix
 
-| Resource                     |               anon |                authenticated owner | admin/server path |
-| ---------------------------- | -----------------: | ---------------------------------: | ----------------: |
-| profiles                     |                 no |                                own |               yes |
-| projects                     |                 no |                           own CRUD |               yes |
-| proposals                    |                 no |                    own via project |               yes |
-| analysis read model          |  no/limited future |                                own |               yes |
-| geo source versions          |          no direct |                          no direct |            server |
-| rules                        | no direct mutation | read only if intentionally exposed |            server |
-| source definitions/sync runs |                 no |                                 no |      server/admin |
-| data releases                | no direct mutation |     read metadata only if explicit |      server/admin |
-| legal change candidates      |                 no |                                 no |      server/admin |
-| audit                        |                 no |                                 no |      server/admin |
+In this table **public/unauthenticated** means no Supabase Auth session. A Supabase anonymous Auth identity uses the `authenticated` role and belongs in the authenticated-owner column.
+
+| Resource                     | public/unauthenticated | authenticated owner (anonymous or permanent) | admin/server path |
+| ---------------------------- | ---------------------: | --------------------------------------------: | ----------------: |
+| profiles                     |                     no |                                           own |               yes |
+| projects                     |                     no |                                      own CRUD |               yes |
+| proposals                    |                     no |                               own via project |               yes |
+| analysis read model          |      no/limited future |                                           own |               yes |
+| geo source versions          |              no direct |                                     no direct |            server |
+| rules                        |     no direct mutation |                read only if intentionally exposed |            server |
+| source definitions/sync runs |                     no |                                            no |      server/admin |
+| data releases                |     no direct mutation |                read metadata only if explicit |      server/admin |
+| legal change candidates      |                     no |                                            no |      server/admin |
+| audit                        |                     no |                                            no |      server/admin |
 
 Public government data being public does **not** mean internal normalized/version tables should be publicly writable/readable through Supabase Data API.
 
@@ -645,4 +687,4 @@ Rules:
 - raw source payloads may use shorter retention when hashes + normalized facts provide sufficient permitted provenance;
 - source terms/privacy rules always override convenience.
 
-See `docs/DATA_REFRESH_AND_VERSIONING.md`, `SECURITY.md` and `docs/LEGAL_AND_COMPLIANCE.md`.
+See `docs/DATA_REFRESH_AND_CACHE.md`, `docs/SECURITY_PRIVACY.md` and `docs/LEGAL_AND_COMPLIANCE.md`.

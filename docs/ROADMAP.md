@@ -1,18 +1,24 @@
 # Roadmap — Krunditark
 
-Last comprehensive product review: **2026-08-15**
+Last comprehensive product review: **2026-08-21**
 
 The roadmap covers the full Estonia-first product, not only MVP. `TASKS.md` is the current ordered engineering backlog; `PRODUCT_EXPANSION_BACKLOG.md` holds post-core initiatives until they are promoted.
+
+For the current transition from completed parcel discovery into map/proposal work, `PHASE_4_READINESS.md` is the cross-cutting implementation gate.
 
 ## Guiding sequence
 
 Krunditark should grow in this order:
 
 ```text
-trusted source/data foundation
+trusted product/security/data foundation
  -> easy parcel discovery
- -> exact proposal scenario
+ -> guest-owned exact proposal scenario
+ -> versioned official-data platform
  -> deterministic Ehituspass
+ -> result UX + scenario comparison
+ -> optional Gemini explanation
+ -> permanent accounts/recovery/localization
  -> paid consumer product
  -> project iteration/monitoring
  -> pre-purchase product
@@ -37,9 +43,8 @@ Deliverables already specified in documentation:
 - user journeys/personas;
 - architecture;
 - Supabase/PostGIS model;
-- source registry;
-- scheduled/versioned data releases;
-- GIS/rules engine;
+- source registry/data-release foundation;
+- GIS/rules design;
 - Gemini safety boundary;
 - security/privacy;
 - guest-first auth;
@@ -50,77 +55,101 @@ Deliverables already specified in documentation:
 
 Exit:
 
-- no unresolved contradiction in source-of-truth docs;
-- active coding work can reference exact specs.
+- no unresolved contradiction in source-of-truth docs for the next active implementation phase;
+- active coding work can reference exact specs and explicit open questions.
+
+Phase 4 readiness synchronization is documented in `PHASE_4_READINESS.md` and ADR 0009.
 
 ---
 
 # Stage 1 — Deployable technical skeleton
 
-Goal: working public preview with no fake backend.
+Goal: working public preview with no fake privileged backend.
 
-Deliverables:
+Delivered foundation includes:
 
 - React + TypeScript + Vite;
 - design-system foundation;
 - i18n foundation with ET canonical;
-- CI;
+- GitHub Actions CI;
 - GitHub Pages preview;
-- Supabase local/cloud environments;
-- PostGIS;
+- Supabase local/cloud environment contract;
+- PostgreSQL/PostGIS;
 - migrations/RLS tests;
-- Edge Function contract foundation;
-- observability/request IDs.
+- Edge Function/source-adapter foundations.
+
+Still-required repository governance such as protected `main`/required CI is tracked independently and must not be assumed merely because the workflow exists.
 
 Exit:
 
 - clean clone -> tests/build -> deploy works;
 - no secret in browser;
-- initial design renders responsively.
+- initial design renders responsively;
+- database/RLS foundation can be rebuilt from migrations.
 
 ---
 
 # Stage 2 — Parcel discovery and free overview
 
-Goal: a non-expert finds the correct parcel without knowing a cadastral identifier.
+Goal: a non-expert finds the correct parcel without knowing a cadastral identifier and receives useful free context.
 
-Deliverables:
+Delivered/active foundation:
 
-- In-AKS address autocomplete/integration;
+- In-AKS address integration;
 - cadastral ID search;
-- map parcel selection;
-- MaRu cadastral adapter/data strategy;
+- MaRu cadastral resolver/data strategy;
 - parcel domain model;
 - source provenance/freshness;
-- map boundary;
+- explicit not-found vs source-unavailable semantics;
+- parcel disambiguation;
 - free parcel overview;
-- not-found vs source-unavailable behavior.
+- server-side map point parcel-resolution capability.
+
+The **frontend map-selection interaction** (`Vali krunt kaardilt` -> MapLibre -> explicit click -> resolver -> candidate confirmation) is completed with the Stage 3/Phase 4 map shell because the MapLibre UI did not exist in the earlier parcel-discovery implementation. It is not optional/future scope.
 
 Product milestone:
 
-> User can type an address, select the correct cadastral unit, and see why Krunditark may be useful.
+> User can type an address or cadastral ID, select the correct cadastral unit, and see why Krunditark may be useful; Phase 4 adds the equivalent map-only entry path.
 
 ---
 
 # Stage 3 — Guest-first proposal experience
 
-Goal: homeowner can model a real idea before registering.
+Goal: homeowner can model a real idea before permanent registration.
+
+This maps to `TASKS.md` Phase 4, including its readiness prerequisites KT-038/KT-039.
 
 Deliverables:
 
-- Supabase anonymous Auth when project state becomes necessary;
-- `Mida soovid selle krundiga teha?` intent step;
-- supported structure cards;
+- real-browser Playwright foundation for map/editor routing/interaction;
+- MapLibre shell with verified/development-safe source policy;
+- map parcel selection end to end;
+- Supabase anonymous Auth **when stateful project ownership becomes necessary**;
+- owner-scoped guest project through normal RLS;
+- `Mida soovid selle krundiga teha?` intent step using canonical codes;
+- supported structure cards backed by an explicitly verified support matrix;
 - beginner dimension templates;
-- drag/rotate building footprint;
+- drag/rotate/numeric-resize building footprint;
 - advanced polygon mode as secondary;
-- server geometry validation;
+- explicit browser-draft vs canonical-proposal boundary;
+- server geometry validation/canonicalization to EPSG:3301;
+- authoritative area/perimeter computation;
 - proposal version persistence;
-- mobile map/bottom-sheet workflow.
+- mobile map/bottom-sheet workflow;
+- state preservation across locale/navigation.
+
+### Stage 3 gates
+
+- **OQ-003 / issue #50** — production basemap/style/orthophoto provider must be verified before the map shell is called production-ready.
+- **OQ-005 / issue #51** — a valid structure enum is not a verified legal product scenario; resolve the first scenario matrix before cards are marked fully supported.
+- anonymous technical identity is not a permanent-account signup wall;
+- owner-RLS proposal persistence must not precede safe guest owner identity;
+- Playwright begins here rather than waiting until final beta.
 
 Exit:
 
-- ordinary user can place a sauna/house without understanding GIS tools.
+- ordinary user can find/confirm a parcel by search or map, select `build`, place a supported template without GIS expertise and persist a canonical owner-scoped proposal version without creating a permanent account;
+- browser preview state is never treated as authoritative metric/legal geometry.
 
 ---
 
@@ -132,7 +161,7 @@ Deliverables:
 
 - source registry;
 - staging/normalization;
-- monthly heavy spatial reconciliation;
+- heavy spatial reconciliation according to source policy (monthly baseline where appropriate, not universal);
 - lightweight source-specific change watches;
 - dataset versions;
 - composite data releases;
@@ -170,6 +199,8 @@ Deliverables:
 - next-action engine;
 - deterministic text fallback.
 
+The Phase 4 verified scenario-support matrix defines which product scenarios may enter this stage; Stage 5/KT-072 re-verifies and deepens that matrix into exact deterministic legal/process rule semantics.
+
 Exit:
 
 - same frozen inputs produce same findings;
@@ -190,12 +221,14 @@ Deliverables:
 - unknown/stale UI;
 - ordered next-step plan;
 - printable view;
-- duplicate/move proposal;
+- duplicate/move persisted proposal into a new scenario/version;
 - A/B variant comparison.
 
 Strategic milestone:
 
 > Krunditark is now more than a chatbot: user can see exactly why one placement differs from another.
+
+Phase 4 may create reusable version/draft primitives, but it does not claim full variant comparison before this stage.
 
 ---
 
@@ -220,26 +253,29 @@ Exit:
 
 ---
 
-# Stage 8 — Accounts, localization and recovery
+# Stage 8 — Permanent accounts, localization and recovery
 
-Goal: turn guest work into durable product use.
+Goal: turn already-safe guest-owned work into durable account use.
+
+The minimum anonymous Auth/project ownership required for proposal persistence is **already part of Stage 3**. This stage adds permanent identity and lifecycle hardening; it must not move anonymous ownership back behind a permanent-signup wall.
 
 Deliverables:
 
+- anonymous lifecycle/retention hardening;
 - anonymous -> permanent account conversion;
 - email OTP;
 - Google sign-in;
-- custom SMTP;
-- account/order/project pages;
+- custom SMTP before public email Auth;
+- account/project/history pages;
 - ET/RU/EN critical-flow localization;
 - reviewed glossary;
-- project deletion/privacy;
+- project/account deletion/privacy;
 - analysis history;
 - share-ready architecture.
 
 Exit:
 
-- user can start without identity and later recover the exact project from another device.
+- user can start without permanent identity and later recover the exact project from another device after conversion.
 
 ---
 
@@ -265,7 +301,7 @@ Deliverables:
 - sample report;
 - commercial terms/privacy;
 - source/rule/legal launch review;
-- Cloudflare/custom-domain production decision;
+- production hosting/custom-domain decision;
 - accessibility/E2E/security gate.
 
 Pricing hypotheses live in `BUSINESS_MODEL_AND_PRICING.md`, not in domain constants.
@@ -303,7 +339,7 @@ Goal: solve pre-purchase decision before exact house design exists.
 
 Deliverables:
 
-- dedicated intent/flow;
+- dedicated `pre_purchase` intent/flow;
 - parcel-level supported risk/context report;
 - planning/restrictions/environment/heritage/road;
 - EHR existing-building context where supported;
@@ -598,7 +634,7 @@ Every new stage must preserve:
 - immutable historical reports;
 - source freshness;
 - server-side secrets;
-- payment/auth idempotency;
+- safe guest/permanent ownership and later payment idempotency;
 - ET/RU/EN architecture;
 - accessible non-map result;
 - neutral findings independent from advertising/partners;

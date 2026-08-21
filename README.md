@@ -30,18 +30,21 @@ The long-term differentiation is scenario modeling, variant comparison, project 
 
 ## Primary user journeys
 
-Krunditark should support different decisions on the same parcel:
+Krunditark should support different decisions on the same parcel.
 
 ### I want to build
 
 1. Search by **address, cadastral ID or map**.
 2. Select the exact parcel.
-3. Choose what you want to build.
-4. Start from a simple footprint template or enter dimensions.
-5. Drag/rotate the structure on the parcel.
-6. Run Ehituspass.
-7. See conflicts, conditions, unknowns, sources and next steps.
-8. Duplicate/move the proposal and compare variants.
+3. See the free parcel overview.
+4. Choose the `build` intent.
+5. When stateful proposal work begins, create/reuse an anonymous Supabase Auth identity and owner-scoped guest project without showing a permanent-signup wall.
+6. Start from a simple footprint template or enter dimensions.
+7. Drag/rotate/resize the structure on the parcel.
+8. Validate/canonicalize the proposal server-side and persist a proposal version.
+9. Run Ehituspass when the deterministic analysis phases are available.
+10. See conflicts, conditions, unknowns, sources and next steps.
+11. Duplicate/move the proposal and compare variants in the later variant workflow.
 
 ### I am considering buying land
 
@@ -71,7 +74,9 @@ See [`docs/USER_JOURNEYS_AND_PERSONAS.md`](./docs/USER_JOURNEYS_AND_PERSONAS.md)
 
 - Consumer landing starts with **`Sisesta aadress või katastritunnus`**.
 - A cadastral ID is not required as the only entry method.
-- No forced account before the user sees meaningful parcel/proposal value.
+- `Vali krunt kaardilt` is a real parcel-discovery path, not a decorative CTA.
+- No forced permanent account before the user sees meaningful parcel/proposal value.
+- Anonymous Supabase Auth may be created invisibly when stateful project ownership becomes necessary.
 - Beginner mode uses building templates + drag/rotate rather than requiring GIS polygon drawing.
 - Every material result shows source/freshness.
 - Every report ends with next actions.
@@ -80,20 +85,21 @@ See [`docs/USER_JOURNEYS_AND_PERSONAS.md`](./docs/USER_JOURNEYS_AND_PERSONAS.md)
 - Map findings always have textual equivalents.
 - Parcel selection is not proof of ownership.
 
-See [`docs/UX_UI_SPEC.md`](./docs/UX_UI_SPEC.md).
+See [`docs/UX_UI_SPEC.md`](./docs/UX_UI_SPEC.md) and [`docs/PHASE_4_READINESS.md`](./docs/PHASE_4_READINESS.md).
 
 ## Authentication
 
 Krunditark uses a **guest-first** onboarding model.
 
-- Supabase anonymous Auth may own temporary guest projects.
+- Public parcel discovery/free overview does not require permanent identity.
+- Supabase anonymous Auth owns temporary guest projects once stateful proposal work begins.
 - Consumer can later link/convert to permanent identity.
 - Primary permanent methods: email OTP and Google.
 - No password required by default.
 - Production email Auth requires custom SMTP.
 - Account conversion must preserve the exact parcel/proposal.
 
-See [`docs/AUTH_AND_ONBOARDING.md`](./docs/AUTH_AND_ONBOARDING.md) and ADR 0006.
+See [`docs/AUTH_AND_ONBOARDING.md`](./docs/AUTH_AND_ONBOARDING.md), ADR 0006 and ADR 0009.
 
 ## Languages
 
@@ -142,11 +148,13 @@ Current direction:
 - React
 - TypeScript strict mode
 - Vite
-- MapLibre GL JS
+- MapLibre GL JS for Phase 4 map/editor work
 - React Router
-- TanStack Query
-- Zod at external boundaries
+- typed Krunditark API clients
+- explicit runtime validation at external trust boundaries
 - i18n architecture from first UI
+
+TanStack Query and Zod are **not mandatory dependencies**. ADR 0009 clarifies ADR 0001: runtime validation is mandatory, but the implementation may use explicit deterministic parsers/validators; TanStack Query is introduced only when shared server-state/cache complexity justifies it. Do not create duplicate cache/validation ownership merely to match an old stack list.
 
 ### Backend
 
@@ -174,11 +182,14 @@ Current direction:
 - development/preview: GitHub Pages (repository path)
   - deploy workflow: `.github/workflows/deploy-pages.yml`
   - `VITE_BASE_PATH` configures repository-path asset loading
-- production: Cloudflare Pages
-  - custom domain: `krunditark.ee`
-  - SPA fallback routing via `public/_redirects`
+- production: Cloudflare-compatible static hosting direction; final production hosting remains subject to the explicit production decision/open question
+- custom domain: `krunditark.ee`
 - domain registration: Zone
 - backend: Supabase unless an ADR changes it
+
+### Phase 4 map-provider gate
+
+MapLibre is fixed, but the production basemap/style/orthophoto provider is not. Resolve OQ-003 / issue #50 before KT-040 is considered production-ready. A temporary development tile source must not silently become the production dependency.
 
 ## Data refresh architecture
 
@@ -216,6 +227,8 @@ Examples:
 Routine sync uses **zero Gemini tokens**.
 
 Failed sync never erases the last known-good verified dataset.
+
+`docs/DATA_REFRESH_AND_VERSIONING.md` is compatibility-only and must not be used as the canonical implementation policy.
 
 ## Official-source baseline
 
@@ -261,9 +274,11 @@ Gemini never becomes the legal/geospatial authority.
 
 Official Estonian spatial datasets commonly use L-EST97 / **EPSG:3301**.
 
+- Canonical persisted parcel/proposal/constraint geometry is EPSG:3301.
 - Authoritative metric distance/area/intersection calculations run server-side/PostGIS in an appropriate metric CRS.
-- Browser display/API GeoJSON may use EPSG:4326/3857 as documented.
+- Browser display/API GeoJSON may use EPSG:4326 as documented.
 - Never calculate material legal distances with naive lat/lon degree arithmetic.
+- Client-computed proposal area/perimeter are previews only; server/PostGIS values are authoritative.
 
 ## Security rule
 
@@ -278,6 +293,8 @@ Server secrets include, as applicable:
 - external provider credentials;
 - payment provider/webhook secrets;
 - SMTP credentials.
+
+Owner-scoped guest persistence uses the anonymous user's own JWT/RLS path; do not use a service-role/shared identity to bypass ownership.
 
 ## Historical reproducibility
 
@@ -304,6 +321,7 @@ Implementation agents must read [`AGENTS.md`](./AGENTS.md) first.
 | ---------------------------------------------------------------------------- | ------------------------------------------------------ |
 | [`AGENTS.md`](./AGENTS.md)                                                   | Non-negotiable coding-agent contract                   |
 | [`TASKS.md`](./TASKS.md)                                                     | Ordered active engineering backlog                     |
+| [`docs/PHASE_4_READINESS.md`](./docs/PHASE_4_READINESS.md)                   | Phase 0–3 -> Phase 4 cross-cutting implementation gate |
 | [`docs/PRODUCT_REQUIREMENTS.md`](./docs/PRODUCT_REQUIREMENTS.md)             | Full product requirements                              |
 | [`docs/USER_JOURNEYS_AND_PERSONAS.md`](./docs/USER_JOURNEYS_AND_PERSONAS.md) | Real users, problems and end-to-end journeys           |
 | [`docs/UX_UI_SPEC.md`](./docs/UX_UI_SPEC.md)                                 | Landing, map, report, mobile, Pro and design-system UX |
@@ -347,23 +365,33 @@ Implementation agents must read [`AGENTS.md`](./AGENTS.md) first.
 | [`docs/OPEN_QUESTIONS.md`](./docs/OPEN_QUESTIONS.md)             | Genuine unresolved decisions only           |
 | [`docs/adr/`](./docs/adr/)                                       | Accepted architecture/product decisions     |
 
+Important Phase 4 ADRs:
+
+- ADR 0001 — base technology stack;
+- ADR 0006 — guest-first authentication;
+- ADR 0008 — multilingual product;
+- ADR 0009 — client/server state, query and validation boundaries.
+
 ## Current project status
 
-The repository has initialized the **React/TypeScript/Vite frontend foundation** (KT-001), added the **formatting/lint/test foundation** (KT-002), configured **GitHub Actions CI** (KT-003), **GitHub Pages preview** (KT-004), the **environment contract** (KT-005), and the **i18n architecture** (KT-006).
+Phase 0–3 foundations are implemented through the free parcel overview.
 
-Implemented:
+Current verified foundation includes:
 
-- React 18 + TypeScript strict + Vite 6 at repository root.
-- `src/` directory structure aligned with `ARCHITECTURE.md`.
-- Minimal Estonian application shell with BrowserRouter for clean production URLs.
-- ESLint 9 (flat config), Prettier, Vitest 4, and Testing Library configured.
-- `npm run format:check`, `lint`, `typecheck`, `test`, and `build` scripts verified.
-- i18next + react-i18next with ET/RU/EN locale support.
-- Locale-aware routing (`/:locale/landing`), locale switcher in header, and translation catalogs.
-- Missing-key development warnings and i18n catalog completeness tests.
-- Minimal deterministic smoke tests for App and LandingPage.
+- React 18 + TypeScript strict + Vite 6;
+- React Router locale-aware routing;
+- ET/RU/EN i18n foundation;
+- ESLint/Prettier/Vitest/Testing Library;
+- GitHub Actions format/lint/typecheck/database/test/build pipeline;
+- Supabase/PostgreSQL/PostGIS migrations and RLS/database tests;
+- canonical EPSG:3301 parcel/proposal geometry policy;
+- cadastral validation;
+- official In-AKS address search path;
+- MaRu cadastral/address/point parcel resolution;
+- explicit parcel ambiguity/failure semantics;
+- free parcel overview and intent choices.
 
-Next steps follow `TASKS.md` (Supabase/PostGIS foundation, address search, map/proposal editor, etc.).
+The next implementation boundary is **Phase 4 — map and proposal creation**. Read [`docs/PHASE_4_READINESS.md`](./docs/PHASE_4_READINESS.md) before starting KT-040–KT-048.
 
 ## Development rule
 
@@ -371,11 +399,12 @@ Do not begin a feature from a vague idea.
 
 1. Pick an unblocked item from `TASKS.md`.
 2. Read `AGENTS.md` and linked specs.
-3. Verify current official/provider documentation for unstable integration details.
-4. Implement the smallest complete vertical slice.
-5. Add tests.
-6. Update documentation/contracts.
-7. Satisfy `DEFINITION_OF_DONE.md`.
+3. For Phase 4, read `docs/PHASE_4_READINESS.md` and applicable ADRs first.
+4. Verify current official/provider documentation for unstable integration details.
+5. Implement the smallest complete vertical slice.
+6. Add tests, including real-browser coverage when the feature depends on browser/map interaction.
+7. Update documentation/contracts.
+8. Satisfy `DEFINITION_OF_DONE.md`.
 
 Future product ideas in `PRODUCT_EXPANSION_BACKLOG.md` must be promoted into `TASKS.md` before implementation.
 

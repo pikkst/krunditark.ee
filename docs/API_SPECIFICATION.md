@@ -152,7 +152,8 @@ Success response body is raw normalized In-AKS JSON. Frontend client parses with
 Rules:
 
 - normalized bounded query length;
-- debounce on client (default 300ms);
+- **submit-driven**: frontend triggers one `searchAddress()` call only on explicit user submit (Otsi/Enter), not on typing;
+- minimum query length **3 characters** for free-text address search;
 - short-cache per source policy (free-text 1h, exact adrid 24h, negative 5min);
 - unavailable != no matches;
 - raw In-AKS provider response not exposed as stable UI contract.

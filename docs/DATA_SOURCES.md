@@ -108,17 +108,17 @@ Official change notice:
 
 **Production endpoints:**
 
-- Gazetteer API: `https://aks.geoportaal.ee/inaks/inaadress/gazetteer/`
+- Gazetteer API: `https://aks.geoportaal.ee/inaks/inaadress/gazetteer`
 - Base service: `https://aks.geoportaal.ee/inaks/`
 
-**Test endpoints:**
+**Test endpoints**
 
-- Gazetteer API: `https://aks-test.geoportaal.ee/inaks/inaadress/gazetteer/`
+- Gazetteer API: `https://aks-test.geoportaal.ee/inaks/inaadress/gazetteer`
 - Base service: `https://aks-test.geoportaal.ee/inaks/`
 
 **Endpoint precedence note:**
 
-The official MaRu documents currently disagree on these paths. The newer MaRu change notice (last modified 18 May 2026) defines the production service as `aks.geoportaal.ee/inaks/` and the Gazetteer under `/inaks/inaadress/gazetteer/`, which matches this contract and the current official test sample. The In-AKS usage-terms PDF v1.2 dated 24 April 2026 still contains older `/aks/inaks/` work/test URLs. This contract follows the 18 May change notice and live service; the stale paths in the 24 April PDF are preserved only for rate/legal rules and do not override the working endpoints above.
+The official MaRu documents currently disagree on these paths. The newer MaRu change notice (last modified 18 May 2026) defines the production service as `aks.geoportaal.ee/inaks/` and the Gazetteer under `/inaks/inaadress/gazetteer`, which matches this contract and the current official test sample. The In-AKS usage-terms PDF v1.2 dated 24 April 2026 still contains older `/aks/inaks/` work/test URLs. This contract follows the 18 May change notice and live service; the stale paths in the 24 April PDF are preserved only for rate/legal rules and do not override the working endpoints above.
 
 **Supported query parameters:**
 

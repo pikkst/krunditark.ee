@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { INAKS_GAZETTEER_BASE } from "../_shared/inaks.ts";
 
 const ALLOWED_INAKS_HOSTS = ["aks.geoportaal.ee", "aks-test.geoportaal.ee"];
 
@@ -72,7 +73,7 @@ serve(async (req) => {
     );
   }
 
-  const gazetteerUrl = new URL("https://aks.geoportaal.ee/inaks/inaadress/gazetteer/");
+  const gazetteerUrl = new URL(INAKS_GAZETTEER_BASE);
   if (query) gazetteerUrl.searchParams.set("address", query);
   if (adrid) gazetteerUrl.searchParams.set("adrid", adrid);
 

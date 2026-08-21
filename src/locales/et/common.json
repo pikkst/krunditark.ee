@@ -55,5 +55,23 @@
       "invalidCharacters": "Katastritunnus sisaldab sobitumatid kirjamärke; lubatud on ainult numbrid, koolonid, kriirjoon, punkt ja tühikud",
       "wrongLength": "Katastritunnus peab pärast normaliseerimist olema 12 numbrit"
     }
+  },
+  "parcelSearch": {
+    "label": "Aadress või katastritunnus",
+    "placeholder": "Nt Pärnu mnt 10, Tallinn või 12345:678:9012",
+    "searchButton": "Otsi",
+    "loading": "Otsin...",
+    "noMatch": "Katastriüksust ei leitud",
+    "unavailable": "Krundiandmeid ei õnnestunud praegu laadida. Proovi uuesti.",
+    "invalid": "Vigane sisend. Kontrolli katastritunnuse vormingut.",
+    "addressSearchUnavailable": "Aadressiotsing ei ole hetkel saadaval. Proovi uuesti.",
+    "resolutionUnavailable": "Krundi lahendamise teenus ei ole saadaval. Proovi uuesti.",
+    "mapSelect": "Vali krunt kaardilt",
+    "error": {
+      "SOURCE_TIMEOUT": "Krundiandmeid ei õnnestunud praegu laadida. Proovi uuesti.",
+      "PARCEL_UNAVAILABLE": "Krundi lahendamise teenus ei ole saadaval. Proovi uuesti.",
+      "NETWORK_ERROR": "Võrguühendus ebaõnnestus. Proovi uuesti.",
+      "CONFIG_ERROR": "Teenuse konfiguratsioon on vigane. Proovi hiljem uuesti."
+    }
   }
 }

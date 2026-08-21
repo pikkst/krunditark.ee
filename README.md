@@ -365,6 +365,16 @@ Implemented:
 
 Next steps follow `TASKS.md` (Supabase/PostGIS foundation, address search, map/proposal editor, etc.).
 
+## Testing
+
+- Unit/integration: `npm test` (Vitest + Testing Library)
+- E2E/browser: `npm run test:e2e` (Playwright against production-like built frontend)
+  - Requires Chromium (`npx playwright install chromium`)
+  - Uses deterministic fixture/mock responses; no live official providers
+  - Desktop Chromium + mobile viewport projects configured
+
+See [`docs/TESTING.md`](./docs/TESTING.md) for the full strategy.
+
 ## Development rule
 
 Do not begin a feature from a vague idea.

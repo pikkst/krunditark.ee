@@ -67,6 +67,23 @@ Behavior-heavy components.
 
 Playwright against production-like built frontend + controlled backend/test fixtures.
 
+### Playwright E2E
+
+Playwright tests run against the **production-built frontend** served by `vite preview`, not the Vite dev server. API calls are intercepted and served deterministic fixture data so normal CI makes no public provider calls.
+
+Scripts:
+
+- `npm run test:e2e` — run Playwright headless
+- `npm run test:e2e:ui` — run Playwright with UI mode
+- `npm run test:e2e:report` — open HTML report
+
+Projects:
+
+- `chromium` — desktop Chrome
+- `mobile-chrome` — Pixel 5 viewport
+
+Failure diagnostics: Playwright retains screenshot, trace and video artifacts on first retry. CI uploads the `playwright-report/` directory as an artifact.
+
 ### Scheduled contract checks
 
 Optional controlled internet workflow for official provider capabilities/schema/health; not normal unit/PR tests.
@@ -480,27 +497,28 @@ Avoid snapshot-testing static markup heavily.
 
 ## 23. Playwright public-beta journey
 
-At minimum:
+Foundation implemented with desktop Chromium and mobile viewport. Current coverage:
 
 1. landing;
-2. address search;
-3. ambiguous parcel choice;
+2. address search (deterministic fixture);
+3. cadastral parcel resolution;
 4. free parcel overview;
-5. choose build intent;
+5. supported intent selection.
+
+As Phase 4 lands, extend to cover:
+
 6. select sauna/house template;
 7. drag/edit proposal;
 8. run deterministic analysis;
-9. inspect conflict;
-10. inspect condition;
-11. inspect unknown;
-12. map evidence;
-13. official source link;
-14. duplicate/move proposal;
-15. compare variant;
-16. guest -> permanent Auth;
-17. reopen saved project;
-18. mobile path;
-19. RU and EN critical flow smoke when enabled.
+9. inspect conflict/condition/unknown;
+10. map evidence;
+11. official source link;
+12. duplicate/move proposal;
+13. compare variant;
+14. guest -> permanent Auth;
+15. reopen saved project;
+16. mobile path;
+17. RU and EN critical flow smoke when enabled.
 
 Paid launch adds checkout/recovery using provider sandbox/fake-controlled test environment.
 
@@ -579,6 +597,7 @@ npm run lint
 npm run typecheck
 npm run test
 npm run build
+npm run test:e2e
 ```
 
 As implemented add:

@@ -241,6 +241,8 @@ If analytics changes:
 - [ ] i18n tests where applicable;
 - [ ] Auth/commerce/security tests where applicable;
 - [ ] critical E2E updated;
+- [ ] E2E runs in CI from a clean checkout;
+- [ ] E2E uses controlled/fake backend responses or a deterministic local test backend;
 - [ ] no normal test depends on public internet/live Gemini/live payment.
 
 ## 20. CI/build

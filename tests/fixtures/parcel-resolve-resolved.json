@@ -1,0 +1,36 @@
+{
+  "status": "resolved",
+  "candidates": [
+    {
+      "id": "parcel-1",
+      "cadastralId": "1234567890123",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [657900, 6469900],
+            [658100, 6469900],
+            [658100, 6470100],
+            [657900, 6470100],
+            [657900, 6469900]
+          ]
+        ]
+      },
+      "geometryCrs": "EPSG:3301",
+      "facts": {
+        "areaM2Computed": 40000,
+        "addressText": "Pärnu mnt 10, Tallinn"
+      },
+      "source": {
+        "sourceId": "maru.cadastre",
+        "sourceDatasetVersionId": "dsv-2026-08",
+        "sourceSyncRunId": "sync-run-001",
+        "normalizerVersion": "1",
+        "retrievedAt": "2026-08-21T10:00:00Z",
+        "sourceEffectiveAt": "2026-08-01T00:00:00Z"
+      },
+      "freshnessState": "fresh",
+      "contentHash": "abc123def456"
+    }
+  ]
+}

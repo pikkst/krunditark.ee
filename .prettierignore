@@ -6,3 +6,5 @@ coverage
 build
 *.log
 npm-debug.log*
+playwright-report
+test-results

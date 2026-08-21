@@ -41,9 +41,48 @@ const MOCK_PARCEL_A: Parcel = {
   contentHash: "hash-1",
 };
 
-const MOCK_PARCEL_B: Parcel = {
-  id: "CP:12345:678:9013",
-  cadastralId: "123456789013",
+const MOCK_PARCEL_WITH_HOLE: Parcel = {
+  id: "CP:12345:678:9014",
+  cadastralId: "123456789014",
+  geometry: {
+    type: "Polygon",
+    coordinates: [
+      [
+        [0, 0],
+        [1000, 0],
+        [1000, 500],
+        [0, 500],
+        [0, 0],
+      ],
+      [
+        [100, 100],
+        [200, 100],
+        [200, 200],
+        [100, 200],
+        [100, 100],
+      ],
+    ],
+  },
+  geometryCrs: "EPSG:3301",
+  facts: {
+    areaM2Computed: 500000,
+    addressText: "Hole parcel",
+  },
+  source: {
+    sourceId: "maru.cadastre.parcels.inspire",
+    sourceDatasetVersionId: "2026-08-16",
+    sourceSyncRunId: "sync-1",
+    sourceObjectId: "obj-3",
+    normalizerVersion: "1",
+    retrievedAt: "2026-08-16T00:00:00Z",
+  },
+  freshnessState: "fresh",
+  contentHash: "hash-3",
+};
+
+const MOCK_PARCEL_MULTI_WITH_HOLE: Parcel = {
+  id: "CP:12345:678:9015",
+  cadastralId: "123456789015",
   geometry: {
     type: "MultiPolygon",
     coordinates: [
@@ -54,6 +93,13 @@ const MOCK_PARCEL_B: Parcel = {
           [3000, 3000],
           [2000, 3000],
           [2000, 2000],
+        ],
+        [
+          [2100, 2100],
+          [2200, 2100],
+          [2200, 2200],
+          [2100, 2200],
+          [2100, 2100],
         ],
       ],
       [
@@ -76,12 +122,12 @@ const MOCK_PARCEL_B: Parcel = {
     sourceId: "maru.cadastre.parcels.inspire",
     sourceDatasetVersionId: "2026-08-16",
     sourceSyncRunId: "sync-1",
-    sourceObjectId: "obj-2",
+    sourceObjectId: "obj-4",
     normalizerVersion: "1",
     retrievedAt: "2026-08-16T00:00:00Z",
   },
   freshnessState: "fresh",
-  contentHash: "hash-2",
+  contentHash: "hash-4",
 };
 
 describe("ParcelDisambiguation", () => {
@@ -101,15 +147,20 @@ describe("ParcelDisambiguation", () => {
   });
 
   it("renders fallback when address text is missing", () => {
-    renderWithI18n(<ParcelDisambiguation candidates={[MOCK_PARCEL_B]} onSelect={() => {}} />);
+    renderWithI18n(
+      <ParcelDisambiguation candidates={[MOCK_PARCEL_MULTI_WITH_HOLE]} onSelect={() => {}} />
+    );
 
     expect(screen.getByText("Aadress puudub")).toBeDefined();
-    expect(screen.getByText("12345:678:9013")).toBeDefined();
+    expect(screen.getByText("12345:678:9015")).toBeDefined();
   });
 
   it("renders candidate index labels", () => {
     renderWithI18n(
-      <ParcelDisambiguation candidates={[MOCK_PARCEL_A, MOCK_PARCEL_B]} onSelect={() => {}} />
+      <ParcelDisambiguation
+        candidates={[MOCK_PARCEL_A, MOCK_PARCEL_MULTI_WITH_HOLE]}
+        onSelect={() => {}}
+      />
     );
 
     expect(screen.getByText("Kandidaat 1")).toBeDefined();
@@ -148,5 +199,51 @@ describe("ParcelDisambiguation", () => {
 
     const listbox = screen.getByRole("listbox");
     expect(listbox).toBeDefined();
+  });
+
+  it("renders all rings for a polygon with a hole", () => {
+    renderWithI18n(
+      <ParcelDisambiguation candidates={[MOCK_PARCEL_WITH_HOLE]} onSelect={() => {}} />
+    );
+
+    const paths = document.querySelectorAll(".parcel-disambiguation__outline");
+    expect(paths.length).toBe(1);
+
+    const d = paths[0].getAttribute("d");
+    expect(d).toBeDefined();
+
+    const moveCommands = (d?.match(/M/g) ?? []).length;
+    expect(moveCommands).toBe(2);
+  });
+
+  it("renders all rings for a multipolygon with holes", () => {
+    renderWithI18n(
+      <ParcelDisambiguation candidates={[MOCK_PARCEL_MULTI_WITH_HOLE]} onSelect={() => {}} />
+    );
+
+    const paths = document.querySelectorAll(".parcel-disambiguation__outline");
+    expect(paths.length).toBe(2);
+
+    const firstD = paths[0].getAttribute("d");
+    const secondD = paths[1].getAttribute("d");
+    expect(firstD).toBeDefined();
+    expect(secondD).toBeDefined();
+
+    expect((firstD?.match(/M/g) ?? []).length).toBe(2);
+    expect((secondD?.match(/M/g) ?? []).length).toBe(1);
+  });
+
+  it("applies evenodd fill rule to preserve hole semantics", () => {
+    renderWithI18n(
+      <ParcelDisambiguation candidates={[MOCK_PARCEL_WITH_HOLE]} onSelect={() => {}} />
+    );
+
+    const paths = document.querySelectorAll(".parcel-disambiguation__outline");
+    expect(paths.length).toBeGreaterThanOrEqual(1);
+
+    for (const path of paths) {
+      expect(path.getAttribute("fill-rule")).toBe("evenodd");
+      expect(path.getAttribute("clip-rule")).toBe("evenodd");
+    }
   });
 });

@@ -38,8 +38,10 @@ function geometryToSvgPaths(geometry: ParcelGeometry): string[] {
   }
 
   return polygons.map((polygon) => {
-    const outerRing = polygon[0];
-    return "M" + outerRing.map((p) => transform(p[0], p[1])).join("L") + "Z";
+    const rings = polygon.map(
+      (ring) => "M" + ring.map((p) => transform(p[0], p[1])).join("L") + "Z"
+    );
+    return rings.join("");
   });
 }
 
@@ -82,7 +84,13 @@ export default function ParcelDisambiguation({ candidates, onSelect }: ParcelDis
                   focusable="false"
                 >
                   {paths.map((path, i) => (
-                    <path key={i} d={path} className="parcel-disambiguation__outline" />
+                    <path
+                      key={i}
+                      d={path}
+                      className="parcel-disambiguation__outline"
+                      fillRule="evenodd"
+                      clipRule="evenodd"
+                    />
                   ))}
                 </svg>
               </div>

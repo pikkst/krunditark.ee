@@ -67,6 +67,13 @@
     "addressSearchUnavailable": "Aadressiotsing ei ole hetkel saadaval. Proovi uuesti.",
     "resolutionUnavailable": "Krundi lahendamise teenus ei ole saadaval. Proovi uuesti.",
     "mapSelect": "Vali krunt kaardilt",
+    "disambiguationTitle": "Leidsime mitu võimalikku katastriüksust",
+    "disambiguationDescription": "Vali õige krunt allolevast nimekirjast.",
+    "disambiguationLabel": "Katastriüksuse valik",
+    "disambiguationCandidate": "Kandidaat {{index}}",
+    "disambiguationNoAddress": "Aadress puudub",
+    "disambiguationUseParcel": "Kasuta seda krunti",
+    "disambiguationArea": "Pindala",
     "error": {
       "SOURCE_TIMEOUT": "Krundiandmeid ei õnnestunud praegu laadida. Proovi uuesti.",
       "PARCEL_UNAVAILABLE": "Krundi lahendamise teenus ei ole saadaval. Proovi uuesti.",

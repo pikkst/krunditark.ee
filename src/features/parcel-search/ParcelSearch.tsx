@@ -12,11 +12,13 @@ import type { Parcel } from "../../domain/parcel/types";
 import type { AddressSearchResult } from "../../domain/address-search/types";
 import type { AddressSearchError } from "../../lib/api/address-search/types";
 import { validateCadastralId } from "../../domain/parcel/types";
+import ParcelDisambiguation from "./ParcelDisambiguation";
+import type { ParcelDisambiguationProps } from "./ParcelDisambiguation.types";
 import "./ParcelSearch.css";
 
 export interface ParcelSearchProps {
   onParcelResolved: (parcel: Parcel) => void;
-  onAmbiguousResolve: (candidates: Parcel[]) => void;
+  onAmbiguousResolve?: ParcelDisambiguationProps["onSelect"];
   onMapSelectRequested?: () => void;
 }
 
@@ -47,6 +49,7 @@ export default function ParcelSearch({
   const [addressError, setAddressError] = useState<AddressSearchError | null>(null);
   const [isAddressLoading, setIsAddressLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [ambiguousCandidates, setAmbiguousCandidates] = useState<Parcel[]>([]);
 
   const listboxRef = useRef<HTMLUListElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -111,20 +114,26 @@ export default function ParcelSearch({
       if (result.valid) {
         if (result.response.status === "resolved" && result.response.candidates.length === 1) {
           setResolveStatus("resolved");
+          setAmbiguousCandidates([]);
           onParcelResolved(result.response.candidates[0]);
         } else if (result.response.status === "ambiguous") {
           setResolveStatus("ambiguous");
-          onAmbiguousResolve(result.response.candidates);
+          setAmbiguousCandidates(result.response.candidates);
         } else if (result.response.status === "not_found") {
           setResolveStatus("not_found");
+          setAmbiguousCandidates([]);
         } else if (result.response.status === "unavailable") {
           setResolveStatus("unavailable");
+          setAmbiguousCandidates([]);
         } else if (result.response.status === "invalid_source") {
           setResolveStatus("unavailable");
+          setAmbiguousCandidates([]);
         } else {
           setResolveStatus("not_found");
+          setAmbiguousCandidates([]);
         }
       } else {
+        setAmbiguousCandidates([]);
         if (result.error.code === "INVALID_CADASTRAL_ID" || result.error.code === "INVALID_INPUT") {
           setResolveStatus("invalid");
         } else if (
@@ -142,7 +151,7 @@ export default function ParcelSearch({
         setResolveError({ ...result.error, message: t(`parcelSearch.error.${result.error.code}`) });
       }
     },
-    [onParcelResolved, onAmbiguousResolve, t]
+    [onParcelResolved, t]
   );
 
   const handleSubmit = useCallback(
@@ -492,6 +501,18 @@ export default function ParcelSearch({
         >
           {t("parcelSearch.invalid")}
         </p>
+      )}
+
+      {resolveStatus === "ambiguous" && ambiguousCandidates.length > 0 && (
+        <ParcelDisambiguation
+          candidates={ambiguousCandidates}
+          onSelect={(parcel) => {
+            setResolveStatus("resolved");
+            setAmbiguousCandidates([]);
+            onParcelResolved(parcel);
+            onAmbiguousResolve?.(parcel);
+          }}
+        />
       )}
 
       <button type="button" className="parcel-search__map-button" onClick={handleMapSelect}>

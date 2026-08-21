@@ -15,8 +15,8 @@ export default function LandingPage() {
         onParcelResolved={(parcel) => {
           console.log("Parcel resolved:", parcel.cadastralId);
         }}
-        onAmbiguousResolve={(candidates) => {
-          console.log("Ambiguous candidates:", candidates.length);
+        onAmbiguousResolve={(parcel) => {
+          console.log("Parcel selected from disambiguation:", parcel.cadastralId);
         }}
       />
     </main>

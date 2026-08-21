@@ -272,21 +272,206 @@ describe("ParcelSearch", () => {
     });
     fetchSpy.mockReturnValueOnce(resolvePromise as unknown as Promise<Response>);
 
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          addresses: [
+            {
+              adr_id: "1",
+              aadresstekst: "Mustamäe tee 51",
+              pikkaadress: "Harju maakond, Tallinn, Kristiine linnaosa, Mustamäe tee 51",
+              taisaadress: "Harju maakond, Tallinn, Kristiine linnaosa, Mustamäe tee 51",
+              ipikkaadress: "Mustamäe tee 51, Kristiine linnaosa, Tallinn, Harju maakond",
+              liik: "E",
+              liikVal: "EHITISHOONE",
+              tunnus: "120221727",
+              ads_oid: "ME01087725",
+              adob_id: "10439325",
+              sihtnumber: "10621",
+              viitepunkt_x: "539625.35",
+              viitepunkt_y: "6587225.42",
+              viitepunkt_l: "24.697966",
+              viitepunkt_b: "59.421047",
+              boundingbox: "0,0 1,0 1,1 0,1 0,0",
+              g_boundingbox: "0,0 1,0 1,1 0,1 0,0",
+              poid: [],
+              primary: "true",
+              kvaliteet: "adrid",
+              olek: "K",
+              ehakmk: "37",
+              maakond: "Harju maakond",
+              ehakov: "784",
+              omavalitsus: "Tallinn",
+              ehak: "339",
+              asustusyksus: "Kristiine linnaosa",
+              koodaadress: "",
+              asum: "",
+              old_aadresstekst: "",
+              leitud_osa: "",
+              unik: "1",
+              onkort: "0",
+              kood4: "",
+              vaikekoht: "",
+              kood5: "",
+              liikluspind: "",
+              kood6: "",
+              nimi: "",
+              kood7: "",
+              aadress_nr: "",
+              kood8: "",
+              kort_nr: "",
+              tehn_id2: "",
+              kaugus: "0",
+              ietunnus: "0",
+            },
+          ],
+          host: "inaks-api-test",
+        }),
+    } as unknown as Response);
+
+    mockResolveOk([MOCK_PARCEL]);
+
     renderWithI18n(<ParcelSearch onParcelResolved={() => {}} onAmbiguousResolve={() => {}} />);
 
     const input = screen.getByLabelText("Aadress või katastritunnus");
     fireEvent.focus(input);
-    fireEvent.change(input, { target: { value: "A" } });
+    fireEvent.change(input, { target: { value: "Must" } });
 
-    fireEvent.change(input, { target: { value: "B" } });
+    const button = screen.getByRole("button", { name: "Otsi" });
+    fireEvent.click(button);
 
     await waitFor(() => {
-      expect(screen.queryByText("Katastriüksust ei leitud")).toBeNull();
+      expect(screen.getByRole("button", { name: "Otsin..." })).toBeDefined();
+    });
+
+    fireEvent.change(input, { target: { value: "Mustamäe" } });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Otsi" })).toBeDefined();
+    });
+
+    await new Promise((r) => setTimeout(r, 200));
+
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(screen.queryByText("Katastriüksust ei leitud")).toBeNull();
+
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByRole("listbox")).toBeDefined();
     });
   });
 
   it("ignores stale parcel resolve after editing input", async () => {
     const onResolved = vi.fn();
+
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          addresses: [
+            {
+              adr_id: "1",
+              aadresstekst: "Mustamäe tee 51",
+              pikkaadress: "Harju maakond, Tallinn, Kristiine linnaosa, Mustamäe tee 51",
+              taisaadress: "Harju maakond, Tallinn, Kristiine linnaosa, Mustamäe tee 51",
+              ipikkaadress: "Mustamäe tee 51, Kristiine linnaosa, Tallinn, Harju maakond",
+              liik: "E",
+              liikVal: "EHITISHOONE",
+              tunnus: "120221727",
+              ads_oid: "ME01087725",
+              adob_id: "10439325",
+              sihtnumber: "10621",
+              viitepunkt_x: "539625.35",
+              viitepunkt_y: "6587225.42",
+              viitepunkt_l: "24.697966",
+              viitepunkt_b: "59.421047",
+              boundingbox: "0,0 1,0 1,1 0,1 0,0",
+              g_boundingbox: "0,0 1,0 1,1 0,1 0,0",
+              poid: [],
+              primary: "true",
+              kvaliteet: "adrid",
+              olek: "K",
+              ehakmk: "37",
+              maakond: "Harju maakond",
+              ehakov: "784",
+              omavalitsus: "Tallinn",
+              ehak: "339",
+              asustusyksus: "Kristiine linnaosa",
+              koodaadress: "",
+              asum: "",
+              old_aadresstekst: "",
+              leitud_osa: "",
+              unik: "1",
+              onkort: "0",
+              kood4: "",
+              vaikekoht: "",
+              kood5: "",
+              liikluspind: "",
+              kood6: "",
+              nimi: "",
+              kood7: "",
+              aadress_nr: "",
+              kood8: "",
+              kort_nr: "",
+              tehn_id2: "",
+              kaugus: "0",
+              ietunnus: "0",
+            },
+            {
+              adr_id: "2",
+              aadresstekst: "Mustamäe tee 52",
+              pikkaadress: "Harju maakond, Tallinn, Kristiine linnaosa, Mustamäe tee 52",
+              taisaadress: "Harju maakond, Tallinn, Kristiine linnaosa, Mustamäe tee 52",
+              ipikkaadress: "Mustamäe tee 52, Kristiine linnaosa, Tallinn, Harju maakond",
+              liik: "E",
+              liikVal: "EHITISHOONE",
+              tunnus: "120221728",
+              ads_oid: "ME01087726",
+              adob_id: "10439326",
+              sihtnumber: "10622",
+              viitepunkt_x: "539625.36",
+              viitepunkt_y: "6587225.43",
+              viitepunkt_l: "24.697967",
+              viitepunkt_b: "59.421048",
+              boundingbox: "0,0 1,0 1,1 0,1 0,0",
+              g_boundingbox: "0,0 1,0 1,1 0,1 0,0",
+              poid: [],
+              primary: "true",
+              kvaliteet: "adrid",
+              olek: "K",
+              ehakmk: "37",
+              maakond: "Harju maakond",
+              ehakov: "784",
+              omavalitsus: "Tallinn",
+              ehak: "339",
+              asustusyksus: "Kristiine linnaosa",
+              koodaadress: "",
+              asum: "",
+              old_aadresstekst: "",
+              leitud_osa: "",
+              unik: "2",
+              onkort: "0",
+              kood4: "",
+              vaikekoht: "",
+              kood5: "",
+              liikluspind: "",
+              kood6: "",
+              nimi: "",
+              kood7: "",
+              aadress_nr: "",
+              kood8: "",
+              kort_nr: "",
+              tehn_id2: "",
+              kaugus: "0",
+              ietunnus: "0",
+            },
+          ],
+          host: "inaks-api-test",
+        }),
+    } as unknown as Response);
+
     const resolvePromise = new Promise<Response>((resolve) => {
       setTimeout(
         () =>
@@ -303,16 +488,31 @@ describe("ParcelSearch", () => {
 
     const input = screen.getByLabelText("Aadress või katastritunnus");
     fireEvent.focus(input);
-    fireEvent.change(input, { target: { value: "A" } });
+    fireEvent.change(input, { target: { value: "Must" } });
 
     const button = screen.getByRole("button", { name: "Otsi" });
     fireEvent.click(button);
 
-    fireEvent.change(input, { target: { value: "B" } });
+    await waitFor(() => {
+      expect(screen.getByRole("listbox")).toBeDefined();
+    });
+
+    fireEvent.keyDown(input, { key: "ArrowDown", bubbles: true });
+    fireEvent.keyDown(input, { key: "Enter", bubbles: true });
 
     await waitFor(() => {
-      expect(onResolved).not.toHaveBeenCalled();
+      expect(screen.getByRole("button", { name: "Otsin..." })).toBeDefined();
     });
+
+    fireEvent.change(input, { target: { value: "Mustamäe" } });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Otsi" })).toBeDefined();
+    });
+
+    await new Promise((r) => setTimeout(r, 200));
+
+    expect(onResolved).not.toHaveBeenCalled();
   });
 
   it("shows address candidates after submit and resolves on selection", async () => {

@@ -276,8 +276,10 @@ export default function ParcelSearch({
           message: t("parcelSearch.resolutionUnavailable"),
         });
       } finally {
-        setIsSubmitting(false);
-        abortRef.current = null;
+        if (currentGeneration === generationRef.current) {
+          setIsSubmitting(false);
+          abortRef.current = null;
+        }
       }
     },
     [handleResolveResult, t]
@@ -328,21 +330,16 @@ export default function ParcelSearch({
     setAddressResults([]);
     setAddressError(null);
 
-    const currentGeneration = ++generationRef.current;
-    const currentAddressGeneration = ++addressGenerationRef.current;
-
     if (abortRef.current) {
       abortRef.current.abort();
       abortRef.current = null;
     }
 
-    if (currentGeneration !== generationRef.current) {
-      setIsSubmitting(false);
-      setIsAddressLoading(false);
-    }
-    if (currentAddressGeneration !== addressGenerationRef.current) {
-      setIsAddressLoading(false);
-    }
+    ++generationRef.current;
+    ++addressGenerationRef.current;
+
+    setIsSubmitting(false);
+    setIsAddressLoading(false);
   }, []);
 
   const handleInputFocus = useCallback(() => {

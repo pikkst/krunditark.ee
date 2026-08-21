@@ -80,5 +80,21 @@
       "NETWORK_ERROR": "Network request failed. Please try again.",
       "CONFIG_ERROR": "Service configuration is invalid. Please try again later."
     }
+  },
+  "parcelOverview": {
+    "noAddress": "No address",
+    "mapLabel": "Parcel boundary map",
+    "area": "Area",
+    "address": "Address",
+    "dataFreshness": "Data freshness",
+    "supportedCoverage": "What Krunditark can check",
+    "coveragePlanning": "Planning and building rights",
+    "coverageRestrictions": "Restrictions and protection zones",
+    "coverageEnvironment": "Environment and heritage",
+    "coveragePartial": "Roads and access (later)",
+    "coverageNote": "Some categories are still being prepared. All checks are based on official sources.",
+    "intentTitle": "What do you want to do with this parcel?",
+    "soon": "Coming soon",
+    "backToSearch": "Back to search"
   }
 }

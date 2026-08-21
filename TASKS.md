@@ -315,12 +315,12 @@ Read `UX_UI_SPEC.md`.
 
 ## KT-037 — Build free parcel overview
 
-- [ ] boundary/map.
-- [ ] basic facts.
-- [ ] data freshness.
-- [ ] supported coverage statement.
-- [ ] `Mida soovid selle krundiga teha?` choices.
-- [ ] no false “all clear”.
+- [x] boundary/map.
+- [x] basic facts.
+- [x] data freshness.
+- [x] supported coverage statement.
+- [x] `Mida soovid selle krundiga teha?` choices.
+- [x] no false "all clear".
 
 ---
 

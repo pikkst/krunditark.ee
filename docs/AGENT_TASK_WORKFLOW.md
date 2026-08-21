@@ -27,6 +27,7 @@ Before implementing anything, read at minimum:
 - `docs/PRODUCT_REQUIREMENTS.md`
 - `docs/USER_JOURNEYS_AND_PERSONAS.md`
 - `docs/UX_UI_SPEC.md`
+- `docs/MVP_SCOPE.md`
 - `docs/ARCHITECTURE.md`
 - `docs/DEFINITION_OF_DONE.md`
 
@@ -36,7 +37,18 @@ Also inspect relevant ADRs under:
 
 - `docs/adr/`
 
-Do not invent product, security, GIS, AI, authentication, pricing, localization, or data-source behavior that conflicts with the existing documentation.
+### Phase 4 tasks
+
+For KT-038 through KT-048, read additionally:
+
+- `docs/PHASE_4_READINESS.md`
+- `docs/AUTH_AND_ONBOARDING.md`
+- `docs/API_SPECIFICATION.md`
+- ADR 0006
+- ADR 0009
+- `docs/OPEN_QUESTIONS.md` OQ-003/OQ-005 where relevant.
+
+Do not invent product, security, GIS, AI, authentication, pricing, localization, map-provider or data-source behavior that conflicts with the existing documentation.
 
 If implementation and documentation disagree, preserve the intended architecture and update the documentation as part of the same task when appropriate.
 
@@ -50,7 +62,14 @@ Before coding:
 - identify its dependencies;
 - confirm required dependencies are satisfied;
 - understand its acceptance criteria;
-- identify affected frontend, backend, database, GIS, rules, auth, AI, localization, security, and test areas.
+- identify affected frontend, backend, database, GIS, rules, auth, AI, localization, security and test areas;
+- check whether an open question is an explicit completion gate.
+
+For Phase 4 specifically:
+
+- KT-040 production-ready status is blocked by OQ-003 / issue #50 until the map provider is verified;
+- KT-043 fully-supported claims are blocked by OQ-005 / issue #51 until the scenario matrix is verified;
+- KT-048 depends on safe anonymous/permanent owner identity and KT-047 canonical server validation.
 
 Do not implement unrelated future tasks.
 
@@ -93,13 +112,30 @@ Important Krunditark rules:
 - `unknown` is a valid result.
 - Every material finding must preserve provenance.
 - Historical analyses and rule/data versions must remain reproducible.
-- User-facing primary language is Estonian.
+- User-facing canonical language is Estonian.
 - ET/RU/EN localization architecture must be respected.
 - Do not hard-code user-facing text where translation keys are required.
 - Guest-first onboarding must remain possible where defined.
-- Do not introduce a signup wall unless the task explicitly requires one.
+- Do not introduce a permanent-signup wall before meaningful proposal value.
 - Do not introduce advertisements into trust-critical findings or Ehituspass.
 - Do not make live official-source or Gemini requests from normal unit tests.
+
+### Phase 4 implementation rules
+
+- Public parcel search/free overview may be unauthenticated/bounded.
+- Create/reuse Supabase anonymous Auth when stateful proposal/project ownership becomes necessary.
+- Use the anonymous/permanent user's own owner-RLS path; never browser service-role/shared ownership.
+- Selected parcel and canonical intent must survive route/locale transitions once project state exists.
+- `Vali krunt kaardilt` must become a real map-resolution path.
+- Map parcel resolution is triggered by explicit selection/click, not pointer movement.
+- Browser proposal draft is mutable preview/input state and may use EPSG:4326 interchange.
+- Canonical persisted proposal is server-validated EPSG:3301 state.
+- Client area/perimeter are previews only; server/PostGIS values are authoritative.
+- A persisted proposal used by terminal analysis is never silently mutated.
+- A valid structure enum is not proof of verified product/legal support.
+- Unsupported/custom `Muu` must not fall back to a supported legal/process profile.
+- Production map provider/attribution cannot be guessed from a convenient public tile endpoint.
+- TanStack Query and Zod are optional under ADR 0009; runtime validation is mandatory, duplicate cache/validation layers are not.
 
 Write clean, production-quality code.
 
@@ -126,11 +162,13 @@ Depending on the implementation, consider:
 - localization tests;
 - Playwright E2E tests.
 
+For Phase 4 map/editor work, real-browser Playwright coverage is part of the active safety net, not something to postpone until final beta.
+
 Tests must include negative and boundary cases where relevant.
 
-Do not depend on live government APIs or live Gemini in normal CI tests.
+Do not depend on live government APIs, map providers or live Gemini in normal CI tests.
 
-Use deterministic fixtures/fakes.
+Use deterministic fixtures/fakes/interception.
 
 7. RUN THE REQUIRED CHECKS
 
@@ -170,17 +208,20 @@ CORRECTNESS
 - Are edge cases handled?
 - Are failure states explicit?
 - Are concurrency/idempotency concerns handled where relevant?
+- Is an open-question completion gate still being respected?
 
 SECURITY
 
 - Any secret exposed?
 - RLS bypass?
 - Authorization based on client-controlled data?
+- Browser service-role/shared identity?
 - Missing input validation?
 - SSRF risk?
 - XSS risk?
 - Unsafe file handling?
 - Excessive data exposure?
+- Unbounded public request/provider response?
 
 DATABASE
 
@@ -189,6 +230,7 @@ DATABASE
 - Are constraints, foreign keys and indexes correct?
 - Is RLS enabled and tested?
 - Are previously applied migrations left unchanged?
+- Is proposal/history version lifecycle preserved?
 
 GIS
 
@@ -198,12 +240,13 @@ GIS
 - Correct metric calculations?
 - Geometry validation?
 - Spatial indexes?
+- For proposals, are server area/perimeter authoritative rather than client values?
 
 OFFICIAL DATA
 
 - Is source provenance preserved?
 - Are stale/unavailable/empty states distinguished?
-- Is cached/versioned data handled according to the documented refresh policy?
+- Is cached/versioned data handled according to `DATA_REFRESH_AND_CACHE.md`?
 - Could a source failure accidentally become an “all clear”?
 
 RULES
@@ -213,6 +256,7 @@ RULES
 - Does it have an official source?
 - Are effective dates handled?
 - Is `unknown` returned outside supported scope?
+- Has a candidate structure label been mistaken for verified legal support?
 
 AI
 
@@ -229,18 +273,23 @@ UX
 - Is important information hidden behind the map only?
 - Is mobile usage reasonable?
 - Is accessibility preserved?
+- Does route/locale navigation preserve active work?
+- Is map selection explicit and safe under ambiguity?
 
 LOCALIZATION
 
 - Are user-facing strings translated through the localization system?
 - Are ET/RU/EN structures preserved?
 - Are legal/technical terms translated consistently?
+- Are domain IDs/codes still locale-independent?
 
 PERFORMANCE
 
 - Unnecessary API calls?
+- Pointer-move map resolver storm?
 - Unnecessary Gemini calls?
 - Missing caching?
+- Duplicate query/cache ownership?
 - N+1 database queries?
 - Large frontend bundle increase?
 - Unbounded GIS/source query?
@@ -265,6 +314,7 @@ This may include:
 - `TASKS.md`
 - `README.md`
 - `AGENTS.md`
+- `docs/PHASE_4_READINESS.md`
 - `docs/API_SPECIFICATION.md`
 - `docs/ARCHITECTURE.md`
 - `docs/DATABASE_SCHEMA.md`
@@ -275,13 +325,14 @@ This may include:
 - `docs/LOCALIZATION_AND_LANGUAGE.md`
 - `docs/SECURITY_PRIVACY.md`
 - `docs/TESTING.md`
-- relevant ADRs
+- `docs/OPEN_QUESTIONS.md`
+- relevant ADRs.
 
 Do not update documentation merely to describe an implementation bug or temporary workaround.
 
-Documentation must describe the intended final behavior.
+Documentation must describe intended final behavior and must keep unresolved provider/legal decisions explicitly unresolved.
 
-Only mark the task `[x]` in `TASKS.md` after all acceptance criteria and applicable Definition of Done requirements are verified.
+Only mark the task `[x]` in `TASKS.md` after all acceptance criteria and applicable Definition of Done/readiness requirements are verified.
 
 10. REVIEW FINAL DIFF AGAIN
 
@@ -301,8 +352,9 @@ Ensure:
 - no unrelated changes;
 - no accidental generated files;
 - no commented-out dead code;
-- no forgotten TODOs that are required for the task;
-- documentation matches implementation.
+- no forgotten TODOs required for the task;
+- documentation matches implementation;
+- open questions have not been silently “resolved” by code.
 
 11. COMMIT THE CHANGE
 
@@ -366,7 +418,7 @@ List documentation files updated.
 
 ## Known Limitations
 
-Anything intentionally outside this task.
+Anything intentionally outside this task, including open provider/legal gates.
 
 ## Acceptance Criteria
 

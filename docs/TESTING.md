@@ -696,8 +696,8 @@ As Phase 4 lands, extend to cover:
 15. reopen saved project;
 16. mobile path;
 17. RU and EN critical flow smoke when enabled.
-=======
-The beta suite extends the Phase 4 browser foundation.
+    \=======
+    The beta suite extends the Phase 4 browser foundation.
 
 At minimum as features become available:
 
@@ -725,7 +725,8 @@ At minimum as features become available:
 22. reopen saved project;
 23. mobile path;
 24. RU and EN critical-flow smoke when enabled.
->>>>>>> origin/main
+
+> > > > > > > origin/main
 
 Paid launch adds checkout/recovery using provider sandbox/fake-controlled test environment.
 

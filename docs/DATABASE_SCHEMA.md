@@ -636,17 +636,17 @@ A duplicate scheduled invocation must not create duplicate promoted versions or 
 In this table **public/unauthenticated** means no Supabase Auth session. A Supabase anonymous Auth identity uses the `authenticated` role and belongs in the authenticated-owner column.
 
 | Resource                     | public/unauthenticated | authenticated owner (anonymous or permanent) | admin/server path |
-| ---------------------------- | ---------------------: | --------------------------------------------: | ----------------: |
-| profiles                     |                     no |                                           own |               yes |
-| projects                     |                     no |                                      own CRUD |               yes |
-| proposals                    |                     no |                               own via project |               yes |
-| analysis read model          |      no/limited future |                                           own |               yes |
-| geo source versions          |              no direct |                                     no direct |            server |
-| rules                        |     no direct mutation |                read only if intentionally exposed |            server |
-| source definitions/sync runs |                     no |                                            no |      server/admin |
-| data releases                |     no direct mutation |                read metadata only if explicit |      server/admin |
-| legal change candidates      |                     no |                                            no |      server/admin |
-| audit                        |                     no |                                            no |      server/admin |
+| ---------------------------- | ---------------------: | -------------------------------------------: | ----------------: |
+| profiles                     |                     no |                                          own |               yes |
+| projects                     |                     no |                                     own CRUD |               yes |
+| proposals                    |                     no |                              own via project |               yes |
+| analysis read model          |      no/limited future |                                          own |               yes |
+| geo source versions          |              no direct |                                    no direct |            server |
+| rules                        |     no direct mutation |           read only if intentionally exposed |            server |
+| source definitions/sync runs |                     no |                                           no |      server/admin |
+| data releases                |     no direct mutation |               read metadata only if explicit |      server/admin |
+| legal change candidates      |                     no |                                           no |      server/admin |
+| audit                        |                     no |                                           no |      server/admin |
 
 Public government data being public does **not** mean internal normalized/version tables should be publicly writable/readable through Supabase Data API.
 

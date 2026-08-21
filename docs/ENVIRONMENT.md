@@ -151,11 +151,11 @@ The visual MaRu basemap/tile proxy is presentation infrastructure with its own c
 
 ## 7. Environment matrix
 
-| Environment | Frontend | Backend | Map | AI | Purpose |
-| --- | --- | --- | --- | --- | --- |
-| local | Vite localhost | local Supabase | mocked/fixture by default; local proxy for controlled manual integration | fake by default / Gemini opt-in | development/tests |
-| preview | GitHub Pages | non-production Supabase | non-production Krunditark tile proxy | Gemini server-side if enabled | integration/demo |
-| production | final host/domain | production Supabase | production Krunditark fixed tile proxy -> approved MaRu tiled service | Gemini server-side | public users |
+| Environment | Frontend          | Backend                 | Map                                                                      | AI                              | Purpose           |
+| ----------- | ----------------- | ----------------------- | ------------------------------------------------------------------------ | ------------------------------- | ----------------- |
+| local       | Vite localhost    | local Supabase          | mocked/fixture by default; local proxy for controlled manual integration | fake by default / Gemini opt-in | development/tests |
+| preview     | GitHub Pages      | non-production Supabase | non-production Krunditark tile proxy                                     | Gemini server-side if enabled   | integration/demo  |
+| production  | final host/domain | production Supabase     | production Krunditark fixed tile proxy -> approved MaRu tiled service    | Gemini server-side              | public users      |
 
 Use separate Supabase projects for preview and production once real user testing begins.
 

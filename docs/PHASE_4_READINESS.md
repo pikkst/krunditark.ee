@@ -2,7 +2,18 @@
 
 Last readiness review: **2026-08-21**
 
-This document is the implementation gate between completed Phase 0–3 work and `TASKS.md` Phase 4 (`KT-040`–`KT-048`). It does not replace `TASKS.md`; it records cross-cutting decisions and dependencies that span multiple Phase 4 tasks.
+This document is the implementation gate between completed Phase 0–3 work and `TASKS.md` Phase 4 (`KT-038`–`KT-048`). It does not replace `TASKS.md` or the task-level contract in `docs/PHASE_4_IMPLEMENTATION_GUIDE.md`.
+
+Every Phase 4 coding agent must read, in order:
+
+1. `AGENTS.md`
+2. `TASKS.md`
+3. this file
+4. `docs/PHASE_4_IMPLEMENTATION_GUIDE.md`
+5. `docs/MAP_STACK_AND_BASEMAP.md` for map/editor tasks
+6. ADR 0006, ADR 0009 and ADR 0010 as applicable
+7. the normal task-specific product/API/database/testing docs
+8. `docs/DEFINITION_OF_DONE.md`
 
 ## 1. Baseline confirmed from Phase 0–3
 
@@ -24,7 +35,25 @@ The following foundations are considered available for Phase 4:
 
 Phase 4 must reuse these contracts rather than creating parallel parcel, CRS or ownership models.
 
-## 2. Canonical Phase 4 user-state sequence
+## 2. Phase 4 map decision
+
+ADR 0010 resolves the browser map-engine/provider direction:
+
+- **Leaflet 1.9.x stable** for Phase 4 browser map;
+- optional `@geoman-io/leaflet-geoman-free` for draw/edit/drag/rotate behavior where needed;
+- **Maa- ja Ruumiamet** pre-tiled basemap services;
+- default mode `Kaart`;
+- optional mode `Ortofoto`;
+- Krunditark-owned fixed tile proxy;
+- no Google Maps production dependency;
+- no browser WMS fan-out as the default basemap path when MaRu pre-tiled services are available;
+- authoritative GIS remains server/PostGIS-side.
+
+See `docs/MAP_STACK_AND_BASEMAP.md`.
+
+The map renderer is presentation infrastructure only. Domain/application code must not persist Leaflet/Geoman object instances.
+
+## 3. Canonical Phase 4 user-state sequence
 
 ```text
 public visitor
@@ -46,7 +75,7 @@ Permanent email OTP / Google conversion remains later and must preserve the same
 
 See ADR 0006, ADR 0009 and `AUTH_AND_ONBOARDING.md`.
 
-## 3. Phase 4 route/state ownership
+## 4. Phase 4 route/state ownership
 
 Page-local state alone is insufficient once the flow spans map/editor routes.
 
@@ -55,18 +84,21 @@ Required rules:
 - selected parcel and selected intent become project state once the stateful flow begins;
 - persisted project/proposal state is identified by stable IDs, not translated labels;
 - an in-progress footprint is a mutable editor draft until persisted;
+- Leaflet layers are not durable project state;
 - locale changes preserve project and draft state;
 - browser back/forward behavior must not silently reset the project;
 - refresh behavior must be deterministic and documented;
 - no service-role/shared identity is used to bypass owner RLS.
 
-## 4. Map entry and parcel selection
+KT-039 owns this foundation and must land before owner-RLS proposal persistence in KT-048.
+
+## 5. Map entry and parcel selection
 
 The `Vali krunt kaardilt` entry path is part of Phase 4 implementation, not a decorative future CTA.
 
 Required flow:
 
-1. open/navigate to the MapLibre parcel-selection view;
+1. open/navigate to the Leaflet parcel-selection view;
 2. user explicitly clicks/selects a location;
 3. browser calls the canonical `parcel-resolve` point selector with WGS84 latitude/longitude;
 4. server performs authoritative spatial parcel resolution;
@@ -75,27 +107,21 @@ Required flow:
 
 Pointer movement must not continuously trigger parcel resolution.
 
-## 5. Map provider gate
+Tile/basemap failure is independent from parcel-resolution state and must never become parcel `not_found`.
 
-MapLibre GL JS is fixed. The production basemap/style/orthophoto provider is **not** yet fixed.
+## 6. Basemap/provider operational gate
 
-Before KT-040 is considered production-ready, resolve `OPEN_QUESTIONS.md` OQ-003 / GitHub issue #50 using current authoritative provider documentation.
+The architecture/provider choice is resolved by ADR 0010, but public operation still has explicit conditions from current MaRu guidance:
 
-The decision must cover:
+- use Krunditark-owned fixed proxy address;
+- preserve source/data-age attribution;
+- avoid bulk/offline prefetch;
+- use pre-tiled TMS/WMTS-style service rather than wasteful browser WMS tile fan-out;
+- complete the MaRu service-contact/operational step for the public environment and record the implementation conclusion without committing private correspondence.
 
-- map quality for Estonia;
-- orthophoto mode;
-- terms/licensing;
-- attribution text/link;
-- privacy/referrer implications;
-- rate/availability expectations;
-- token/public configuration rules;
-- proxy/cache requirements;
-- local/preview/production configuration.
+KT-040 is not Done until local/preview behavior, attribution, degraded-map handling and proxy contract are proven. Public production launch additionally requires the provider-contact operational gate to be satisfied.
 
-A temporary development map source may be used only when clearly documented as non-production.
-
-## 6. Structure-support gate
+## 7. Structure-support gate
 
 The TypeScript/DB `structure_type` vocabulary is not itself proof of verified legal product support.
 
@@ -110,13 +136,15 @@ The UI must distinguish:
 
 `Muu` must not silently fall back to a supported legal/process rule profile.
 
-## 7. Proposal draft and canonical persistence
+## 8. Proposal draft and canonical persistence
 
 ### Browser draft
 
 The browser may hold an editable footprint in EPSG:4326 for map display/interchange.
 
 Template IDs and client-computed area/perimeter are convenience metadata only.
+
+The typed draft is the application/editor state. Leaflet/Geoman layers render and edit that draft but are not the source of truth.
 
 ### Server validation
 
@@ -138,11 +166,11 @@ Authoritative area may be persisted as currently modeled. Perimeter may be deter
 - persisted proposal: versioned state;
 - editing a persisted scenario creates a new version when saved;
 - proposal referenced by terminal analysis: immutable;
-- full variant comparison remains Phase 9.
+- full A/B variant comparison remains Phase 9.
 
 See ADR 0009 and `API_SPECIFICATION.md`.
 
-## 8. Intent-code contract
+## 9. Intent-code contract
 
 Canonical intent codes are:
 
@@ -166,11 +194,11 @@ Phase 4 behavior:
 
 Translated labels must never be persisted as intent IDs.
 
-## 9. Browser E2E gate
+## 10. Browser E2E gate
 
-Phase 4 introduces behavior that jsdom cannot prove reliably: WebGL initialization, real routing, focus transitions, pointer/touch interaction, viewport sizing and bottom-sheet behavior.
+Phase 4 introduces behavior that jsdom cannot prove reliably: real routing, map container sizing, pointer/touch interaction, plugin lifecycle and bottom-sheet behavior.
 
-Before the Phase 4 editor is considered stable, Playwright must run against the production-like built frontend using deterministic backend fixtures.
+KT-038 establishes Playwright against the production-like built frontend using deterministic backend/network fixtures before the editor becomes complex.
 
 Minimum early Phase 4 browser journey:
 
@@ -179,14 +207,15 @@ Minimum early Phase 4 browser journey:
 3. free overview appears;
 4. build intent is selected;
 5. map/proposal route opens without state loss;
-6. template draft appears;
-7. desktop and mobile view remain usable.
+6. Leaflet map mounts at usable size;
+7. template draft appears;
+8. desktop and mobile view remain usable.
 
-Extend the suite as drag/rotate/resize/persistence land.
+Extend the suite as click selection, drag/rotate/resize, server validation and persistence land.
 
 Normal CI must not call live official providers.
 
-## 10. Public discovery hardening
+## 11. Public discovery hardening
 
 Phase 4 increases map-driven parcel lookup traffic. Public discovery Edge Functions must therefore have explicit resource and abuse controls.
 
@@ -204,7 +233,9 @@ Required direction:
 
 Tracked by issue #55.
 
-## 11. Query/cache and validation libraries
+Tile proxy hardening is separately defined in ADR 0010 / `MAP_STACK_AND_BASEMAP.md`.
+
+## 12. Query/cache and validation libraries
 
 ADR 0009 is authoritative:
 
@@ -214,32 +245,55 @@ ADR 0009 is authoritative:
 - domain models remain provider/library independent;
 - do not introduce duplicate cache ownership.
 
-## 12. Documentation consistency gate
+## 13. Per-task Definition of Done
+
+`docs/PHASE_4_IMPLEMENTATION_GUIDE.md` contains mandatory implementation requirements, minimum tests, task-specific DoD and out-of-scope boundaries for every Phase 4 task:
+
+- KT-038 real-browser E2E foundation;
+- KT-039 guest ownership/state;
+- KT-040 Leaflet map shell/map entry;
+- KT-041 selected parcel render/confirmation;
+- KT-042 intent step;
+- KT-043 structure selection/support semantics;
+- KT-044 beginner templates;
+- KT-045 placement editor;
+- KT-046 advanced polygon mode;
+- KT-047 server validation/canonicalization;
+- KT-048 versioned proposal persistence.
+
+A coding agent must not mark a Phase 4 task complete using only the short checkbox list in `TASKS.md`.
+
+## 14. Documentation consistency gate
 
 Before closing Phase 4:
 
-- `TASKS.md`, `MVP_SCOPE.md`, `ROADMAP.md`, `API_SPECIFICATION.md`, `AUTH_AND_ONBOARDING.md`, `ARCHITECTURE.md`, `UX_UI_SPEC.md` and `TESTING.md` must describe the same state/auth/proposal boundary;
+- `TASKS.md`, `PHASE_4_IMPLEMENTATION_GUIDE.md`, `MVP_SCOPE.md`, `ROADMAP.md`, `API_SPECIFICATION.md`, `AUTH_AND_ONBOARDING.md`, `ARCHITECTURE.md`, `UX_UI_SPEC.md`, `MAP_STACK_AND_BASEMAP.md`, `ENVIRONMENT.md`, `DEPLOYMENT.md` and `TESTING.md` must describe the same state/auth/map/proposal boundary;
 - `DATA_REFRESH_AND_CACHE.md` is the only canonical refresh implementation document;
 - `DATA_REFRESH_AND_VERSIONING.md` is compatibility-only;
-- open provider/legal decisions remain explicitly open rather than guessed.
+- open legal/provider decisions remain explicitly open rather than guessed;
+- superseded MapLibre-specific implementation instructions must not remain as active Phase 4 requirements.
 
-## 13. Repository governance
+## 15. Repository governance
 
 Issue #32 remains an independent governance requirement: `main` should require PR/CI protection. Phase 4 documentation changes do not make an unprotected branch safe by convention.
 
-## 14. Phase 4 exit gate
+## 16. Phase 4 exit gate
 
 Phase 4 is complete only when:
 
-- map source/attribution decision is verified for the intended environment;
+- Leaflet/MaRu map source/attribution/proxy policy is implemented for the intended environment;
 - map-based parcel selection works end to end;
 - guest state has an anonymous owner before persisted project/proposal writes;
-- locale/navigation do not discard active work;
+- locale/navigation/refresh behavior does not silently discard recoverable work;
 - supported structure cards are backed by the verified scenario matrix;
 - beginner templates and editor create a typed draft, not authoritative client geometry;
-- server canonicalization/validation produces EPSG:3301 proposal versions and authoritative metrics;
+- drag/rotate/numeric resize work on desktop and mobile-appropriate controls;
+- advanced polygon mode is opt-in and safely bounded;
+- server canonicalization/validation produces EPSG:3301 proposal data and authoritative metrics;
+- persisted proposal version creation is owner-scoped, idempotent/concurrency-safe and historically safe;
 - historical proposal versions cannot be silently mutated;
-- public discovery has appropriate resource/abuse/correlation controls;
+- public discovery and tile proxy have appropriate resource/abuse/error controls;
 - critical map/proposal browser flow has Playwright coverage;
 - normal tests remain deterministic and network-independent;
+- the integrated Phase 4 exit scenario in `PHASE_4_IMPLEMENTATION_GUIDE.md` passes;
 - all Phase 4 contract docs agree.

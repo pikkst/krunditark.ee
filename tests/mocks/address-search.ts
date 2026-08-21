@@ -1,7 +1,11 @@
 import { getAddressSearchSuccess } from "./fixtures";
 
-export function mockAddressSearchRoute(page: import("@playwright/test").Page) {
-  return page.route("**/functions/v1/address-search", async (route) => {
+export function mockAddressSearchRoute(
+  page: import("@playwright/test").Page,
+  onRequest?: () => void
+) {
+  return page.route(/\/functions\/v1\/address-search/, async (route) => {
+    onRequest?.();
     const url = new URL(route.request().url());
     const q = url.searchParams.get("q");
     const queryType = url.searchParams.get("queryType") || "address";

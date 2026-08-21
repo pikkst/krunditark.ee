@@ -673,7 +673,6 @@ Avoid snapshot-testing static markup heavily.
 
 ## 27. Playwright public-beta journey
 
-<<<<<<< HEAD
 Foundation implemented with desktop Chromium and mobile viewport. Current coverage:
 
 1. landing;
@@ -696,37 +695,6 @@ As Phase 4 lands, extend to cover:
 15. reopen saved project;
 16. mobile path;
 17. RU and EN critical flow smoke when enabled.
-    \=======
-    The beta suite extends the Phase 4 browser foundation.
-
-At minimum as features become available:
-
-1. landing;
-2. address search;
-3. ambiguous parcel choice;
-4. map parcel selection;
-5. free parcel overview;
-6. choose build intent;
-7. select supported/limited structure scenario;
-8. select template;
-9. drag/rotate/resize proposal;
-10. advanced polygon smoke where supported;
-11. server validate/persist proposal;
-12. refresh/reopen persisted guest proposal in same session;
-13. run deterministic analysis;
-14. inspect conflict;
-15. inspect condition;
-16. inspect unknown;
-17. map evidence;
-18. official source link;
-19. duplicate/move proposal;
-20. compare variant;
-21. guest -> permanent Auth;
-22. reopen saved project;
-23. mobile path;
-24. RU and EN critical-flow smoke when enabled.
-
-> > > > > > > origin/main
 
 Paid launch adds checkout/recovery using provider sandbox/fake-controlled test environment.
 

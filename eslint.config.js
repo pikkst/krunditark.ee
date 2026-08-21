@@ -12,6 +12,7 @@ export default tseslint.config(
       "supabase/functions/",
       "tests/",
       "playwright.config.ts",
+      "playwright.pages.config.ts",
     ],
   },
   {

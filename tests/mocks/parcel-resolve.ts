@@ -4,8 +4,12 @@ import {
   getParcelResolveAmbiguous,
 } from "./fixtures";
 
-export function mockParcelResolveRoute(page: import("@playwright/test").Page) {
-  return page.route("**/functions/v1/parcel-resolve", async (route) => {
+export function mockParcelResolveRoute(
+  page: import("@playwright/test").Page,
+  onRequest?: () => void
+) {
+  return page.route(/\/functions\/v1\/parcel-resolve/, async (route) => {
+    onRequest?.();
     let body: unknown;
     try {
       body = await route.request().postDataJSON();

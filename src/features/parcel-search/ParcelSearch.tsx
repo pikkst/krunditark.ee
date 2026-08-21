@@ -51,7 +51,8 @@ export default function ParcelSearch({
   const listboxRef = useRef<HTMLUListElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const submissionRequestIdRef = useRef(0);
+  const generationRef = useRef(0);
+  const addressGenerationRef = useRef(0);
 
   const trimmedQuery = query.trim();
   const cadastralValidation = useMemo((): CadastralValidation => {
@@ -149,7 +150,8 @@ export default function ParcelSearch({
       e.preventDefault();
       if (trimmedQuery.length === 0) return;
 
-      const currentRequestId = ++submissionRequestIdRef.current;
+      const currentGeneration = ++generationRef.current;
+      const currentAddressGeneration = ++addressGenerationRef.current;
 
       setIsSubmitting(true);
       setResolveError(null);
@@ -166,11 +168,17 @@ export default function ParcelSearch({
 
       try {
         if (cadastralValidation.isCadastral) {
-          if (currentRequestId !== submissionRequestIdRef.current) return;
+          if (currentGeneration !== generationRef.current) return;
           const result = await resolveParcelByCadastralId(cadastralValidation.normalized);
-          if (currentRequestId !== submissionRequestIdRef.current) return;
+          if (currentGeneration !== generationRef.current) return;
           handleResolveResult(result);
         } else if (cadastralValidation.isInvalidCadastral) {
+          setResolveStatus("invalid");
+          setResolveError({
+            code: "INVALID_INPUT",
+            message: t("parcelSearch.invalid"),
+          });
+        } else if (trimmedQuery.length < AUTOCOMPLETE_MIN_LENGTH) {
           setResolveStatus("invalid");
           setResolveError({
             code: "INVALID_INPUT",
@@ -179,7 +187,7 @@ export default function ParcelSearch({
         } else {
           setIsAddressLoading(true);
           const response = await searchAddress(trimmedQuery, { signal: controller.signal });
-          if (currentRequestId !== submissionRequestIdRef.current) {
+          if (currentAddressGeneration !== addressGenerationRef.current) {
             setIsAddressLoading(false);
             return;
           }
@@ -210,11 +218,12 @@ export default function ParcelSearch({
           if (filtered.length === 0) {
             setResolveStatus("not_found");
           } else if (filtered.length === 1) {
+            if (currentGeneration !== generationRef.current) return;
             const result = await resolveParcelByAddressResult(
               filtered[0].id,
               filtered[0].addressId
             );
-            if (currentRequestId !== submissionRequestIdRef.current) return;
+            if (currentGeneration !== generationRef.current) return;
             handleResolveResult(result);
           } else {
             setResolveStatus("idle");
@@ -229,7 +238,7 @@ export default function ParcelSearch({
           message: t("parcelSearch.resolutionUnavailable"),
         });
       } finally {
-        if (currentRequestId === submissionRequestIdRef.current) {
+        if (currentGeneration === generationRef.current) {
           setIsSubmitting(false);
           abortRef.current = null;
         }
@@ -240,6 +249,8 @@ export default function ParcelSearch({
 
   const handleAddressSelect = useCallback(
     async (address: AddressSearchResult) => {
+      const currentGeneration = ++generationRef.current;
+
       setQuery(address.label);
       setIsFocused(false);
       setResolveError(null);
@@ -256,6 +267,7 @@ export default function ParcelSearch({
 
       try {
         const result = await resolveParcelByAddressResult(address.id, address.addressId);
+        if (currentGeneration !== generationRef.current) return;
         handleResolveResult(result);
       } catch {
         setResolveStatus("unavailable");
@@ -308,12 +320,29 @@ export default function ParcelSearch({
   );
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setQuery(e.target.value);
+    const value = e.target.value;
+    setQuery(value);
     setResolveError(null);
     setResolveStatus("idle");
     setActiveIndex(-1);
     setAddressResults([]);
     setAddressError(null);
+
+    const currentGeneration = ++generationRef.current;
+    const currentAddressGeneration = ++addressGenerationRef.current;
+
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+
+    if (currentGeneration !== generationRef.current) {
+      setIsSubmitting(false);
+      setIsAddressLoading(false);
+    }
+    if (currentAddressGeneration !== addressGenerationRef.current) {
+      setIsAddressLoading(false);
+    }
   }, []);
 
   const handleInputFocus = useCallback(() => {
@@ -397,31 +426,31 @@ export default function ParcelSearch({
         >
           {isSubmitting ? t("parcelSearch.loading") : t("parcelSearch.searchButton")}
         </button>
-      </div>
 
-      {showResults && (
-        <ul ref={listboxRef} id={listboxId} className="parcel-search__listbox" role="listbox">
-          {displayAddressResults.map((result: AddressSearchResult, index: number) => (
-            <li
-              key={result.id}
-              id={`parcel-search-option-${index}`}
-              className="parcel-search__option"
-              role="option"
-              aria-selected={index === activeIndex}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                handleAddressSelect(result);
-              }}
-              onMouseEnter={() => setActiveIndex(index)}
-            >
-              <span className="parcel-search__option-label">{result.label}</span>
-              {result.cadastralId && (
-                <span className="parcel-search__option-meta">{result.cadastralId}</span>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+        {showResults && (
+          <ul ref={listboxRef} id={listboxId} className="parcel-search__listbox" role="listbox">
+            {displayAddressResults.map((result: AddressSearchResult, index: number) => (
+              <li
+                key={result.id}
+                id={`parcel-search-option-${index}`}
+                className="parcel-search__option"
+                role="option"
+                aria-selected={index === activeIndex}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleAddressSelect(result);
+                }}
+                onMouseEnter={() => setActiveIndex(index)}
+              >
+                <span className="parcel-search__option-label">{result.label}</span>
+                {result.cadastralId && (
+                  <span className="parcel-search__option-meta">{result.cadastralId}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       {showNoMatch && (
         <p

@@ -165,6 +165,23 @@ describe("ParcelSearch", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("shows invalid for short address input without making requests", async () => {
+    renderWithI18n(<ParcelSearch onParcelResolved={() => {}} onAmbiguousResolve={() => {}} />);
+
+    const input = screen.getByLabelText("Aadress või katastritunnus");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "Põ" } });
+
+    const button = screen.getByRole("button", { name: "Otsi" });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByText("Vigane sisend. Kontrolli katastritunnuse vormingut.")).toBeDefined();
+    });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("does not issue address-search requests while typing", async () => {
     renderWithI18n(<ParcelSearch onParcelResolved={() => {}} onAmbiguousResolve={() => {}} />);
 
@@ -239,6 +256,64 @@ describe("ParcelSearch", () => {
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("ignores stale address-search response after editing input", async () => {
+    const resolvePromise = new Promise<Response>((resolve) => {
+      setTimeout(
+        () =>
+          resolve({
+            ok: true,
+            json: () => Promise.resolve({ addresses: [], host: "inaks-api-test" }),
+          } as unknown as Response),
+        100
+      );
+    });
+    fetchSpy.mockReturnValueOnce(resolvePromise as unknown as Promise<Response>);
+
+    renderWithI18n(<ParcelSearch onParcelResolved={() => {}} onAmbiguousResolve={() => {}} />);
+
+    const input = screen.getByLabelText("Aadress või katastritunnus");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "A" } });
+
+    fireEvent.change(input, { target: { value: "B" } });
+
+    await waitFor(() => {
+      expect(screen.queryByText("Katastriüksust ei leitud")).toBeNull();
+    });
+  });
+
+  it("ignores stale parcel resolve after editing input", async () => {
+    const onResolved = vi.fn();
+    const resolvePromise = new Promise<Response>((resolve) => {
+      setTimeout(
+        () =>
+          resolve({
+            ok: true,
+            json: () => Promise.resolve({ status: "resolved", candidates: [MOCK_PARCEL] }),
+          } as unknown as Response),
+        100
+      );
+    });
+    fetchSpy.mockReturnValueOnce(resolvePromise as unknown as Promise<Response>);
+
+    renderWithI18n(
+      <ParcelSearch onParcelResolved={onResolved} onAmbiguousResolve={() => {}} />
+    );
+
+    const input = screen.getByLabelText("Aadress või katastritunnus");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "A" } });
+
+    const button = screen.getByRole("button", { name: "Otsi" });
+    fireEvent.click(button);
+
+    fireEvent.change(input, { target: { value: "B" } });
+
+    await waitFor(() => {
+      expect(onResolved).not.toHaveBeenCalled();
     });
   });
 

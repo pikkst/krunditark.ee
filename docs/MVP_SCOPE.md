@@ -78,7 +78,7 @@ Server/PostGIS is authoritative for geometry validity and material metrics. Clie
 
 A persisted proposal is versioned. A proposal referenced by terminal analysis is never silently mutated in place.
 
-See ADR 0009 and `PHASE_4_READINESS.md`.
+See ADR 0009, `PHASE_4_READINESS.md` and `PHASE_4_IMPLEMENTATION_GUIDE.md`.
 
 ### Official data categories
 
@@ -172,11 +172,23 @@ The minimum anonymous Auth/project-ownership slice is therefore a **Phase 4 depe
 
 See ADR 0006, ADR 0009 and `AUTH_AND_ONBOARDING.md`.
 
-### Map provider
+### Map stack and provider
 
-MapLibre GL JS is fixed, but the production basemap/style/orthophoto provider is not yet fixed.
+ADR 0010 resolves the Phase 4 map architecture:
 
-A development source may be used temporarily, but production-ready KT-040 requires OQ-003 / issue #50 to verify current terms, attribution, privacy, rate/availability expectations, orthophoto support and deployment configuration.
+- browser renderer: **Leaflet 1.9.x stable**;
+- optional Phase 4 geometry editing: `@geoman-io/leaflet-geoman-free` where the required capability exists in the free package;
+- Maa- ja Ruumiamet pre-tiled **`Kaart`** as default basemap;
+- Maa- ja Ruumiamet **`Ortofoto`** as optional mode;
+- browser tile traffic through a Krunditark-owned fixed/allow-listed proxy;
+- required source/data-age attribution visible;
+- no Google Maps production dependency;
+- public OSM/demo tiles are not the production provider;
+- canonical GIS truth remains server/PostGIS-side in EPSG:3301.
+
+KT-040 must implement and prove this contract; it must not reopen renderer/provider selection as an implementation convenience.
+
+See `docs/MAP_STACK_AND_BASEMAP.md` and ADR 0010.
 
 ### Deployment
 
@@ -298,18 +310,22 @@ A separate controlled integration environment may verify live official providers
 
 ## Phase 4 readiness before continuing the vertical slice
 
-Read `docs/PHASE_4_READINESS.md` before KT-040–KT-048.
+Read `docs/PHASE_4_READINESS.md` and `docs/PHASE_4_IMPLEMENTATION_GUIDE.md` before KT-038–KT-048. Map/editor tasks additionally read `docs/MAP_STACK_AND_BASEMAP.md` and ADR 0010.
 
 At minimum:
 
-- production map source/attribution decision is explicit before production-ready map status;
+- Playwright real-browser foundation exists before complex editor work;
+- Leaflet + MaRu `Kaart`/`Ortofoto` + fixed-proxy/attribution architecture is implemented according to ADR 0010;
 - map-based parcel selection is wired end to end;
 - anonymous guest ownership is available before persisted owner-RLS proposal writes;
 - intent codes are canonical and locale-independent;
 - verified structure support is separate from a valid enum value;
 - proposal browser draft and canonical persisted proposal are separate contracts;
+- server/PostGIS owns authoritative geometry validation and area/perimeter;
+- proposal save/version allocation is idempotent and concurrency-safe before KT-048 is Done;
 - real-browser Playwright coverage protects critical map/editor routing/interaction;
-- public discovery functions have bounded resource/abuse behavior.
+- public discovery functions have bounded resource/abuse behavior;
+- the Phase 4 final integration/exit scenario passes before Phase 5 begins.
 
 ## Launch blockers
 
@@ -320,6 +336,7 @@ MVP must not launch publicly as a decision-support product if any of these are t
 - source failure is displayed as “no restriction”/not found;
 - map parcel ambiguity can silently select the wrong parcel;
 - persisted proposal geometry/metrics can be trusted from client input without server validation;
+- proposal save/version retry or concurrency can create ambiguous/duplicate historical versions;
 - a failed/incomplete scheduled import can replace the previous verified dataset;
 - analyses cannot identify the exact promoted data release/source versions used;
 - production legal rules lack official source/version metadata;
@@ -327,6 +344,6 @@ MVP must not launch publicly as a decision-support product if any of these are t
 - Gemini can change deterministic finding status;
 - Gemini is required for normal source synchronization;
 - map/report lacks required source attribution;
-- production map usage violates provider terms/attribution requirements;
+- production map usage violates ADR 0010 / MaRu proxy/attribution requirements;
 - current law/source review has not been completed for the supported rule matrix;
 - critical user journey lacks production-like browser E2E coverage before public beta.

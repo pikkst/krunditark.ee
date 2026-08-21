@@ -4,12 +4,12 @@ Last contract review: **2026-08-21**
 
 This document defines Krunditark-owned client/server contracts. Physical deployment may use multiple Supabase Edge Functions and RLS-protected Data API calls, but the frontend must not consume provider-specific WFS/EHR/Gemini/payment payloads as product contracts.
 
-ADR 0009 and `PHASE_4_READINESS.md` define the Phase 4 browser-draft / anonymous-owner / canonical-persistence boundary.
+ADR 0009, ADR 0010, `PHASE_4_READINESS.md` and `PHASE_4_IMPLEMENTATION_GUIDE.md` define the Phase 4 browser-draft / anonymous-owner / map-proxy / canonical-persistence boundary.
 
 ## 1. General rules
 
-- JSON over HTTPS for Krunditark application APIs.
-- UTF-8.
+- JSON over HTTPS for Krunditark application APIs unless the endpoint is intentionally a binary tile/media response.
+- UTF-8 for JSON/text.
 - external input is runtime validated; no particular schema library is mandatory.
 - stable typed error codes.
 - no stack traces/provider bodies/secrets returned.
@@ -22,6 +22,7 @@ ADR 0009 and `PHASE_4_READINESS.md` define the Phase 4 browser-draft / anonymous
 - ownership and entitlements are checked server-side.
 - locale changes presentation, not deterministic result.
 - public/server APIs generate or propagate a request/correlation ID suitable for support diagnostics.
+- browser map/tile requests use the narrow ADR 0010 Krunditark proxy contract rather than arbitrary provider URLs.
 
 Example envelope:
 
@@ -60,7 +61,8 @@ No permanent Auth is required for:
 
 - static marketing/help/sample-report content;
 - allowed address/cadastral/map parcel discovery;
-- bounded free parcel overview.
+- bounded free parcel overview;
+- public basemap tile requests through the narrow Krunditark tile proxy, subject to deployment/CORS/rate policy.
 
 ### Anonymous authenticated user
 
@@ -103,7 +105,7 @@ Service-role credentials never replace normal owner RLS for browser project/prop
 - `PARCEL_SELECTION_AMBIGUOUS`
 - `RATE_LIMITED`
 
-### Source/data
+### Source/data/map
 
 - `SOURCE_TIMEOUT`
 - `SOURCE_UNAVAILABLE`
@@ -112,12 +114,15 @@ Service-role credentials never replace normal owner RLS for browser project/prop
 - `UPSTREAM_ERROR`
 - `DATA_RELEASE_UNAVAILABLE`
 - `DATA_RELEASE_INCOMPLETE`
+- `MAP_TILE_INVALID`
+- `MAP_TILE_UNAVAILABLE`
 
 ### Proposal/analysis
 
 - `PROPOSAL_GEOMETRY_INVALID`
 - `PROPOSAL_OUTSIDE_SUPPORTED_AREA`
 - `PROPOSAL_RESOURCE_LIMIT`
+- `IDEMPOTENCY_CONFLICT`
 - `ANALYSIS_SCOPE_UNSUPPORTED`
 - `ANALYSIS_IN_PROGRESS`
 - `ANALYSIS_FAILED`
@@ -276,6 +281,55 @@ Rules:
 - validates expected source CRS before constructing canonical candidates;
 - never silently drops invalid features in a way that changes ambiguity semantics;
 - map ambiguity requires explicit confirmation.
+
+## 5A. Phase 4 basemap tile proxy
+
+ADR 0010 / `MAP_STACK_AND_BASEMAP.md` define the map provider/renderer architecture. The browser must not receive an arbitrary upstream URL.
+
+Conceptual endpoint:
+
+```text
+GET /functions/v1/map-tiles/:mode/:z/:x/:y
+```
+
+The exact deployed route may differ, but the contract is fixed and narrow.
+
+Supported initial `mode` values:
+
+```text
+kaart
+ortofoto
+```
+
+Purpose:
+
+- proxy only approved Maa- ja Ruumiamet pre-tiled basemap requests;
+- keep upstream routing under Krunditark control;
+- provide bounded timeout/error/caching behavior compatible with current MaRu terms;
+- allow the browser to use one public Krunditark-owned tile base URL.
+
+Validation/security rules:
+
+- `mode` must match the fixed allow-list;
+- `z`, `x`, `y` must be finite integers within the configured supported tile range;
+- no request parameter may select an arbitrary URL/host/layer;
+- no caller-controlled upstream authorization/header forwarding;
+- explicit upstream timeout;
+- bounded response size and approved raster content type;
+- CORS restricted according to environment policy;
+- provider failure returns safe `MAP_TILE_UNAVAILABLE`/5xx semantics rather than parcel `not_found`;
+- invalid mode/coordinates return `MAP_TILE_INVALID`/4xx semantics;
+- logs contain safe request/tile metadata, not full parcel address/project/proposal payload;
+- no national/offline prefetch endpoint exists.
+
+Response:
+
+- successful tile requests return the approved raster tile bytes/content type plus safe cache headers;
+- provider-unavailable response may be JSON/standard error payload when no tile is available; the Leaflet client must translate it into a degraded basemap state without losing vector/project state.
+
+Attribution/data-age is an application/map metadata contract, not inferred from the current page date. The UI follows `MAP_STACK_AND_BASEMAP.md`.
+
+This visual tile endpoint is presentation infrastructure and does not imply that the associated basemap is an analytical data-release source.
 
 ## 6. Parcel lookup
 
@@ -510,6 +564,22 @@ Conceptual response:
 Owner only (anonymous or permanent).
 
 Creates a **new persisted proposal version** after the same authoritative validation/canonicalization rules succeed.
+
+Header contract for KT-048:
+
+```text
+Idempotency-Key: <high-entropy client operation key>
+```
+
+The implementation may realize the atomic guarantee through a project-scoped transaction/lock, RPC, idempotency table/columns or an equivalent mechanism. The exact DB primitive is finalized by KT-048 / issue #53; the observable API semantics are already fixed:
+
+- same owner + same idempotency key + same canonical semantic save payload -> return/reuse the same saved proposal outcome;
+- same owner + same idempotency key + different semantic payload -> fail with `IDEMPOTENCY_CONFLICT`;
+- concurrent save requests must not overwrite each other or allocate the same ambiguous version;
+- a failed transaction creates no partial proposal version;
+- retry after a committed save whose response was lost must not create a second semantic version.
+
+Never implement observable save semantics as an unguarded client/server `SELECT max(version) + 1` followed by an independent insert.
 
 Server/PostGIS values win over any client preview values.
 
@@ -1073,6 +1143,7 @@ Especially:
 
 - address search;
 - cadastral/map parcel resolution;
+- public map-tile proxy;
 - anonymous project creation;
 - proposal validation/persistence;
 - analysis creation;
@@ -1090,6 +1161,12 @@ For public parcel discovery:
 - frontend submit/click behavior reduces normal traffic but is not enforcement;
 - server-side burst/sustained budgets are required before high-volume public use;
 - logs should contain request ID, source/function, status, duration and safe error code without routinely logging full addresses.
+
+For the tile proxy:
+
+- normal map panning/zooming necessarily creates multiple tile requests, so limits/caching are evaluated separately from address/parcel API budgets;
+- the proxy remains mode/coordinate allow-listed and cannot become a generic fetch endpoint;
+- no offline/national mass-prefetch API is provided.
 
 ## 32. API versioning
 
@@ -1119,16 +1196,18 @@ External B2B consumers require explicit `/v1` or equivalent before launch.
 
 ## 34. API security acceptance
 
-- public visitor can access only explicitly public parcel-discovery/free-overview behavior;
+- public visitor can access only explicitly public parcel-discovery/free-overview/basemap behavior;
 - anonymous user cannot access another guest's project/proposals;
 - permanent user cannot access another user's project/report/order;
 - Phase 4 browser never uses service-role credentials to create owner state;
 - client cannot set admin role;
 - client cannot force source refresh;
-- client cannot select arbitrary source URL;
+- client cannot select arbitrary source/tile proxy URL;
 - client cannot decide authoritative proposal area/perimeter/CRS;
+- proposal save retry/concurrency cannot create uncontrolled duplicate/ambiguous versions;
 - client cannot set paid amount or grant entitlement;
 - invalid payment webhook rejected;
 - share token is only valid for explicit shared scope;
 - raw source/Gemini/payment secrets are never returned;
-- provider timeout/rate failure cannot be converted into a successful empty/no-risk result.
+- provider timeout/rate failure cannot be converted into a successful empty/no-risk result;
+- map tile failure cannot become parcel `not_found` or clear analytical evidence.

@@ -22,6 +22,8 @@ Mandatory companion docs:
 - `docs/ARCHITECTURE.md`
 - `docs/DATA_REFRESH_AND_CACHE.md`
 - `docs/PHASE_4_READINESS.md` for KT-038 through KT-048
+- `docs/PHASE_4_IMPLEMENTATION_GUIDE.md` for KT-038 through KT-048 task-level implementation contract, tests, DoD and out-of-scope
+- `docs/MAP_STACK_AND_BASEMAP.md` for KT-040 through KT-046 map/editor work
 - applicable task-specific docs/ADRs
 - `docs/DEFINITION_OF_DONE.md`
 
@@ -335,7 +337,7 @@ Read `UX_UI_SPEC.md`.
 
 # Phase 4 readiness prerequisites
 
-Read `docs/PHASE_4_READINESS.md` before starting these tasks.
+Read `docs/PHASE_4_READINESS.md` and `docs/PHASE_4_IMPLEMENTATION_GUIDE.md` before starting any task in this section. The checklist below is a summary only: the task-specific implementation contract, required tests, Definition of Done and out-of-scope section in `PHASE_4_IMPLEMENTATION_GUIDE.md` are mandatory.
 
 ## KT-038 — Add real-browser E2E foundation
 
@@ -350,6 +352,8 @@ Tracked by issue #47.
 - [ ] trace/screenshot diagnostics on failure where useful.
 - [ ] CI runs critical E2E once the foundation lands.
 
+**Detailed DoD:** `docs/PHASE_4_IMPLEMENTATION_GUIDE.md` → KT-038.
+
 This does not replace the broader KT-136 beta suite; KT-136 extends it.
 
 ## KT-039 — Establish Phase 4 guest workflow ownership/state
@@ -363,8 +367,11 @@ Tracked by issue #48. Read ADR 0006 and ADR 0009.
 - [ ] anonymous A cannot access anonymous B project/proposals.
 - [ ] guest project/proposal creation is bounded.
 - [ ] route + locale change preserves active project/draft.
-- [ ] browser back/forward behavior is deterministic.
+- [ ] browser back/forward and refresh/recovery behavior is deterministic/documented.
+- [ ] repeated route/retry behavior does not create uncontrolled duplicate guest projects.
 - [ ] no browser service-role/shared-identity bypass.
+
+**Detailed DoD:** `docs/PHASE_4_IMPLEMENTATION_GUIDE.md` → KT-039.
 
 Permanent email OTP/Google account conversion remains in Phase 11.
 
@@ -372,30 +379,41 @@ Permanent email OTP/Google account conversion remains in Phase 11.
 
 # Phase 4 — Map and proposal creation
 
-## KT-040 — Add MapLibre map shell and map-entry flow
+## KT-040 — Add Leaflet map shell and map-entry flow
 
-- [ ] Estonia-centered default.
-- [ ] responsive/mobile.
-- [ ] source attribution.
-- [ ] lazy load where practical.
+Read ADR 0010 and `docs/MAP_STACK_AND_BASEMAP.md`.
+
+- [ ] Leaflet 1.9.x stable pinned through committed lockfile; no Leaflet 2 alpha.
+- [ ] Estonia-centered default and responsive/mobile sizing.
+- [ ] Maa- ja Ruumiamet `Kaart` is the default basemap and `Ortofoto` is an optional mode.
+- [ ] basemap requests use a Krunditark-owned fixed proxy; no direct production browser MaRu tile-origin dependency.
+- [ ] source/data-age attribution remains visible.
+- [ ] lazy-load map code where practical.
 - [ ] `Vali krunt kaardilt` opens/navigates to the map parcel-selection experience.
 - [ ] explicit map click invokes canonical `parcel-resolve` point selector; pointer movement does not resolve parcels.
-- [ ] development map source, if temporary, is clearly non-production.
+- [ ] resolved/ambiguous/not-found/unavailable/invalid-source states remain distinct.
+- [ ] tile-provider failure degrades the basemap without destroying parcel/project state or becoming parcel `not_found`.
+- [ ] no Google Maps or MapLibre runtime dependency is introduced for Phase 4.
+- [ ] MaRu provider-contact/fixed-proxy operational requirement is recorded for public production.
 
-**Production-ready gate:** resolve OQ-003 / issue #50 for basemap/style/orthophoto terms, attribution, privacy, rate/availability and environment configuration.
+Map-based parcel selection end-to-end remains tracked by issue #49. The map-engine/provider research previously tracked by #50 is resolved by ADR 0010; implementation verification belongs to this task.
 
-Map-based parcel selection end-to-end is tracked by issue #49 and is part of this Phase 4 flow, not a decorative future feature.
+**Detailed DoD:** `docs/PHASE_4_IMPLEMENTATION_GUIDE.md` → KT-040.
 
 ## KT-041 — Render/confirm selected parcel
 
-- [ ] correct transformations.
-- [ ] fit/zoom.
+- [ ] correct explicit canonical->browser transformations.
+- [ ] Polygon/MultiPolygon/interior-ring rendering remains correct.
+- [ ] deterministic fit/zoom with usable padding.
 - [ ] parcel/source vs user proposal visually distinct.
 - [ ] search-resolved and map-resolved parcel use the same canonical selected-parcel contract.
 - [ ] map `resolved` candidate can be confirmed.
 - [ ] map `ambiguous` requires explicit candidate confirmation.
 - [ ] loading/not-found/unavailable/invalid-source remain distinct.
 - [ ] confirmed parcel continues to the same overview/intent workflow.
+- [ ] parcel facts/source/freshness remain available textually, not only through map graphics.
+
+**Detailed DoD:** `docs/PHASE_4_IMPLEMENTATION_GUIDE.md` → KT-041.
 
 ## KT-042 — Build intent step
 
@@ -407,7 +425,10 @@ Canonical codes come from KT-024 / `API_SPECIFICATION.md`:
 - [ ] `existing_building_modification` — clearly unsupported/planned, never routed through new-building rules.
 - [ ] `professional` — future context marker/route, never a consumer fallback legal profile.
 - [ ] translated labels map to canonical codes only.
-- [ ] selecting intent preserves the exact project/parcel state across routing.
+- [ ] support state is separate from code validity.
+- [ ] selecting intent persists owner project state and preserves the exact project/parcel across routing/locale changes.
+
+**Detailed DoD:** `docs/PHASE_4_IMPLEMENTATION_GUIDE.md` → KT-042.
 
 ## KT-043 — Build supported structure selection
 
@@ -417,8 +438,11 @@ Canonical codes come from KT-024 / `API_SPECIFICATION.md`:
 - [ ] planned/unsupported known structures are explicit.
 - [ ] unsupported/custom `Muu` can continue only with explicitly limited checks.
 - [ ] `Muu` never silently maps to a supported legal/process analysis profile.
+- [ ] stale/missing support-matrix configuration fails safe rather than treating all domain types as supported.
 
 **Support gate:** resolve OQ-005 / issue #51 against current official law before any card is called fully supported.
+
+**Detailed DoD:** `docs/PHASE_4_IMPLEMENTATION_GUIDE.md` → KT-043.
 
 ## KT-044 — Build beginner footprint templates
 
@@ -426,46 +450,69 @@ Read ADR 0009.
 
 - [ ] predefined starting rectangles/dimensions.
 - [ ] custom dimensions.
+- [ ] typed centralized template registry.
 - [ ] template is convenience, not design/legal advice.
 - [ ] template creates a typed mutable browser/editor draft.
 - [ ] Phase 4 template ID is non-authoritative UI provenance and not required in canonical persisted `Proposal`.
 - [ ] client area/perimeter are preview values only.
+- [ ] invalid/zero/negative/non-finite dimension inputs fail safely.
+- [ ] previewing/changing a template does not silently create a persisted proposal version.
+
+**Detailed DoD:** `docs/PHASE_4_IMPLEMENTATION_GUIDE.md` → KT-044.
 
 ## KT-045 — Build proposal placement editor
+
+Read ADR 0010. Use `@geoman-io/leaflet-geoman-free` only for behavior available in the free package; Phase 4 must not depend on Geoman Pro.
 
 - [ ] drag.
 - [ ] rotate.
 - [ ] numeric resize.
 - [ ] delete/reset for unpersisted draft.
+- [ ] one typed editor draft remains synchronized with map and form controls.
 - [ ] desktop side panel.
 - [ ] mobile bottom-sheet workflow.
+- [ ] keyboard/numeric alternative for essential precision input.
 - [ ] route/locale changes preserve active project/draft according to KT-039.
-- [ ] map preview never implies client geometry/measurements are authoritative legal calculations.
+- [ ] map pan/base-layer changes do not mutate proposal state.
+- [ ] map preview is visibly non-authoritative (`Eelvaade`) and never implies client geometry/measurements are legal calculations.
+- [ ] map/plugin listeners clean up correctly on unmount/remount.
+
+**Detailed DoD:** `docs/PHASE_4_IMPLEMENTATION_GUIDE.md` → KT-045.
 
 ## KT-046 — Add advanced polygon mode
 
+- [ ] advanced mode is opt-in, not the beginner default.
 - [ ] draw/edit polygon.
+- [ ] deterministic GeoJSON serialization.
 - [ ] validation feedback.
 - [ ] resource/vertex limits respected.
-- [ ] not the default beginner path.
+- [ ] invalid/self-intersecting drafts fail visibly.
+- [ ] unsupported hole/MultiPolygon semantics fail safe rather than being silently flattened.
+- [ ] switching modes handles possible draft-data loss explicitly.
+
+**Detailed DoD:** `docs/PHASE_4_IMPLEMENTATION_GUIDE.md` → KT-046.
 
 ## KT-047 — Server-side proposal validation/canonicalization
 
 Read ADR 0009 and `API_SPECIFICATION.md`.
 
-- [ ] accepts typed browser/editor draft input.
-- [ ] GeoJSON/runtime validation.
+- [ ] accepts typed browser/editor draft input as untrusted input.
+- [ ] runtime JSON/GeoJSON/schema validation.
 - [ ] browser interchange CRS explicit.
-- [ ] transform to canonical EPSG:3301.
-- [ ] validity/bounds/resource limits.
+- [ ] finite-coordinate and supported-extent checks.
+- [ ] transform to canonical EPSG:3301 server-side.
+- [ ] topology/bounds/resource/vertex limits.
 - [ ] canonical authoritative area.
 - [ ] canonical authoritative perimeter (derived from canonical geometry; persistent DB column not required unless separately justified).
-- [ ] reject/repair only under explicit policy.
-- [ ] client-forged metrics ignored.
+- [ ] reject/repair only under explicit documented policy; no silent material geometry changes.
+- [ ] client-forged metrics ignored/recomputed.
 - [ ] typed errors/warnings.
-- [ ] deterministic tests including malformed/oversized/out-of-bounds/topology cases.
+- [ ] deterministic tests including malformed/oversized/out-of-bounds/topology/CRS/reference-metric cases.
+- [ ] no proposal persistence occurs before canonical validation succeeds.
 
-Proposal contract reconciliation is tracked by issue #53.
+Proposal contract reconciliation remains tracked by issue #53.
+
+**Detailed DoD:** `docs/PHASE_4_IMPLEMENTATION_GUIDE.md` → KT-047.
 
 ## KT-048 — Version proposal persistence
 
@@ -473,13 +520,23 @@ Depends on KT-039 and KT-047.
 
 - [ ] owner is current anonymous/permanent `auth.uid()` through canonical project RLS path.
 - [ ] create proposal version only from successful canonical server validation.
+- [ ] persisted geometry is canonical EPSG:3301.
 - [ ] unpersisted draft remains mutable; persisted proposal is versioned state.
 - [ ] editing a persisted scenario creates a new saved version under the canonical lifecycle rather than silently rewriting historical state.
 - [ ] do not mutate proposal referenced by terminal/completed analysis.
 - [ ] owner RLS: anonymous/permanent A cannot access B.
 - [ ] no service-role browser bypass.
-- [ ] retry/concurrency/version-number behavior tested.
+- [ ] save retry/idempotency behavior is explicit and tested.
+- [ ] same idempotency key with different semantic payload fails safely.
+- [ ] concurrent version creation/version-number allocation is transaction-safe and tested.
+- [ ] failed save preserves client draft/retry path and leaves no partial version.
 - [ ] full A/B variant workflow remains Phase 9.
+
+**Detailed DoD:** `docs/PHASE_4_IMPLEMENTATION_GUIDE.md` → KT-048.
+
+### Phase 4 exit gate before Phase 5
+
+Do not begin Phase 5 merely because KT-048 has a checked box. Run and record the integrated Phase 4 exit scenario in `docs/PHASE_4_IMPLEMENTATION_GUIDE.md` and verify `docs/PHASE_4_READINESS.md` exit gate. All KT-038…KT-048 task-specific DoD requirements and applicable global DoD gates must pass.
 
 ---
 

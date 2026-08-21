@@ -2,7 +2,7 @@
 
 Last comprehensive product review: **2026-08-21**
 
-For current Phase 4 implementation, also read `PHASE_4_READINESS.md`, ADR 0006 and ADR 0009.
+For current Phase 4 implementation, also read `PHASE_4_READINESS.md`, `PHASE_4_IMPLEMENTATION_GUIDE.md`, `MAP_STACK_AND_BASEMAP.md`, ADR 0006, ADR 0009 and ADR 0010.
 
 ## 1. UX north star
 
@@ -369,9 +369,10 @@ Show candidates with area and outline where available.
 
 `Vali krunt kaardilt` is a functional Phase 4 entry path.
 
-It opens/navigates to MapLibre with:
+It opens/navigates to the **Leaflet** map workflow with:
 
 - Estonia-useful initial viewport;
+- default `Kaart` and optional `Ortofoto` basemap modes according to ADR 0010;
 - location/search assistance where appropriate;
 - cadastral/parcel context at suitable zoom;
 - explicit click/select action;
@@ -386,7 +387,8 @@ Rules:
 - ambiguous candidates require explicit confirmation;
 - not-found/unavailable/invalid-source are distinct;
 - confirmed map parcel enters the same free-overview/intent flow as text search;
-- source attribution remains visible;
+- source/data-age attribution remains visible;
+- tile/basemap failure does not become parcel `not_found` and must not discard selected parcel/proposal state;
 - map selection never implies ownership.
 
 ## 8. Free parcel overview
@@ -556,17 +558,24 @@ Client-side geometry/measurements never become authoritative legal measurements 
 
 ## 13. Basemap modes
 
-Recommended user modes:
+Phase 4 user modes are fixed by ADR 0010:
 
-- `Kaart`
-- `Ortofoto`
-- later `Reljeef`
+- **`Kaart`** — default Maa- ja Ruumiamet pre-tiled basemap;
+- **`Ortofoto`** — optional Maa- ja Ruumiamet orthophoto mode;
+- later `Reljeef` only after a separate justified source/UX decision.
 
-**Production map gate:** OQ-003 / issue #50 must verify the exact production style/tile/orthophoto provider, terms, attribution, privacy/referrer behavior, rate/availability expectations and deployment configuration.
+Implementation rules:
 
-A temporary development map source may be used during KT-040 only when clearly identified as non-production. Do not let an arbitrary public tile endpoint become production by inertia.
+- Leaflet is the Phase 4 browser renderer;
+- browser basemap requests use the Krunditark-owned fixed/allow-listed tile proxy;
+- production browser code does not request MaRu tile origins directly;
+- source/data-age attribution remains visible on desktop/mobile;
+- mode switching preserves parcel/proposal overlays and project state;
+- tile-provider failure shows degraded visual-map state without turning parcel state into `not_found`;
+- public OSM/demo tile endpoints are not a production fallback by convenience;
+- avoid querying heavyweight WMS directly for every browser pan when the approved pre-tiled MaRu service exists.
 
-Avoid querying a heavyweight WMS directly for every browser pan when an approved tiled service/style exists.
+See `MAP_STACK_AND_BASEMAP.md` and ADR 0010.
 
 ## 14. Analysis progress UX
 
@@ -970,10 +979,11 @@ Real-browser Playwright coverage starts in Phase 4 because focus/pointer/touch/r
 Targets are experience-based, then measured.
 
 - landing/search should be quick before loading heavy map code;
-- lazy-load MapLibre where possible;
+- lazy-load Leaflet/editor code where practical;
 - cache address/parcel results within source policy;
 - address lookup only on explicit submit;
 - map parcel resolution only on explicit selection/click;
+- tile requests follow the owned proxy/provider policy rather than uncontrolled direct-origin fan-out;
 - local data-release analysis should avoid a series of visible upstream waits;
 - render large vector evidence with simplification/tiles as needed;
 - skeletons preserve layout;
@@ -996,6 +1006,10 @@ Show a safe retry state. Do not display `Katastriüksust ei leitud`.
 ### Ambiguous map/address parcel
 
 `Leidsime mitu võimalikku katastriüksust. Vali õige.`
+
+### Basemap/tile provider degraded
+
+Keep parcel/proposal state and textual controls available. Explain that the visual basemap is temporarily unavailable; do not convert the state to parcel not-found and do not discard the user's work.
 
 ### Guest project bootstrap failed
 
@@ -1178,6 +1192,8 @@ For Phase 4, the acceptance test must also confirm:
 - route/locale navigation preserves active work;
 - browser proposal geometry is clearly preview state until server validation;
 - ambiguous parcel selection is explicit;
+- `Kaart`/`Ortofoto` switching does not discard overlays/state;
+- basemap failure does not destroy parcel/proposal state;
 - mobile map/bottom-sheet interaction is usable in a real browser.
 
 A successful session ends with a user knowing **what to do next**, not merely having viewed more data.

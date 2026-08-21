@@ -4,7 +4,7 @@ Last reviewed: **2026-08-21**
 
 This file lists only decisions that are genuinely still open. Coding agents must not silently invent them.
 
-For Phase 4 cross-cutting gates, also read `PHASE_4_READINESS.md`.
+For Phase 4 cross-cutting gates, also read `PHASE_4_READINESS.md` and `PHASE_4_IMPLEMENTATION_GUIDE.md`.
 
 ## Resolved decisions
 
@@ -31,7 +31,8 @@ The following are **not open questions**.
 ### Frontend/backend
 
 - React + TypeScript + Vite.
-- MapLibre GL JS.
+- **Leaflet 1.9.x stable** for the Phase 4 browser map.
+- `@geoman-io/leaflet-geoman-free` may be used where required Phase 4 editing behavior exists in the free package.
 - React Router.
 - GitHub Pages for current preview/development deployment.
 - Supabase Cloud backend.
@@ -45,6 +46,18 @@ ADR 0009 clarifies the early stack list:
 - Zod is optional; explicit tested runtime parsers/validators are acceptable;
 - runtime trust-boundary validation itself is mandatory;
 - domain models remain provider/library independent.
+
+ADR 0010 resolves the Phase 4 map architecture:
+
+- Leaflet is the Phase 4 renderer;
+- Maa- ja Ruumiamet `Kaart` is the default basemap;
+- Maa- ja Ruumiamet `Ortofoto` is the optional aerial mode;
+- browser tile traffic uses a Krunditark-owned fixed/allow-listed proxy;
+- source/data-age attribution remains visible;
+- Google Maps and MapLibre are not Phase 4 runtime dependencies without a superseding ADR;
+- public OSM/demo tile endpoints are not production providers by convenience.
+
+The former OQ-003 / issue #50 research decision is resolved. KT-040 still owns implementation/verification of this architecture.
 
 ### Phase 4 workflow state
 
@@ -67,6 +80,7 @@ See ADR 0006, ADR 0009 and `AUTH_AND_ONBOARDING.md`.
 - Saving creates a proposal version; a terminal-analysis proposal is not mutated in place.
 - Beginner template ID is non-authoritative UI provenance in Phase 4 and is not required in canonical proposal persistence.
 - Full A/B variant workflow remains later.
+- Proposal-save API semantics are idempotent/retry-safe/concurrency-safe; the concrete KT-048 transaction/version-allocation primitive remains implementation work under issue #53.
 
 ### Auth/onboarding
 
@@ -104,7 +118,7 @@ See `LOCALIZATION_AND_LANGUAGE.md`.
 - `DATA_REFRESH_AND_CACHE.md` is canonical.
 - `DATA_REFRESH_AND_VERSIONING.md` is compatibility-only.
 - No universal “fetch all sources per analysis”.
-- Heavy analytical spatial data uses scheduled releases, with monthly baseline only where source policy says so.
+- Heavy analytical spatial data uses source-specific scheduled snapshot/incremental releases, with monthly baseline only where source policy says so.
 - Cheap source-specific legal/EHR/schema change watches may run daily/weekly.
 - In-AKS address search is live/short-cache.
 - Last-known-good data survives failed refresh.
@@ -158,32 +172,6 @@ Before enabling AI in an environment:
 
 Google changes model lifecycle, so an implementation agent must check current official documentation rather than trusting an old doc recommendation.
 
-## OQ-003 — Production base-map tile/style provider
-
-**Phase 4 gate: resolve before KT-040 is considered production-ready. Tracked by issue #50.**
-
-MapLibre is fixed; final production map/style/orthophoto source is not.
-
-Candidates can include properly licensed Maa- ja Ruumiamet tiled services and/or a justified commercial/open tile provider.
-
-Decision criteria:
-
-- Estonia quality;
-- orthophoto availability;
-- attribution text/link and terms;
-- proxy/contact/referrer requirements;
-- rate/availability expectations;
-- cost;
-- privacy / direct third-party browser requests;
-- MapLibre compatibility;
-- public token/configuration rules;
-- Cloudflare caching/proxy architecture;
-- local/preview/production configuration.
-
-Do not use an unlicensed/free public tile endpoint for production traffic merely because it works in development.
-
-A temporary development source must be labeled as such.
-
 ## OQ-004 — Production SMTP provider
 
 Custom SMTP is required; provider not selected.
@@ -207,7 +195,7 @@ Criteria:
 
 ## OQ-005 — First verified building/scenario matrix
 
-**Phase 4 gate: resolve before KT-043 marks any structure card as fully supported. Tracked by issue #51.**
+**Phase 4 support gate: resolve before KT-043 marks any structure/scenario as fully supported. Tracked by issue #51.**
 
 Candidate new-building domain types include:
 
@@ -430,12 +418,14 @@ This is required before commerce copy/terms are final.
 
 ## Phase 4 blocker rule
 
-If a Phase 4 task depends on OQ-003 or OQ-005:
+Phase 4 architecture is sufficiently specified to begin prerequisite implementation once the readiness documentation is merged, but support/implementation gates still apply:
 
-1. implementation may build independent foundations;
-2. development-only placeholders must be labeled explicitly;
-3. the task must not be marked production-ready/supported until the open item is resolved from current authoritative evidence;
-4. do not convert the open item into a guessed code constant.
+1. **OQ-005 / issue #51** must be resolved before KT-043 marks a scenario fully supported.
+2. KT-048 must not invent proposal save/version semantics; follow the API contract and resolve the concrete transaction/idempotency primitive under issue #53.
+3. Implementation prerequisites/issues #47, #48, #49 and #55 remain real code/integration work even though the documentation contract is defined.
+4. Development behavior may be implemented independently where a later open question does not affect correctness, but unsupported/production claims must remain explicit.
+
+Do not re-create former OQ-003: map renderer/basemap architecture is resolved by ADR 0010. If new evidence requires a different architecture, create a superseding ADR rather than silently changing KT-040.
 
 ## General agent rule
 

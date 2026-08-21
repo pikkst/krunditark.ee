@@ -4,7 +4,10 @@ Last review: **2026-08-21**
 
 A task is complete only when its acceptance criteria and every applicable gate below are satisfied.
 
-For KT-038–KT-048, `PHASE_4_READINESS.md` is an additional mandatory completion gate.
+For KT-038–KT-048:
+
+- `PHASE_4_READINESS.md` is an additional mandatory cross-cutting completion gate;
+- the matching task section in `PHASE_4_IMPLEMENTATION_GUIDE.md` is the mandatory task-specific Definition of Done.
 
 ## 1. Scope and product behavior
 
@@ -14,6 +17,7 @@ For KT-038–KT-048, `PHASE_4_READINESS.md` is an additional mandatory completio
 - [ ] User journey preserves work across navigation/auth/payment/error where applicable.
 - [ ] User-facing result ends with a useful next action when the feature creates a decision result.
 - [ ] Explicit open-question gates have not been bypassed by implementation assumptions.
+- [ ] For Phase 4, every applicable task-specific DoD item is verified rather than inferred from a short checklist.
 
 ## 2. Code quality
 
@@ -83,7 +87,11 @@ For proposal persistence:
 - [ ] canonical persisted geometry remains EPSG:3301;
 - [ ] server/PostGIS is authoritative for material geometry metrics;
 - [ ] version lifecycle cannot silently overwrite analysis history;
-- [ ] a new stored metric/provenance field is added only through a deliberate forward schema change.
+- [ ] proposal version allocation is transaction-safe under concurrent saves;
+- [ ] semantic retry/idempotency behavior prevents duplicate saved versions when a response is lost/retried;
+- [ ] same idempotency key with a different semantic payload fails safely when the selected mechanism uses idempotency keys;
+- [ ] failed transaction leaves no partial proposal version;
+- [ ] a new stored metric/provenance/idempotency field is added only through a deliberate forward schema change.
 
 ## 6. GIS
 
@@ -102,6 +110,7 @@ If spatial behavior changes:
 
 - [ ] browser proposal draft is not confused with canonical persisted geometry;
 - [ ] browser/API interchange CRS is explicit;
+- [ ] Leaflet/Geoman runtime objects do not become canonical/durable domain state;
 - [ ] client area/perimeter are previews only;
 - [ ] server canonicalization computes authoritative area/perimeter from EPSG:3301 geometry;
 - [ ] invalid/oversized/out-of-bounds geometry fails safely;
@@ -172,18 +181,22 @@ If KT-043 or related UI claims a structure/scenario is fully supported:
 
 If OQ-005 remains open, the foundation may merge but the supported claim/task cannot be marked complete.
 
-## 11. Phase 4 map-provider gate
+## 11. Phase 4 map architecture gate
 
-If KT-040 is claimed production-ready:
+ADR 0010 resolves the renderer/basemap choice. If KT-040 is claimed Done/production-directed:
 
-- [ ] OQ-003 has been resolved from current authoritative provider terms/docs;
-- [ ] map/style and orthophoto behavior are verified;
-- [ ] attribution text/link is implemented;
-- [ ] privacy/referrer/token implications are documented;
+- [ ] Leaflet 1.9.x stable is used for the Phase 4 browser map;
+- [ ] no Google Maps or MapLibre runtime is introduced without a superseding ADR;
+- [ ] default `Kaart` and optional `Ortofoto` behavior are verified;
+- [ ] browser tile traffic uses the Krunditark-owned fixed/allow-listed proxy rather than direct production MaRu tile-origin calls;
+- [ ] the proxy cannot fetch arbitrary user-controlled URLs;
+- [ ] attribution/source/data-age presentation required by `MAP_STACK_AND_BASEMAP.md` is implemented;
+- [ ] privacy/referrer implications are documented;
 - [ ] rate/availability/proxy/cache expectations are documented;
 - [ ] local/preview/production configuration is explicit;
 - [ ] no secret is shipped in the frontend bundle;
-- [ ] temporary development tile/style sources are not mislabeled as production.
+- [ ] public OSM/demo tile endpoints are not mislabeled as production;
+- [ ] tile-provider failure degrades the visual map without destroying parcel/proposal state.
 
 ## 12. Analysis provenance
 
@@ -267,6 +280,7 @@ If proposal/history behavior changes:
 
 - [ ] unpersisted editor draft and persisted proposal version have explicit lifecycle semantics;
 - [ ] saving creates the intended version rather than accidentally mutating history;
+- [ ] save retry/concurrency cannot create ambiguous or duplicate historical versions;
 - [ ] completed-analysis proposal is not mutated;
 - [ ] later duplicate creates new scenario/version;
 - [ ] comparisons use exact analysis IDs;
@@ -330,15 +344,17 @@ If analytics changes:
 
 ### Phase 4 real-browser requirement
 
-For map/editor/route state behavior:
+For Leaflet/editor/route state behavior:
 
 - [ ] Playwright runs against production-like built frontend;
 - [ ] deterministic backend/map/API fixtures/interception are used;
 - [ ] desktop Chromium path covered;
 - [ ] mobile viewport path covered;
 - [ ] parcel -> overview -> intent -> map/editor route is protected;
+- [ ] Leaflet container/mount lifecycle works at real browser dimensions;
 - [ ] route/locale state preservation is asserted;
 - [ ] pointer/touch behavior is tested where practical;
+- [ ] `Kaart`/`Ortofoto` switch and tile-failure behavior are covered where applicable;
 - [ ] failure diagnostics provide enough trace/screenshot context.
 
 Do not defer the first browser test until final beta hardening.
@@ -366,6 +382,8 @@ When Playwright foundation exists, Phase 4 critical E2E belongs in PR CI rather 
 - [ ] user journey/UX updated where behavior changed;
 - [ ] Auth/localization/commerce docs updated where applicable;
 - [ ] `PHASE_4_READINESS.md` updated for Phase 4 cross-cutting changes;
+- [ ] `PHASE_4_IMPLEMENTATION_GUIDE.md` remains aligned with actual KT-038…KT-048 behavior and DoD;
+- [ ] `MAP_STACK_AND_BASEMAP.md` remains aligned for map/proxy/provider changes;
 - [ ] ADR added/superseded/clarified for architectural decision;
 - [ ] environment/deployment docs updated;
 - [ ] `TASKS.md` status changed only after verification;
@@ -410,7 +428,8 @@ PR/change summary states:
 - screenshots for meaningful UI;
 - real-browser/E2E scenarios for map/editor changes;
 - known limitations/unknowns;
-- unresolved gates such as OQ-003/OQ-005 where applicable;
-- external current-doc verification when relevant.
+- unresolved gates such as OQ-005 or issue #53 where applicable;
+- current provider/legal verification performed when relevant;
+- for KT-040, evidence that the ADR 0010 Leaflet/MaRu proxy/attribution contract was actually implemented rather than merely referenced.
 
 “Works on my machine” is not Done.

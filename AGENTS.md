@@ -36,16 +36,31 @@ Before implementing a task, read:
 
 ### Phase 4 mandatory reading
 
-For KT-038 through KT-048, also read **before coding**:
+For **every KT-038 through KT-048 task**, also read **before coding**:
 
 - `docs/PHASE_4_READINESS.md`
+- `docs/PHASE_4_IMPLEMENTATION_GUIDE.md`
 - `docs/AUTH_AND_ONBOARDING.md`
 - `docs/API_SPECIFICATION.md`
+- `docs/TESTING.md`
 - ADR 0006
 - ADR 0009
-- `docs/OPEN_QUESTIONS.md` OQ-003 and OQ-005 when the task touches map provider or supported structure/scenario claims.
 
-Do not mark KT-040 production-ready while OQ-003 is unresolved. Do not mark a KT-043 structure/scenario fully supported while OQ-005 is unresolved.
+For **KT-040 through KT-046 map/editor work**, also read:
+
+- `docs/MAP_STACK_AND_BASEMAP.md`
+- ADR 0010
+
+For **KT-043 support claims**, also read:
+
+- `docs/OPEN_QUESTIONS.md` OQ-005
+- issue #51/current verified scenario-matrix evidence when available.
+
+The short Phase 4 checklist in `TASKS.md` is not sufficient by itself. The task-specific **Implementation contract**, **Required tests**, **Definition of Done**, and **Out of scope** sections in `PHASE_4_IMPLEMENTATION_GUIDE.md` are mandatory.
+
+The former Phase 4 map-provider OQ-003 is resolved by ADR 0010. Do not reopen MapLibre/Google/provider selection inside KT-040 unless new verified evidence requires a superseding ADR.
+
+Do not mark a KT-043 scenario fully supported while OQ-005 remains unresolved for that scenario.
 
 ### Task-specific reading
 
@@ -103,7 +118,10 @@ For active implementation:
 
 Do not use an old implementation shortcut as authority over current docs.
 
-A newer ADR may explicitly clarify an earlier ADR without invalidating its unaffected decisions. ADR 0009 currently clarifies the TanStack Query/Zod and Phase 4 client-state interpretation of ADR 0001.
+A newer ADR may explicitly clarify or supersede part of an earlier ADR without invalidating unaffected decisions:
+
+- ADR 0009 clarifies TanStack Query/Zod and Phase 4 state/validation boundaries from ADR 0001;
+- ADR 0010 supersedes the earlier MapLibre-specific browser map choice with Leaflet 1.9.x + Maa- ja Ruumiamet basemap policy.
 
 ## 4. Product boundary — not a generic chatbot
 
@@ -215,7 +233,7 @@ The map path is real functionality: `Vali krunt kaardilt` must lead to an explic
 
 ### 6.2 Intent before legal terminology
 
-Ask what user wants to do using canonical intent codes underneath localized labels:
+Ask what the user wants to do using canonical intent codes underneath localized labels:
 
 - `build`;
 - `pre_purchase`;
@@ -250,11 +268,11 @@ Actions distinguish:
 
 Scenario A/B comparison is a core product capability. Preserve exact differences; no black-box score.
 
-Do not prematurely claim full variant comparison during Phase 4 just because reusable proposal-version primitives exist.
+Do not prematurely claim full variant comparison during Phase 4 merely because reusable proposal-version primitives exist.
 
 ### 6.6 Map is not the only output
 
-Every spatial finding has a text equivalent for accessibility and comprehension.
+Every material map result/finding has a text equivalent for accessibility and comprehension.
 
 ### 6.7 Never claim ownership
 
@@ -272,6 +290,7 @@ See ADR 0006 and ADR 0009.
 - Anonymous users use `authenticated`; RLS must explicitly inspect `is_anonymous` when permanent identity is required.
 - Anonymous A must never access anonymous B project/proposal state.
 - Preserve selected parcel, intent and proposal state across route/locale changes.
+- Browser back/forward and refresh/recovery behavior must be explicit/tested for Phase 4.
 - Preserve anonymous project through later identity conversion.
 - Primary permanent methods later: email OTP + Google.
 - No password required by default.
@@ -291,7 +310,8 @@ See ADR 0008.
 - Domain codes/facts remain locale-independent.
 - Official Estonian legal source remains traceable.
 - Gemini localized explanation cannot change the finding.
-- Locale change preserves selected project/parcel/proposal draft and does not rerun deterministic analysis.
+- Locale change preserves selected project/parcel/proposal draft and persisted proposal identity.
+- Locale change does not rerun deterministic analysis.
 - Test Cyrillic/long-text/mobile layout.
 
 ## 9. Commercial/product-neutrality rules
@@ -356,9 +376,11 @@ Failed sync:
 - alert/health state;
 - category may become partial/unknown if beyond safe age.
 
+The Phase 4 MaRu visual basemap is presentation infrastructure with a separate tile/proxy policy; it is not an analytical data release.
+
 ## 12. Source adapter rules
 
-Every source adapter has:
+Every analytical source adapter has:
 
 - stable source ID;
 - approved endpoint/base URL;
@@ -383,7 +405,8 @@ Prefer official machine-readable API/WFS/download over scraping.
 - PostGIS authoritative for material spatial calculations.
 - Canonical Parcel/Proposal/Constraint geometry is EPSG:3301.
 - Browser/API map interchange may use EPSG:4326 as documented.
-- Never calculate legal distance using naive degrees.
+- Leaflet's browser Web Mercator rendering is presentation only.
+- Never calculate legal distance using naive degrees or Leaflet pixel/map measurements.
 - Use correct spatial predicate for domain semantics.
 - `ST_Intersects` is not synonymous with `legal violation`.
 - Test touching/crossing/contained/near-threshold/invalid/multipolygon/holes.
@@ -397,7 +420,8 @@ Prefer official machine-readable API/WFS/download over scraping.
 - server/PostGIS computes authoritative area/perimeter;
 - client area/perimeter are preview values only;
 - geometry repair, if any, follows an explicit policy;
-- a proposal referenced by terminal analysis is never mutated in place.
+- a proposal referenced by terminal analysis is never mutated in place;
+- save/version retry and concurrency semantics must be explicit in KT-048.
 
 ## 14. Rules-engine rules
 
@@ -433,7 +457,8 @@ Target foundation:
 - React;
 - TypeScript strict;
 - Vite;
-- MapLibre GL JS;
+- **Leaflet 1.9.x stable** for Phase 4 browser maps;
+- `@geoman-io/leaflet-geoman-free` only where its free MIT functionality satisfies KT-045/KT-046;
 - React Router;
 - typed Krunditark-owned API clients;
 - runtime validation at external trust boundaries;
@@ -448,12 +473,23 @@ ADR 0009 clarifies ADR 0001:
 - if TanStack Query is introduced, do not duplicate source/HTTP cache ownership with inconsistent freshness semantics.
 - domain models must not depend on provider SDK/schema-library types.
 
+ADR 0010 controls Phase 4 map decisions:
+
+- default basemap: Maa- ja Ruumiamet `Kaart`;
+- optional mode: `Ortofoto`;
+- browser uses a Krunditark-owned fixed tile proxy in production;
+- no Google Maps production dependency;
+- no Phase 4 MapLibre runtime dependency;
+- no Leaflet/Geoman object type in domain/persistence contracts;
+- public MaRu use must preserve attribution/data age and provider proxy/contact requirements.
+
 Suggested feature structure:
 
 ```text
 src/
   app/
   components/
+    map/
   features/
     parcel-search/
     parcel-overview/
@@ -478,9 +514,13 @@ GitHub Pages is static. No secret/server runtime in frontend bundle.
 
 ### Map-specific frontend rule
 
-MapLibre is fixed; the **production map/style/orthophoto provider is not**. OQ-003 / issue #50 must be resolved from current provider terms before production-ready status. A development tile/style source must be explicitly temporary.
+Leaflet is a renderer/editor adapter, not the project state owner.
 
-Map point parcel resolution happens on explicit user click/selection, not continuous pointer movement.
+- One explicit click/tap may trigger canonical map-point parcel resolution.
+- Pointer movement must not continuously trigger parcel resolution.
+- Tile failure is independent from parcel resolution and never maps to parcel `not_found`.
+- Base-layer switching must preserve parcel/proposal/editor state.
+- Essential proposal precision must have a numeric/keyboard-accessible path, not pointer-only control.
 
 ## 16. Backend architecture
 
@@ -491,6 +531,8 @@ Supabase Cloud:
 - Storage;
 - Edge Functions;
 - scheduled Cron/background orchestration.
+
+Phase 4 may use a narrowly scoped Supabase Edge Function as the fixed MaRu tile proxy. It must allow-list modes/upstream mapping and must never become a generic arbitrary URL proxy.
 
 All database changes:
 
@@ -518,6 +560,12 @@ Normal owner project/proposal operations use the user's authenticated/anonymous 
 - Critical relationships not hidden only in arbitrary JSON.
 - indexes reviewed for FK/filter/spatial usage.
 
+### Phase 4 proposal persistence rule
+
+The existing `UNIQUE (project_id, version)` constraint is necessary but is not by itself a safe retry/concurrency allocation protocol.
+
+KT-048 must implement a transaction-safe save/version mechanism with explicit idempotency semantics. If schema/RPC support is needed, add a new forward migration; never modify the already-applied KT-013 migration in place.
+
 ## 18. AI provider rules
 
 Initial provider: Google Gemini API.
@@ -541,11 +589,12 @@ Model lifecycle changes; always verify current official Google docs before upgra
 - minimize account/project PII;
 - do not collect parcel-owner identity for ordinary analysis;
 - validate Edge Function input;
-- resource limits for geometry/uploads/source calls;
-- SSRF-safe source allow-lists;
+- resource limits for geometry/uploads/source/tile calls;
+- SSRF-safe source/tile allow-lists;
 - bounded public discovery request behavior;
 - request/correlation IDs for supportable server/provider failures;
 - logs exclude tokens/credentials/full sensitive payloads and should not store full user-entered addresses by default;
+- tile URLs/logs do not include full address/cadastral/project/proposal data;
 - production CORS origins explicit;
 - secure high-entropy revocable share links;
 - payment webhook verification;
@@ -613,7 +662,7 @@ B2B APIs need explicit `/v1` versioning/contracts before external consumers depe
 - English code comments; explain why, not syntax.
 - Estonian canonical user copy through i18n keys.
 - small pure functions for normalization/rules.
-- provider types stay at adapter boundaries.
+- provider/map-renderer types stay at adapter boundaries.
 - external inputs runtime-validated.
 - no hidden network calls in domain logic.
 - no hard-coded secret/production credentials.
@@ -629,6 +678,7 @@ Relevant changes require appropriate:
 - DB migration/RLS tests;
 - PostGIS boundary/regression tests;
 - Edge Function auth/contract/resource-limit tests;
+- tile-proxy security/failure tests for KT-040;
 - UI/component tests;
 - Playwright critical journeys;
 - i18n missing-key/layout tests;
@@ -639,18 +689,19 @@ Relevant changes require appropriate:
 
 Do not wait until final beta to add the first Playwright test.
 
-Map/editor work needs production-like browser coverage because jsdom cannot prove:
+Leaflet/editor work needs production-like browser coverage because jsdom cannot prove:
 
-- WebGL/MapLibre initialization;
-- actual routing/history;
-- pointer/touch interaction;
+- real Leaflet map container sizing/lifecycle;
+- route/history behavior;
+- pointer/touch interactions;
+- Geoman/free-plugin interaction behavior where used;
 - browser focus sequencing;
-- viewport/map sizing;
-- responsive bottom-sheet behavior.
+- responsive bottom-sheet behavior;
+- base-layer switching/degraded tile behavior.
 
-Normal CI E2E uses deterministic backend fixtures and must not depend on live government/map/provider availability.
+Normal CI E2E uses deterministic backend/tile fixtures and must not depend on live government/map/provider availability.
 
-No normal unit test uses live government service, live Gemini or real payment API.
+No normal unit test uses live government service, live MaRu tiles, live Gemini or real payment API.
 
 ## 25. Accessibility
 
@@ -663,7 +714,9 @@ Target WCAG 2.2 AA.
 - adequate contrast;
 - touch targets;
 - reduced motion;
-- map findings duplicated textually;
+- map findings/results duplicated textually;
+- map controls have accessible labels;
+- proposal precision has numeric/keyboard alternative;
 - dialogs/bottom sheets manage focus;
 - ET/RU/EN layouts tested.
 
@@ -671,19 +724,23 @@ Target WCAG 2.2 AA.
 
 For each task:
 
-1. pick unblocked item from `TASKS.md`;
+1. pick the next unblocked item from `TASKS.md`;
 2. read mandatory/task docs;
-3. for Phase 4 read `PHASE_4_READINESS.md` and ADR 0009;
-4. verify dependencies/open questions;
-5. verify current external provider/law docs if implementation depends on unstable details;
-6. implement smallest complete vertical slice;
-7. add tests, including real-browser tests for map/editor behavior;
-8. run checks;
-9. update docs/contracts;
-10. update task status only when acceptance passes;
-11. summarize known limitations.
+3. for Phase 4 read `PHASE_4_READINESS.md`, `PHASE_4_IMPLEMENTATION_GUIDE.md`, ADR 0009 and applicable ADR 0010/map docs;
+4. read that task's **Objective / Dependencies / Implementation contract / Required tests / DoD / Out of scope**;
+5. verify dependencies/open questions;
+6. verify current external provider/law docs if implementation depends on unstable details;
+7. implement the smallest complete vertical slice;
+8. add required tests, including real-browser tests for map/editor behavior;
+9. run checks;
+10. self-review correctness/security/GIS/state/idempotency/accessibility;
+11. update docs/contracts;
+12. update task status only when both task-specific and global DoD pass;
+13. summarize known limitations.
 
 Future `PRODUCT_EXPANSION_BACKLOG.md` items must first be promoted to `TASKS.md` with concrete acceptance criteria.
+
+Do not start Phase 5 until the integrated Phase 4 exit scenario in `PHASE_4_IMPLEMENTATION_GUIDE.md` and `PHASE_4_READINESS.md` exit gate pass.
 
 ## 27. Documentation maintenance
 
@@ -693,6 +750,7 @@ Update when changing:
 
 - user journey;
 - UI semantics;
+- map renderer/basemap/proxy;
 - API/data model;
 - source/cadence;
 - rule semantics;
@@ -719,7 +777,7 @@ A task is not done until it meets:
 - applicable source/security/i18n/payment/accessibility requirements;
 - documentation consistency.
 
-Phase 4 tasks additionally require applicable `PHASE_4_READINESS.md` gates.
+Phase 4 tasks additionally require the exact task-specific DoD in `docs/PHASE_4_IMPLEMENTATION_GUIDE.md` and applicable `PHASE_4_READINESS.md` gates.
 
 Analysis tasks additionally require reproducibility/provenance/deterministic tests.
 
@@ -734,8 +792,13 @@ Do not:
 - trust client geometry/area/perimeter for authoritative results;
 - treat a valid structure enum as verified legal support;
 - silently map `Muu`/unsupported scenario to a supported rule profile;
-- choose a production basemap merely because an unverified public tile endpoint works;
+- substitute Google Maps/MapLibre/random public tiles for ADR 0010 without a superseding ADR;
+- call MaRu production tile origin directly from the production browser instead of the owned fixed proxy;
+- build a generic arbitrary-URL tile proxy;
+- mass/offline prefetch MaRu tiles;
 - fire map parcel-resolution requests continuously on pointer movement;
+- store Leaflet/Geoman objects as durable project/proposal state;
+- silently use a naive `max(version)+1` save sequence without transaction/concurrency protection;
 - hard-code a legal interpretation without version/source;
 - label missing/stale/provider-failed data “no restrictions” or `not_found`;
 - fetch every official source per user analysis;
@@ -762,6 +825,7 @@ For architecture/product uncertainty, check accepted ADR/spec first. If still un
 
 For current Phase 4 work specifically:
 
-- OQ-003 remains open until the production map provider is verified;
+- the browser map engine/basemap architecture is **resolved** by ADR 0010: Leaflet + MaRu `Kaart`/`Ortofoto` + owned fixed proxy;
+- public operational verification/contact remains a KT-040 DoD item, not a reason to redesign the stack;
 - OQ-005 remains open until the first legal/product scenario matrix is verified;
-- independent work may continue, but production/supported claims must remain blocked at those gates.
+- independent structure UI work may continue, but no unverified scenario may be labeled fully supported.

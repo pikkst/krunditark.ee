@@ -85,7 +85,7 @@ See [`docs/USER_JOURNEYS_AND_PERSONAS.md`](./docs/USER_JOURNEYS_AND_PERSONAS.md)
 - Map findings always have textual equivalents.
 - Parcel selection is not proof of ownership.
 
-See [`docs/UX_UI_SPEC.md`](./docs/UX_UI_SPEC.md) and [`docs/PHASE_4_READINESS.md`](./docs/PHASE_4_READINESS.md).
+See [`docs/UX_UI_SPEC.md`](./docs/UX_UI_SPEC.md), [`docs/PHASE_4_READINESS.md`](./docs/PHASE_4_READINESS.md) and [`docs/PHASE_4_IMPLEMENTATION_GUIDE.md`](./docs/PHASE_4_IMPLEMENTATION_GUIDE.md).
 
 ## Authentication
 
@@ -148,7 +148,8 @@ Current direction:
 - React
 - TypeScript strict mode
 - Vite
-- MapLibre GL JS for Phase 4 map/editor work
+- **Leaflet 1.9.x stable** for Phase 4 map/editor work
+- optional `@geoman-io/leaflet-geoman-free` for Phase 4 geometry editing where the required capability exists in the free package
 - React Router
 - typed Krunditark API clients
 - explicit runtime validation at external trust boundaries
@@ -187,9 +188,19 @@ TanStack Query and Zod are **not mandatory dependencies**. ADR 0009 clarifies AD
 - domain registration: Zone
 - backend: Supabase unless an ADR changes it
 
-### Phase 4 map-provider gate
+### Phase 4 map architecture
 
-MapLibre is fixed, but the production basemap/style/orthophoto provider is not. Resolve OQ-003 / issue #50 before KT-040 is considered production-ready. A temporary development tile source must not silently become the production dependency.
+ADR 0010 resolves the Phase 4 renderer/basemap decision:
+
+- Leaflet 1.9.x stable;
+- Maa- ja Ruumiamet pre-tiled **`Kaart`** as default and **`Ortofoto`** as optional mode;
+- browser tile requests go through a Krunditark-owned fixed/allow-listed proxy;
+- source/data-age attribution stays visible;
+- Google Maps and MapLibre are not the Phase 4 runtime map stack;
+- public OpenStreetMap demo tile endpoints are not the production provider merely because they work without credentials;
+- canonical geospatial truth remains server/PostGIS-side in EPSG:3301.
+
+See [`docs/MAP_STACK_AND_BASEMAP.md`](./docs/MAP_STACK_AND_BASEMAP.md) and ADR 0010.
 
 ## Data refresh architecture
 
@@ -277,6 +288,7 @@ Official Estonian spatial datasets commonly use L-EST97 / **EPSG:3301**.
 - Canonical persisted parcel/proposal/constraint geometry is EPSG:3301.
 - Authoritative metric distance/area/intersection calculations run server-side/PostGIS in an appropriate metric CRS.
 - Browser display/API GeoJSON may use EPSG:4326 as documented.
+- Leaflet display uses normal browser map projection/rendering and never becomes the canonical CRS.
 - Never calculate material legal distances with naive lat/lon degree arithmetic.
 - Client-computed proposal area/perimeter are previews only; server/PostGIS values are authoritative.
 
@@ -317,60 +329,64 @@ Implementation agents must read [`AGENTS.md`](./AGENTS.md) first.
 
 ### Core product
 
-| Document                                                                     | Purpose                                                |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------ |
-| [`AGENTS.md`](./AGENTS.md)                                                   | Non-negotiable coding-agent contract                   |
-| [`TASKS.md`](./TASKS.md)                                                     | Ordered active engineering backlog                     |
-| [`docs/PHASE_4_READINESS.md`](./docs/PHASE_4_READINESS.md)                   | Phase 0–3 -> Phase 4 cross-cutting implementation gate |
-| [`docs/PRODUCT_REQUIREMENTS.md`](./docs/PRODUCT_REQUIREMENTS.md)             | Full product requirements                              |
-| [`docs/USER_JOURNEYS_AND_PERSONAS.md`](./docs/USER_JOURNEYS_AND_PERSONAS.md) | Real users, problems and end-to-end journeys           |
-| [`docs/UX_UI_SPEC.md`](./docs/UX_UI_SPEC.md)                                 | Landing, map, report, mobile, Pro and design-system UX |
-| [`docs/MVP_SCOPE.md`](./docs/MVP_SCOPE.md)                                   | Minimum first trustworthy vertical slice               |
-| [`docs/ROADMAP.md`](./docs/ROADMAP.md)                                       | Full product evolution                                 |
-| [`docs/PRODUCT_EXPANSION_BACKLOG.md`](./docs/PRODUCT_EXPANSION_BACKLOG.md)   | Post-core initiatives before promotion to TASKS        |
+| Document | Purpose |
+| --- | --- |
+| [`AGENTS.md`](./AGENTS.md) | Non-negotiable coding-agent contract |
+| [`TASKS.md`](./TASKS.md) | Ordered active engineering backlog |
+| [`docs/PHASE_4_READINESS.md`](./docs/PHASE_4_READINESS.md) | Phase 0–3 -> Phase 4 cross-cutting implementation gate |
+| [`docs/PHASE_4_IMPLEMENTATION_GUIDE.md`](./docs/PHASE_4_IMPLEMENTATION_GUIDE.md) | KT-038…KT-048 task contracts, tests and task-specific DoD |
+| [`docs/PRODUCT_REQUIREMENTS.md`](./docs/PRODUCT_REQUIREMENTS.md) | Full product requirements |
+| [`docs/USER_JOURNEYS_AND_PERSONAS.md`](./docs/USER_JOURNEYS_AND_PERSONAS.md) | Real users, problems and end-to-end journeys |
+| [`docs/UX_UI_SPEC.md`](./docs/UX_UI_SPEC.md) | Landing, map, report, mobile, Pro and design-system UX |
+| [`docs/MVP_SCOPE.md`](./docs/MVP_SCOPE.md) | Minimum first trustworthy vertical slice |
+| [`docs/ROADMAP.md`](./docs/ROADMAP.md) | Full product evolution |
+| [`docs/PRODUCT_EXPANSION_BACKLOG.md`](./docs/PRODUCT_EXPANSION_BACKLOG.md) | Post-core initiatives before promotion to TASKS |
 
 ### Architecture/data
 
-| Document                                                             | Purpose                                       |
-| -------------------------------------------------------------------- | --------------------------------------------- |
-| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)                     | Service/system boundaries                     |
-| [`docs/DATABASE_SCHEMA.md`](./docs/DATABASE_SCHEMA.md)               | PostgreSQL/PostGIS data model                 |
-| [`docs/API_SPECIFICATION.md`](./docs/API_SPECIFICATION.md)           | Client API contract                           |
-| [`docs/DATA_SOURCES.md`](./docs/DATA_SOURCES.md)                     | Official source registry                      |
+| Document | Purpose |
+| --- | --- |
+| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | Service/system boundaries |
+| [`docs/MAP_STACK_AND_BASEMAP.md`](./docs/MAP_STACK_AND_BASEMAP.md) | Leaflet/MaRu tile proxy, attribution and map-mode contract |
+| [`docs/DATABASE_SCHEMA.md`](./docs/DATABASE_SCHEMA.md) | PostgreSQL/PostGIS data model |
+| [`docs/API_SPECIFICATION.md`](./docs/API_SPECIFICATION.md) | Client API contract |
+| [`docs/DATA_SOURCES.md`](./docs/DATA_SOURCES.md) | Official source registry |
 | [`docs/DATA_REFRESH_AND_CACHE.md`](./docs/DATA_REFRESH_AND_CACHE.md) | Canonical source refresh/cache/release policy |
-| [`docs/GIS_AND_RULES_ENGINE.md`](./docs/GIS_AND_RULES_ENGINE.md)     | Spatial/rule semantics                        |
+| [`docs/GIS_AND_RULES_ENGINE.md`](./docs/GIS_AND_RULES_ENGINE.md) | Spatial/rule semantics |
 
 ### AI/auth/language/commerce
 
-| Document                                                                                     | Purpose                                        |
-| -------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| [`docs/AI_SAFETY_AND_EXPLANATIONS.md`](./docs/AI_SAFETY_AND_EXPLANATIONS.md)                 | Gemini boundary/safety                         |
-| [`docs/AUTH_AND_ONBOARDING.md`](./docs/AUTH_AND_ONBOARDING.md)                               | Guest-first Auth/account flow                  |
-| [`docs/LOCALIZATION_AND_LANGUAGE.md`](./docs/LOCALIZATION_AND_LANGUAGE.md)                   | ET/RU/EN strategy                              |
-| [`docs/BUSINESS_MODEL_AND_PRICING.md`](./docs/BUSINESS_MODEL_AND_PRICING.md)                 | Monetization/pricing/unit economics hypotheses |
-| [`docs/COMMERCE_AND_ENTITLEMENTS.md`](./docs/COMMERCE_AND_ENTITLEMENTS.md)                   | Provider-neutral payment/access design         |
-| [`docs/MARKET_AND_COMPETITIVE_POSITIONING.md`](./docs/MARKET_AND_COMPETITIVE_POSITIONING.md) | Market position/defensibility                  |
-| [`docs/PRODUCT_ANALYTICS_AND_GROWTH.md`](./docs/PRODUCT_ANALYTICS_AND_GROWTH.md)             | Metrics, experiments and growth loops          |
+| Document | Purpose |
+| --- | --- |
+| [`docs/AI_SAFETY_AND_EXPLANATIONS.md`](./docs/AI_SAFETY_AND_EXPLANATIONS.md) | Gemini boundary/safety |
+| [`docs/AUTH_AND_ONBOARDING.md`](./docs/AUTH_AND_ONBOARDING.md) | Guest-first Auth/account flow |
+| [`docs/LOCALIZATION_AND_LANGUAGE.md`](./docs/LOCALIZATION_AND_LANGUAGE.md) | ET/RU/EN strategy |
+| [`docs/BUSINESS_MODEL_AND_PRICING.md`](./docs/BUSINESS_MODEL_AND_PRICING.md) | Monetization/pricing/unit economics hypotheses |
+| [`docs/COMMERCE_AND_ENTITLEMENTS.md`](./docs/COMMERCE_AND_ENTITLEMENTS.md) | Provider-neutral payment/access design |
+| [`docs/MARKET_AND_COMPETITIVE_POSITIONING.md`](./docs/MARKET_AND_COMPETITIVE_POSITIONING.md) | Market position/defensibility |
+| [`docs/PRODUCT_ANALYTICS_AND_GROWTH.md`](./docs/PRODUCT_ANALYTICS_AND_GROWTH.md) | Metrics, experiments and growth loops |
 
 ### Trust/operations
 
-| Document                                                         | Purpose                                     |
-| ---------------------------------------------------------------- | ------------------------------------------- |
-| [`docs/SECURITY_PRIVACY.md`](./docs/SECURITY_PRIVACY.md)         | RLS, privacy and threat model               |
-| [`docs/LEGAL_AND_COMPLIANCE.md`](./docs/LEGAL_AND_COMPLIANCE.md) | Legal-source/disclaimer policy              |
-| [`docs/TESTING.md`](./docs/TESTING.md)                           | Test strategy                               |
-| [`docs/ENVIRONMENT.md`](./docs/ENVIRONMENT.md)                   | Environment/config contract                 |
-| [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md)                     | GitHub Pages/Supabase/Cloudflare deployment |
-| [`docs/DEFINITION_OF_DONE.md`](./docs/DEFINITION_OF_DONE.md)     | Global completion gate                      |
-| [`docs/OPEN_QUESTIONS.md`](./docs/OPEN_QUESTIONS.md)             | Genuine unresolved decisions only           |
-| [`docs/adr/`](./docs/adr/)                                       | Accepted architecture/product decisions     |
+| Document | Purpose |
+| --- | --- |
+| [`docs/SECURITY_PRIVACY.md`](./docs/SECURITY_PRIVACY.md) | RLS, privacy and threat model |
+| [`docs/LEGAL_AND_COMPLIANCE.md`](./docs/LEGAL_AND_COMPLIANCE.md) | Legal-source/disclaimer policy |
+| [`docs/TESTING.md`](./docs/TESTING.md) | Test strategy |
+| [`docs/ENVIRONMENT.md`](./docs/ENVIRONMENT.md) | Environment/config contract |
+| [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md) | GitHub Pages/Supabase/Cloudflare deployment |
+| [`docs/DEFINITION_OF_DONE.md`](./docs/DEFINITION_OF_DONE.md) | Global completion gate |
+| [`docs/OPEN_QUESTIONS.md`](./docs/OPEN_QUESTIONS.md) | Genuine unresolved decisions only |
+| [`docs/AGENT_TASK_WORKFLOW.md`](./docs/AGENT_TASK_WORKFLOW.md) | Agent branch/implementation/test/PR workflow |
+| [`docs/adr/`](./docs/adr/) | Accepted architecture/product decisions |
 
 Important Phase 4 ADRs:
 
-- ADR 0001 — base technology stack;
+- ADR 0001 — base technology stack, as superseded for map renderer by ADR 0010;
 - ADR 0006 — guest-first authentication;
 - ADR 0008 — multilingual product;
-- ADR 0009 — client/server state, query and validation boundaries.
+- ADR 0009 — client/server state, query and validation boundaries;
+- ADR 0010 — Leaflet + Maa- ja Ruumiamet basemap/proxy decision.
 
 ## Current project status
 
@@ -391,7 +407,7 @@ Current verified foundation includes:
 - explicit parcel ambiguity/failure semantics;
 - free parcel overview and intent choices.
 
-The next implementation boundary is **Phase 4 — map and proposal creation**. Read [`docs/PHASE_4_READINESS.md`](./docs/PHASE_4_READINESS.md) before starting KT-040–KT-048.
+The next implementation boundary is **Phase 4 readiness prerequisites KT-038/KT-039, followed by Phase 4 map and proposal creation KT-040–KT-048**. Before starting, read [`docs/PHASE_4_READINESS.md`](./docs/PHASE_4_READINESS.md) and [`docs/PHASE_4_IMPLEMENTATION_GUIDE.md`](./docs/PHASE_4_IMPLEMENTATION_GUIDE.md).
 
 ## Development rule
 
@@ -399,12 +415,13 @@ Do not begin a feature from a vague idea.
 
 1. Pick an unblocked item from `TASKS.md`.
 2. Read `AGENTS.md` and linked specs.
-3. For Phase 4, read `docs/PHASE_4_READINESS.md` and applicable ADRs first.
-4. Verify current official/provider documentation for unstable integration details.
-5. Implement the smallest complete vertical slice.
-6. Add tests, including real-browser coverage when the feature depends on browser/map interaction.
-7. Update documentation/contracts.
-8. Satisfy `DEFINITION_OF_DONE.md`.
+3. For Phase 4, read `docs/PHASE_4_READINESS.md`, `docs/PHASE_4_IMPLEMENTATION_GUIDE.md` and applicable ADRs first.
+4. For map/editor tasks also read `docs/MAP_STACK_AND_BASEMAP.md` and ADR 0010.
+5. Verify current official/provider documentation for unstable integration details.
+6. Implement the smallest complete vertical slice.
+7. Add tests, including real-browser coverage when the feature depends on browser/map interaction.
+8. Update documentation/contracts.
+9. Satisfy `DEFINITION_OF_DONE.md` plus the task-specific Phase 4 DoD.
 
 Future product ideas in `PRODUCT_EXPANSION_BACKLOG.md` must be promoted into `TASKS.md` before implementation.
 

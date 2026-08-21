@@ -1,6 +1,8 @@
 # Architecture — Krunditark
 
-Last architecture review: **2026-08-15**
+Last architecture review: **2026-08-21**
+
+For Phase 4 implementation details also read `PHASE_4_READINESS.md`, `PHASE_4_IMPLEMENTATION_GUIDE.md`, `MAP_STACK_AND_BASEMAP.md`, ADR 0009 and ADR 0010.
 
 ## 1. Architecture goals
 
@@ -32,7 +34,7 @@ Krunditark must be:
 +---------------+      HTTPS      +--------------------------------------+
 | User browser  | <-------------> | Supabase backend                     |
 | React/Vite    |                 |                                      |
-| MapLibre/i18n |                 | Auth                                 |
+| Leaflet/i18n  |                 | Auth                                 |
 +-------+-------+                 | PostgreSQL + PostGIS                 |
         |                         | Storage                              |
         |                         | Edge Functions                       |
@@ -52,11 +54,13 @@ Krunditark must be:
 
 Normal analysis reads internal promoted source data. It does **not** synchronously call every national provider.
 
+Phase 4 map basemap traffic uses a Krunditark-owned fixed proxy in front of the approved Maa- ja Ruumiamet tiled basemap services. The browser must not treat a visual basemap as authoritative analytical data.
+
 ## 3. Product architecture layers
 
 ```text
 Presentation
-  React / routes / i18n / map / accessibility
+  React / routes / i18n / Leaflet map / accessibility
 
 Application
   parcel discovery / project / proposals / analysis / variants
@@ -64,14 +68,14 @@ Application
 
 Domain
   parcel / proposal / facts / findings / rules / source provenance
-  no provider SDK types, no hidden network
+  no provider or Leaflet SDK types, no hidden network
 
 Infrastructure
-  Supabase / PostGIS / source adapters / Gemini adapter
+  Supabase / PostGIS / source adapters / map-tile proxy / Gemini adapter
   payment adapter / SMTP / hosting
 ```
 
-Dependencies point inward. Domain code must not import Google/Stripe/Montonio/source SDK types.
+Dependencies point inward. Domain code must not import Google/Stripe/Montonio/source/Leaflet/Geoman SDK types.
 
 ## 4. Frontend responsibilities
 
@@ -79,9 +83,9 @@ Frontend handles:
 
 - ET/RU/EN UI state and routing;
 - address/cadastral/map search presentation;
-- map display;
+- Leaflet map display and interaction through Krunditark-owned map components;
 - simple template drag/rotate/resize;
-- advanced proposal editing later;
+- advanced proposal polygon editing as an opt-in Phase 4 path;
 - anonymous/permanent Supabase Auth session client flow;
 - typed calls to Krunditark APIs;
 - deterministic result presentation;
@@ -92,7 +96,7 @@ Frontend handles:
 
 Frontend does **not**:
 
-- calculate authoritative legal distances/intersections;
+- calculate authoritative legal distances/intersections/area/perimeter;
 - use elevated Supabase credentials;
 - use Gemini/payment secret keys;
 - decide legal permission;
@@ -100,7 +104,8 @@ Frontend does **not**:
 - grant paid entitlements;
 - mark an order paid from a redirect;
 - perform national ingestion;
-- rely on provider-specific WFS payloads as public UI contracts.
+- rely on provider-specific WFS payloads as public UI contracts;
+- treat Leaflet/Geoman layers as persistent project/domain state.
 
 ## 5. Recommended frontend structure
 
@@ -113,6 +118,10 @@ src/
   components/
     ui/
     map/
+      MapShell
+      basemap/
+      parcel/
+      proposal/
   features/
     landing/
     parcel-search/
@@ -137,6 +146,7 @@ src/
     api/
     geo/
     validation/
+    map/               # renderer adapters/config; no domain ownership
     i18n/
   locales/
     et/
@@ -146,7 +156,7 @@ src/
   styles/
 ```
 
-Do not build a monolithic app component.
+Do not build a monolithic app component. Do not expose Leaflet classes as application/domain contracts.
 
 ## 6. Supabase/server structure
 
@@ -157,7 +167,9 @@ supabase/
   migrations/
   functions/
     parcel/
-    address-search/           # if proxied server-side
+    address-search/
+    parcel-resolve/
+    map-tiles/                 # narrow allow-listed Phase 4 basemap proxy
     analysis/
     explain-analysis/
     sync-sources/
@@ -183,6 +195,8 @@ supabase/
 ```
 
 Avoid one giant Edge Function.
+
+The map-tile proxy is not an arbitrary URL proxy. It exposes only approved basemap modes/upstreams and validates tile coordinates, timeout/response limits and safe cache behavior. If the proxy later moves to Cloudflare for operational reasons, that is an infrastructure change, not a domain contract change.
 
 ## 7. Database logical schemas
 
@@ -243,25 +257,35 @@ Public origin data does not imply these tables should be publicly exposed.
 
 ## 8. Authentication architecture
 
-See ADR 0006.
+See ADR 0006 and ADR 0009.
 
-### Guest phase
+### Public discovery
+
+A visitor may search/select a parcel and see the free parcel overview without permanent identity.
+
+### Phase 4 guest project phase
+
+When stateful proposal work begins:
 
 ```text
 public visitor
- -> meaningful state needed
+ -> chooses stateful proposal/build path
  -> Supabase signInAnonymously()
  -> anonymous Auth user ID
- -> guest project owned by that ID
+ -> owner-scoped guest project
+ -> selected parcel + canonical intent persisted/referenced
+ -> mutable browser proposal draft
 ```
 
 Anonymous users use the `authenticated` role. RLS must inspect JWT `is_anonymous` for actions reserved for permanent users.
+
+This technical anonymous identity is not a signup wall and does not justify showing a permanent-account form before the user receives proposal value.
 
 ### Permanent conversion
 
 ```text
 anonymous project
- -> user wants save/pay/monitor
+ -> user wants durable cross-device save/pay/monitor
  -> email OTP or Google
  -> link/convert identity
  -> same project remains owned/recoverable
@@ -278,10 +302,11 @@ See ADR 0008.
 Domain facts are locale-independent:
 
 ```text
-finding code/state
+intent/structure/finding code
 measurements
 source/rule IDs
 geometry
+project/proposal IDs
 ```
 
 Presentation is localized:
@@ -293,7 +318,7 @@ en translation catalog
 + locale-specific Gemini explanation cache
 ```
 
-Changing locale does not rerun deterministic GIS/rules.
+Changing locale does not recreate project/proposal state or rerun deterministic GIS/rules.
 
 Critical fixed legal/status/payment/privacy terms are reviewed translations, not runtime model translation.
 
@@ -309,9 +334,9 @@ Consumer entry methods:
 
 Official MaRu In-AKS is treated as interactive source with live/short-cache behavior under source policy.
 
-It should produce a normalized internal search result rather than leaking raw provider responses throughout UI.
+It produces normalized internal search results rather than leaking raw provider responses throughout UI.
 
-Address lookup is **submit-driven**: the frontend does not fire upstream requests while the user is typing. An explicit submit action (Enter or Otsi button) triggers a single `searchAddress()` call with a minimum query length. The canonical In-AKS Gazetteer endpoint is centralized in `supabase/functions/_shared/inaks.ts` and used by both `address-search` and `parcel-resolve` Edge Functions.
+Address lookup is **submit-driven**: the frontend does not fire upstream requests while the user is typing. An explicit submit action (Enter or Otsi button) triggers a bounded `searchAddress()` call. The canonical In-AKS Gazetteer endpoint is centralized in `supabase/functions/_shared/inaks.ts` and used by the relevant Edge Functions.
 
 ### Parcel resolution
 
@@ -320,54 +345,97 @@ Address object and cadastral parcel are not always one-to-one.
 Resolution flow:
 
 ```text
-address/search result
+address/search result OR explicit map point
  -> candidate spatial/object references
  -> identify candidate cadastral units
  -> user selects exact parcel if ambiguous
- -> persist selected parcel snapshot/reference
+ -> canonical selected parcel
+ -> free overview/intent
 ```
 
 Never silently choose a parcel when multiple are plausible.
+
+Map pointer movement does not continuously call parcel resolution. Only a deliberate selection action calls the canonical point selector.
 
 ### Runtime parsing boundary
 
 External provider payloads must never be cast directly to canonical domain types. Every adapter entry point accepts `unknown` and runs an explicit runtime parser/normalizer that:
 
-- validates required object structure, primitive types, timestamps, identifiers, geometry shape, and numeric values;
+- validates required object structure, primitive types, timestamps, identifiers, geometry shape and numeric values;
 - rejects non-finite numeric input (`NaN`, `Infinity`, `-Infinity`);
 - rejects invalid timestamps deterministically;
 - keeps provider-specific property names/types inside the adapter layer;
-- returns typed parse/validation errors instead of uncaught property-access/type errors (e.g., `CadastralIdErrorCode` for Estonian 12-digit kadastritunnus input);
+- returns typed parse/validation errors instead of uncaught property-access/type errors;
 - produces a canonical provider-independent `Parcel` value on success.
 
 Parser errors distinguish malformed provider payloads from domain-level unsupported/unknown conditions where relevant. Unknown provider fields are safely ignored or retained only through the approved noncritical extras policy.
 
 Future external adapters must follow the same boundary pattern. Provider DTOs must not leak into UI or rules code.
 
-## 11. Geospatial architecture
+## 11. Phase 4 map architecture
+
+ADR 0010 and `MAP_STACK_AND_BASEMAP.md` are authoritative.
+
+### Browser renderer
+
+- Leaflet 1.9.x stable.
+- Optional `@geoman-io/leaflet-geoman-free` for supported Phase 4 editing interactions.
+- No Phase 4 dependency on Geoman Pro.
+- Leaflet/Geoman instances remain behind Krunditark-owned map/editor adapters.
+
+### Basemap modes
+
+- default `Kaart` from Maa- ja Ruumiamet pre-tiled services;
+- optional `Ortofoto`;
+- no Google Maps production basemap/SDK;
+- `Hübriidkaart` is not the default because it adds visual density that competes with parcel/proposal overlays.
+
+### Tile proxy
+
+Production browser requests tiles through a fixed Krunditark-owned proxy.
+
+The proxy:
+
+- maps a small allow-listed mode set to verified MaRu upstreams;
+- validates tile coordinate/zoom bounds;
+- enforces timeout/response-size/content-type rules;
+- does not accept arbitrary upstream URLs;
+- avoids project/address/proposal data in tile URLs/logs;
+- follows MaRu attribution/proxy/cache conditions;
+- returns a degraded basemap failure independently from parcel resolver semantics.
+
+MaRu's public-service contact/fixed-proxy operational requirement is a KT-040/public-environment gate.
+
+### Failure behavior
+
+If basemap tiles fail, already-known parcel/proposal vector state and textual project controls remain available where technically possible. Tile failure is never parcel `not_found` and never evidence that analytical data is absent.
+
+## 12. Geospatial architecture
 
 ### Canonical analysis CRS
 
-The canonical normalized **Parcel**, **Proposal**, and **Constraint** domain models are authoritative Estonia metric data and exist **only in EPSG:3301 (L-EST97)**. EPSG:3301 is a Lambert Conic Conformal (2SP) projection on the GRS80 ellipsoid; the deterministic forward/inverse transform lives in `src/lib/crs` and never merely relabels coordinates (no `ST_SetSRID`-style reassignment of an unverified CRS).
+The canonical normalized **Parcel**, **Proposal**, and **Constraint** domain models are authoritative Estonia metric data and exist **only in EPSG:3301 (L-EST97)**.
 
-The canonical domain models and all persistence use **EPSG:3301 (L-EST97)** exclusively. The only permitted exception is external/source geometry supplied before normalization (for example a provider WFS/GeoJSON in another metric CRS); such geometry must be transformed into EPSG:3301 at the adapter boundary before any canonical Parcel/Proposal/Constraint is constructed. Canonical domain geometry and persistence are unambiguously EPSG:3301-only.
+The deterministic forward/inverse transform lives in `src/lib/crs` and never merely relabels coordinates. External geometry must be transformed into EPSG:3301 before a canonical Parcel/Proposal/Constraint is constructed.
 
 ### Provider / browser interchange CRS
 
-**EPSG:4326 (WGS84 lon/lat degrees)** is permitted only at the explicitly named provider/browser/API boundary (`ProviderParcelDTO`, client GeoJSON display). It is never a canonical persisted parcel geometry.
+**EPSG:4326 (WGS84 lon/lat degrees)** is permitted only at explicitly named provider/browser/API boundaries. It is never canonical persisted parcel/proposal geometry.
 
-External EPSG:4326 geometry is transformed **server-side** into EPSG:3301 (`toCanonicalParcelGeometry`) at the adapter boundary before the normalized Parcel is constructed. Metric area/distance logic always operates on canonical EPSG:3301 metres, never on degree coordinates. Unknown, missing, or unsupported SRID/CRS is rejected with a typed error and never assumed.
+The Leaflet browser map normally renders in Web Mercator/EPSG:3857. Canonical geometry is converted to browser-safe EPSG:4326 GeoJSON before Leaflet rendering; Leaflet's display projection is not the analytical CRS.
+
+Metric area/distance logic always operates server/PostGIS-side in the canonical metric CRS. Unknown, missing or unsupported CRS is rejected and never assumed.
 
 ### Display / API conversion
 
-Conversion of canonical EPSG:3301 geometry back to browser-safe EPSG:4326 GeoJSON (`toBrowserGeometry`) is explicit and never mutates the canonical geometry.
+Conversion of canonical EPSG:3301 geometry back to browser-safe EPSG:4326 GeoJSON (`toBrowserGeometry`) is explicit and never mutates canonical geometry.
 
 ### Core PostGIS operations
 
 Expected:
 
 - `ST_IsValid`;
-- `ST_MakeValid` under explicit policy;
+- `ST_MakeValid` only under explicit policy;
 - `ST_Transform`;
 - `ST_Intersects`;
 - `ST_Within` / `ST_CoveredBy`;
@@ -376,29 +444,49 @@ Expected:
 - `ST_Distance`;
 - `ST_Intersection`;
 - `ST_Area`;
+- `ST_Perimeter` where authoritative proposal perimeter is required;
 - `ST_Envelope`;
 - `ST_SimplifyPreserveTopology` for evidence rendering.
 
 A spatial intersection is a fact, not automatically a legal violation.
 
-## 12. Proposal architecture
+## 13. Proposal architecture
 
-Beginner UI creates structured proposal geometry through templates/dimensions; server canonicalizes/validates.
+See ADR 0009 and `PHASE_4_IMPLEMENTATION_GUIDE.md`.
 
-Proposal properties:
+### Mutable editor draft
 
-- exact version;
-- structure/scenario type;
-- geometry;
-- dimensions/area;
-- height/storeys/use where relevant;
-- created/superseded metadata.
+Beginner templates/dimensions and the Leaflet editor create one typed browser draft. The draft may be moved/rotated/resized without creating a database version for every pointer movement.
 
-Completed analysis always references exact proposal version.
+Leaflet layer state is derived/editing state around the typed draft; it is not durable product state.
 
-Variant B is a new proposal version/scenario, not a mutation of variant A's historical evidence.
+Template ID and client-computed area/perimeter are convenience/preview values only.
 
-## 13. Canonical data refresh architecture
+### Server canonicalization
+
+Before persistence the server:
+
+1. runtime-validates the draft request;
+2. validates finite coordinates/CRS/resource limits;
+3. transforms to EPSG:3301;
+4. validates topology/bounds under explicit repair policy;
+5. computes authoritative area/perimeter;
+6. returns canonical data or typed validation failure.
+
+Client-forged metrics are ignored/recomputed.
+
+### Version lifecycle
+
+- unpersisted draft: mutable;
+- successful save: versioned persisted proposal;
+- editing a persisted scenario and saving creates a new version rather than silently rewriting history;
+- proposal referenced by a terminal/completed analysis is immutable;
+- retries/concurrent saves require explicit idempotency/transaction-safe version allocation in KT-048;
+- full A/B duplicate/compare workflow remains Phase 9.
+
+Completed analysis always references an exact persisted proposal version.
+
+## 14. Canonical data refresh architecture
 
 `docs/DATA_REFRESH_AND_CACHE.md` is authoritative.
 
@@ -421,13 +509,17 @@ Do not use the old universal monthly-only simplification.
 
 - In-AKS live/short cache.
 
+### Visual basemap
+
+The MaRu `Kaart`/`Ortofoto` tile service is presentation infrastructure, not an analytical data release. It has its own provider attribution/cache/proxy policy in `MAP_STACK_AND_BASEMAP.md` and must not be confused with Phase 5 normalized analytical datasets.
+
 ### Rule changes
 
 Automated detection -> human/admin verification -> new rule version -> tests -> promotion.
 
 Routine ingestion uses zero Gemini tokens.
 
-## 14. Source release/promotion
+## 15. Source release/promotion
 
 ```text
 fetch/check
@@ -442,9 +534,9 @@ fetch/check
 
 Promotion is transactional. Failed candidate leaves prior good release active.
 
-Every source definition records refresh/freshness/replication/failure semantics.
+Every analytical source definition records refresh/freshness/replication/failure semantics.
 
-## 15. Analysis orchestration
+## 16. Analysis orchestration
 
 ```text
 Analysis request
@@ -466,7 +558,7 @@ Ehituspass
 
 Normal analysis does not trigger a national refresh.
 
-## 16. Analysis cache
+## 17. Analysis cache
 
 A deterministic result may be reused only when compatible inputs are identical, conceptually:
 
@@ -481,7 +573,7 @@ proposal canonical input
 
 Cache reuse must not leak another user's private notes/project metadata.
 
-## 17. Immutable analysis model
+## 18. Immutable analysis model
 
 Completed analysis represents what Krunditark knew under exact versions.
 
@@ -497,7 +589,7 @@ queued -> preparing -> evaluating -> completed
 
 Rerun creates a new analysis.
 
-## 18. Rule architecture
+## 19. Rule architecture
 
 A practical initial evaluator:
 
@@ -511,7 +603,7 @@ No arbitrary runtime JavaScript eval rules.
 
 No LLM-generated production rule promotion.
 
-## 19. Gemini architecture
+## 20. Gemini architecture
 
 Initial provider: Google Gemini API.
 
@@ -537,7 +629,7 @@ Cache key includes:
 
 Gemini downtime is not analysis downtime.
 
-## 20. Commerce architecture
+## 21. Commerce architecture
 
 See ADR 0007 and `COMMERCE_AND_ENTITLEMENTS.md`.
 
@@ -556,7 +648,7 @@ Selected payment provider remains replaceable behind an adapter.
 
 Consumer one-off/project products and professional subscriptions share entitlement infrastructure but have different scope/limits.
 
-## 21. Commerce transaction boundaries
+## 22. Commerce transaction boundaries
 
 Payment success processing should atomically align where practical:
 
@@ -573,7 +665,7 @@ If fulfillment fails:
 - retry is idempotent;
 - user is not charged twice.
 
-## 22. Project/change-monitoring architecture
+## 23. Project/change-monitoring architecture
 
 Project stores immutable proposal/analysis history.
 
@@ -590,7 +682,7 @@ new composite data/rule release
 
 Only after computing impact should product send a strong “material change” notification.
 
-## 23. File/import architecture — future
+## 24. File/import architecture — future
 
 Private uploads live in Supabase Storage with ownership policies.
 
@@ -605,7 +697,7 @@ Pipeline must include:
 
 PDF/DXF/IFC import does not bypass server geometry validation.
 
-## 24. Professional/B2B architecture — future
+## 25. Professional/B2B architecture — future
 
 Add organization/workspace layer rather than overloading consumer profile role.
 
@@ -622,14 +714,15 @@ Concepts:
 
 Same analysis engine; no separate unsafe “Pro truth”.
 
-## 25. Static frontend hosting
+## 26. Static frontend hosting
 
 GitHub Pages phase:
 
 - static assets only;
 - no server secrets;
 - route/deep-link strategy compatible with Pages;
-- backend remains Supabase.
+- backend remains Supabase;
+- browser-visible map proxy base URL is publishable configuration, not a secret.
 
 Cloudflare later may provide:
 
@@ -637,19 +730,28 @@ Cloudflare later may provide:
 - CDN/static hosting;
 - WAF;
 - Turnstile;
-- redirects/security edge.
+- redirects/security edge;
+- potentially a future tile-proxy/caching implementation after terms/infrastructure review.
 
 Core domain remains Cloudflare-independent unless a later ADR changes it.
 
-## 26. Basemap architecture
+## 27. Basemap architecture
 
-MapLibre is selected, final production base tile/style provider remains open.
+ADR 0010 resolves the Phase 4 basemap architecture:
 
-Potential MaRu tiles/orthophoto require current terms/proxy/attribution behavior review.
+- Leaflet 1.9.x renderer;
+- MaRu `Kaart` default;
+- MaRu `Ortofoto` optional;
+- Krunditark-owned fixed tile proxy;
+- visible source/data-age attribution;
+- no Google Maps production dependency;
+- provider failure degrades safely;
+- no bulk/offline prefetch;
+- public-environment provider-contact/proxy operational step follows current MaRu guidance.
 
-Visual basemap is not the authoritative structured constraint dataset.
+Visual basemap is not the authoritative structured constraint dataset. Phase 5 analytical source adapters remain separate.
 
-## 27. Observability
+## 28. Observability
 
 Minimum structured server context:
 
@@ -661,6 +763,7 @@ Minimum structured server context:
 - durations/status/errors;
 - source freshness;
 - records changed;
+- map-tile proxy mode/status/latency without project/address payload;
 - Gemini cache/latency/status/token metadata where safe;
 - commerce order/payment event/fulfillment status later;
 - no credentials/full private payloads.
@@ -670,12 +773,13 @@ Operational monitors:
 - source stale/failed;
 - missed sync;
 - abnormal source diff;
+- map tile proxy/upstream failure rate;
 - rule candidate pending;
 - paid-but-unfulfilled order;
 - repeated analysis failure;
 - auth email failure rate.
 
-## 28. Failure model
+## 29. Failure model
 
 Typed examples:
 
@@ -692,9 +796,14 @@ Typed examples:
 - `DATA_RELEASE_UNAVAILABLE`
 - `DATA_RELEASE_INCOMPLETE`
 
+### Map presentation
+
+A basemap/tile proxy failure is a presentation/provider state, not parcel `not_found`. It may use a dedicated internal/UI code such as `BASEMAP_UNAVAILABLE` if an API error contract is needed.
+
 ### Proposal/analysis
 
 - `PROPOSAL_GEOMETRY_INVALID`
+- `PROPOSAL_OUTSIDE_SUPPORTED_AREA`
 - `ANALYSIS_SCOPE_UNSUPPORTED`
 - `RULESET_UNAVAILABLE`
 - `ANALYSIS_FAILED`
@@ -723,7 +832,7 @@ Typed examples:
 
 Do not collapse an upstream outage into not-found or payment-pending into failed.
 
-## 29. Security boundaries
+## 30. Security boundaries
 
 ### Browser trust
 
@@ -733,7 +842,15 @@ Untrusted:
 - role/price/product IDs;
 - payment success query params;
 - uploaded content;
-- arbitrary URLs.
+- arbitrary URLs;
+- client-computed geometry metrics.
+
+### Map provider boundary
+
+- browser calls only the Krunditark-owned tile proxy in production;
+- tile proxy never accepts arbitrary upstream URLs;
+- tile request URL contains no full address/project note/proposal geometry;
+- map/provider outage does not change analytical truth.
 
 ### Source trust
 
@@ -746,10 +863,33 @@ Privileged Edge Function/server code:
 - validates auth;
 - enforces entitlements;
 - validates provider webhook;
-- controls source URL allow-list;
+- controls source/tile URL allow-lists;
 - uses elevated DB credentials only in narrow contexts.
 
-## 30. Architecture constraints requiring ADR to change
+## 31. Phase 4 dependency order
+
+Implementation order is intentionally constrained:
+
+```text
+KT-038 E2E foundation
+KT-039 guest ownership/state
+       |
+KT-040 Leaflet/map-entry
+ -> KT-041 parcel render/confirm
+ -> KT-042 intent
+ -> KT-043 supported structure choice (OQ-005 gate)
+ -> KT-044 beginner templates
+ -> KT-045 placement editor
+ -> KT-046 advanced polygon mode
+ -> KT-047 server validation/canonicalization
+ -> KT-048 owner-scoped version persistence
+```
+
+Parallelization is allowed only where interfaces are already fixed and does not bypass these ownership/validation gates.
+
+Phase 5 starts only after the integrated Phase 4 exit scenario and task-specific DoD in `PHASE_4_IMPLEMENTATION_GUIDE.md` pass.
+
+## 32. Architecture constraints requiring ADR to change
 
 - Estonia initial geography.
 - Supabase MVP/backend foundation.
@@ -764,3 +904,4 @@ Privileged Edge Function/server code:
 - no programmatic/banner ads in trust-critical analysis/report workspace.
 - official-source provenance mandatory.
 - static frontend contains no elevated secrets.
+- Phase 4 browser map engine/basemap architecture in ADR 0010; changing renderer/provider requires a superseding ADR and terms/migration review.

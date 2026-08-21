@@ -2,12 +2,13 @@
 
 - Status: Accepted
 - Date: 2026-08-21
+- Amended: 2026-08-21 by ADR 0010 for the browser map-engine decision
 
 ## Context
 
 ADR 0001 named TanStack Query and Zod in the intended frontend stack before the first parcel-discovery implementation existed. Phases 0–3 subsequently established working typed clients, explicit runtime parsers/validators, source-specific caches, React Router and deterministic domain validation without either dependency.
 
-Phase 4 introduces MapLibre, route transitions, anonymous guest ownership and an interactive proposal editor. This makes it important to distinguish four different concerns rather than adding libraries merely because they appeared in an early stack list:
+Phase 4 introduces a Leaflet map/editor (ADR 0010), route transitions, anonymous guest ownership and an interactive proposal editor. This makes it important to distinguish four different concerns rather than adding libraries merely because they appeared in an early stack list:
 
 1. **remote/server state** — parcel resolution, projects, persisted proposals and later analyses;
 2. **interactive editor state** — the current map viewport and mutable proposal draft;
@@ -69,6 +70,8 @@ This anonymous technical identity is **not** a permanent-account/signup wall.
 
 The in-progress footprint before persistence is mutable application/editor state. It may live in route-level React state or another documented editor-state container, but it must not be the only source of truth for already-persisted project/proposal state.
 
+Leaflet map objects/layers are view/editor mechanisms, not the application-state source of truth. The typed proposal draft must be reconstructable independently from Leaflet plugin instances.
+
 Changing locale must preserve the current project/draft. Browser back/forward behavior must be deterministic and tested.
 
 ### 4. Proposal draft and canonical proposal are different contracts
@@ -101,6 +104,20 @@ A beginner template such as `sauna-6x8` is a UI convenience used to initialize a
 
 If durable template provenance later becomes product-relevant, it must be added deliberately through a forward schema/API change. No analysis/rule may depend on an unpersisted `sourceTemplateId`.
 
+### 7. Map renderer is replaceable presentation infrastructure
+
+ADR 0010 selects Leaflet 1.9.x for Phase 4. Leaflet and its editing plugin must remain behind Krunditark-owned map/editor adapters.
+
+Application/domain state stores:
+
+- stable IDs;
+- browser-safe GeoJSON/draft facts;
+- canonical server-returned proposal facts.
+
+It does not store Leaflet `Map`, `Layer`, `LatLng`, Geoman handler instances or other renderer-specific objects as durable state.
+
+This keeps a future renderer migration from becoming a domain/API migration.
+
 ## Consequences
 
 - Existing parcel/address validation code does not need a dependency rewrite merely to match an old stack list.
@@ -109,9 +126,10 @@ If durable template provenance later becomes product-relevant, it must be added 
 - Permanent email OTP/Google conversion remains a later account/recovery phase.
 - Proposal APIs must distinguish browser draft input from canonical persisted geometry.
 - Playwright coverage becomes important because route/editor/map state cannot be proven fully in jsdom.
+- Leaflet lifecycle/plugin state must not become project/proposal state.
 
 ## Supersedes / clarifies
 
-This ADR **clarifies the frontend-library portion of ADR 0001**. ADR 0001 remains authoritative for React, TypeScript, Vite, MapLibre, React Router, Supabase/PostgreSQL/PostGIS and the general testing/deployment stack. Its mention of TanStack Query and Zod is no longer interpreted as a requirement to install those libraries before they are justified.
+This ADR **clarifies the frontend-library portion of ADR 0001**. ADR 0001 remains authoritative for React, TypeScript, Vite, React Router, Supabase/PostgreSQL/PostGIS and the general testing/deployment stack. ADR 0010 supersedes ADR 0001's original MapLibre choice with Leaflet 1.9.x for Phase 4. ADR 0001's mention of TanStack Query and Zod is no longer interpreted as a requirement to install those libraries before they are justified.
 
 Changing the state/validation boundary above requires a superseding ADR.

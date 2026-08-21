@@ -1,5 +1,7 @@
 # Environment Configuration — Krunditark
 
+Last reviewed: **2026-08-21**
+
 ## 1. Principle
 
 A static frontend has no secrets.
@@ -8,7 +10,7 @@ Any variable included in the Vite browser build must be treated as public.
 
 ## 2. Frontend variables
 
-Implemented variables:
+Implemented baseline variables:
 
 ```dotenv
 VITE_APP_ENV=local
@@ -17,6 +19,23 @@ VITE_BASE_PATH=/
 VITE_SUPABASE_URL=https://example.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_example
 ```
+
+### Phase 4 planned public map configuration
+
+KT-040 may add the following publishable browser configuration after the owned tile proxy exists:
+
+```dotenv
+VITE_MAP_TILE_PROXY_URL=https://example-project.supabase.co/functions/v1/map-tiles
+```
+
+The exact route may change consistently during KT-040, but the semantic contract is fixed by ADR 0010 / `MAP_STACK_AND_BASEMAP.md`:
+
+- browser sees only the Krunditark-owned proxy base URL;
+- browser does not receive an arbitrary MaRu upstream URL selector;
+- the value is public configuration, not a secret;
+- no provider/server credential is embedded in the URL.
+
+Do **not** add a direct production MaRu tile-origin URL as the browser's primary map configuration.
 
 ### `VITE_BASE_PATH`
 
@@ -28,19 +47,20 @@ Configures the Vite `base` option for asset paths. Read from the environment at 
 
 Only public values use `VITE_` prefix. `VITE_BASE_PATH` is safe to expose because it is deployment routing configuration, not a secret.
 
-Optional future public variables may include approved map-style URLs or public feature flags.
-
 ### Rules
 
 - only public values use `VITE_` prefix;
 - never place secret/elevated keys in a Vite variable;
-- never create `VITE_GEMINI_API_KEY` or equivalent;
+- never create `VITE_GEMINI_API_KEY`, `VITE_SUPABASE_SERVICE_ROLE_KEY` or equivalent;
+- map proxy configuration is publishable but never an arbitrary-fetch capability;
 - `.env.example` contains placeholders only;
 - `.env.local` and real environment files remain ignored.
 
 ## 3. Supabase Edge Function secrets and server configuration
 
-Planned server-side configuration:
+Planned/implemented server-side configuration is feature-specific.
+
+Conceptual values include:
 
 ```text
 KRUNDITARK_ALLOWED_ORIGINS
@@ -56,20 +76,49 @@ KRUNDITARK_GEMINI_TIMEOUT_MS
 KRUNDITARK_GEMINI_MAX_OUTPUT_TOKENS
 ```
 
+### Phase 4 map-tile proxy configuration
+
+ADR 0010 permits an initial narrowly scoped Supabase Edge Function tile proxy. KT-040 should define explicit server-only configuration rather than a generic arbitrary URL, for example:
+
+```text
+KRUNDITARK_MAP_TILE_PROVIDER=maru
+KRUNDITARK_MAP_TILE_UPSTREAM_BASE_URL=<verified MaRu tiled-service base>
+KRUNDITARK_MAP_TILE_ALLOWED_MODES=kaart,ortofoto
+KRUNDITARK_MAP_TILE_TIMEOUT_MS=<bounded timeout>
+KRUNDITARK_MAP_TILE_MAX_BYTES=<bounded response size>
+```
+
+Exact names may be adjusted once and then documented consistently in KT-040. Requirements:
+
+- upstream provider mapping is server-owned;
+- allowed modes are fixed/validated;
+- client cannot supply an arbitrary upstream URL;
+- credentials, if a future provider ever requires them, remain server-side unless explicitly documented as publishable credentials;
+- MaRu proxy/contact/terms requirements are followed.
+
 `GEMINI_API_KEY` is the production AI credential and must exist only in the Supabase Edge Function/server secret environment.
 
 The Gemini model is deliberately configured through `KRUNDITARK_GEMINI_MODEL` instead of being duplicated across source files. Model selection can change independently from deterministic GIS/rules behavior.
 
-Google's current Gemini JavaScript documentation uses the Google GenAI SDK and supports `GEMINI_API_KEY` as the API-key environment variable. Implementation must verify the current official Google documentation before SDK/model upgrades:
+Google's Gemini SDK/model lifecycle must be verified from current official documentation before implementation/upgrades.
 
-- https://ai.google.dev/api/generate-content
-- https://ai.google.dev/gemini-api/docs/migrate
+Supabase automatically provides platform environment values/credentials to Edge Functions; use the current Supabase-supported mechanism and avoid manually copying elevated credentials into frontend config.
 
-Exact government-provider layer configuration should be explicit rather than arbitrary user-controlled URLs.
+## 4. Local map development
 
-Supabase automatically provides platform environment values/credentials to Edge Functions; use the current Supabase-supported key mechanism and avoid manually copying elevated credentials into frontend config.
+Phase 4 local development must distinguish deterministic tests from optional live integration.
 
-## 4. Gemini local development
+Normal unit/component/Playwright CI:
+
+- must not depend on live MaRu tiles;
+- may mock/route tile requests or use a deterministic local fixture/placeholder;
+- must still prove map container sizing, overlay state, click behavior and degraded-map behavior.
+
+Controlled local/manual integration may point `VITE_MAP_TILE_PROXY_URL` to the local or non-production Krunditark tile proxy.
+
+Do not bypass the intended proxy in production code merely to make local Leaflet setup easier.
+
+## 5. Gemini local development
 
 For local Edge Function development, a developer may provide:
 
@@ -83,12 +132,12 @@ KRUNDITARK_GEMINI_MAX_OUTPUT_TOKENS=<approved-limit>
 Rules:
 
 - the real key never belongs in `.env.example`;
-- tests use `FakeExplanationProvider` by default and do not require this key;
+- tests use fake explanation provider by default and do not require this key;
 - live Gemini tests are opt-in integration tests only;
 - CI must not call Gemini for ordinary unit/build validation;
 - never print `GEMINI_API_KEY` in test/debug output.
 
-## 5. Source configuration
+## 6. Source configuration
 
 Prefer configuration like:
 
@@ -98,19 +147,23 @@ source ID -> approved base URL -> approved layer(s) -> timeout -> max features -
 
 Do not expose a generic environment variable that permits a user request to choose any fetch URL.
 
-## 6. Environment matrix
+The visual MaRu basemap/tile proxy is presentation infrastructure with its own contract in `MAP_STACK_AND_BASEMAP.md`; it is not a Phase 5 analytical source release.
 
-| Environment | Frontend          | Backend                 | AI                              | Purpose           |
-| ----------- | ----------------- | ----------------------- | ------------------------------- | ----------------- |
-| local       | Vite localhost    | local Supabase          | fake by default / Gemini opt-in | development/tests |
-| preview     | GitHub Pages      | non-production Supabase | Gemini server-side if enabled   | integration/demo  |
-| production  | final host/domain | production Supabase     | Gemini server-side              | public users      |
+## 7. Environment matrix
+
+| Environment | Frontend | Backend | Map | AI | Purpose |
+| --- | --- | --- | --- | --- | --- |
+| local | Vite localhost | local Supabase | mocked/fixture by default; local proxy for controlled manual integration | fake by default / Gemini opt-in | development/tests |
+| preview | GitHub Pages | non-production Supabase | non-production Krunditark tile proxy | Gemini server-side if enabled | integration/demo |
+| production | final host/domain | production Supabase | production Krunditark fixed tile proxy -> approved MaRu tiled service | Gemini server-side | public users |
 
 Use separate Supabase projects for preview and production once real user testing begins.
 
-Use separately manageable Gemini credentials for non-production and production when the Google account/project setup permits it, so a development leak does not automatically compromise production.
+Use separately manageable Gemini credentials for non-production and production when the Google account/project setup permits it.
 
-## 7. Local prerequisites
+The production map proxy/domain must match the provider-contact/operational conclusion recorded for MaRu public use.
+
+## 8. Local prerequisites
 
 Expected:
 
@@ -119,10 +172,11 @@ Expected:
 - npm
 - Supabase CLI
 - Docker-compatible runtime for local Supabase/functions
+- Playwright browser installation after KT-038
 
 Add `.nvmrc`, `.node-version` or `engines` when the frontend scaffold chooses a Node version.
 
-## 8. `.gitignore` requirements
+## 9. `.gitignore` requirements
 
 Must ignore at least, according to generated tool layout:
 
@@ -139,7 +193,7 @@ Playwright local artifacts where appropriate
 
 Do not ignore `.env.example`.
 
-## 9. GitHub Actions configuration
+## 10. GitHub Actions configuration
 
 CI should not need production secrets for:
 
@@ -147,7 +201,10 @@ CI should not need production secrets for:
 - lint;
 - typecheck;
 - unit tests;
+- critical Playwright tests with deterministic network fixtures;
 - static build if publishable preview values can be safely provided.
+
+Normal CI must not require a live MaRu tile service to prove map behavior.
 
 ### Database version alignment
 
@@ -156,34 +213,23 @@ The CI PostgreSQL service image must match the Supabase project target declared 
 - `supabase/config.toml` `[db] major_version = 17`
 - CI service image: `postgis/postgis:17-3.4`
 
-Do not introduce a version drift between local Supabase config, CI, and the production Supabase project without an explicit documented compatibility exception.
+Do not introduce version drift between local Supabase config, CI and production Supabase without a documented compatibility exception.
 
 ### Clean-start migration contract
 
-CI applies the full migration chain to an empty database before running tests. This guarantees:
-
-- every migration runs against a clean state;
-- RLS/database regression tests execute after successful migration setup;
-- a SQL error in any migration fails the step and workflow immediately.
-
-Fail-fast is enforced by `psql` with `ON_ERROR_STOP=1`. An isolated regression step verifies that intentionally invalid SQL returns a non-zero exit code.
+CI applies the full migration chain to an empty database before running tests. SQL errors fail fast with `ON_ERROR_STOP=1`.
 
 ### Migration/RLS tests in CI
 
-After the clean-start migration step, CI runs:
-
-- migration/RLS unit tests (`npm run test`);
-- an isolated fail-fast verification step.
-
-Tests and build do not execute after a failed migration setup because GitHub Actions stops the job on step failure.
+After clean-start migration, run the migration/RLS regression suite and applicable live-database regression steps.
 
 Deployment variables/secrets should be scoped to the workflow/environment that needs them.
 
-Gemini live integration tests, if ever added, must be explicitly separated from ordinary PR CI and use a non-production restricted key.
+Gemini/live-government integration tests, if ever added, must be explicitly separated from ordinary PR CI.
 
 Never print secrets during CI troubleshooting.
 
-## 10. Auth redirect origins
+## 11. Auth redirect origins
 
 Maintain approved redirect origins per environment.
 
@@ -207,7 +253,7 @@ https://krunditark.ee
 
 Because the GitHub Pages preview uses a repository-path base, test the actual Supabase Auth callback flow before marking auth complete.
 
-## 11. CORS origins
+## 12. CORS origins
 
 Edge Functions should load a controlled list from server configuration.
 
@@ -221,13 +267,13 @@ preview: https://pikkst.github.io/krunditark.ee
 production: https://krunditark.ee
 ```
 
-Use exact behavior appropriate to the deployed path and Supabase CORS implementation.
+The Phase 4 map-tile proxy follows the same origin-control policy unless current MaRu/proxy architecture requires an explicitly documented exception.
 
-## 12. Source endpoint changes
+## 13. Source/provider endpoint changes
 
-Official government endpoints can change.
+Official endpoints can change.
 
-When changing endpoint/layer configuration:
+When changing analytical endpoint/layer configuration:
 
 - update `DATA_SOURCES.md`;
 - update source definition/migration/config;
@@ -235,9 +281,17 @@ When changing endpoint/layer configuration:
 - run contract tests;
 - do not silently point a source ID to a semantically different dataset.
 
-## 13. Gemini SDK/model changes
+When changing map tile provider/upstream/layer mapping:
 
-Gemini API and model availability can change independently of Krunditark releases.
+- verify current official provider documentation/terms;
+- update ADR if changing the selected provider/renderer architecture;
+- update `MAP_STACK_AND_BASEMAP.md`;
+- update environment/deployment configuration;
+- preserve attribution/data-age requirements;
+- verify the fixed proxy/contact requirement;
+- test Kaart/Ortofoto and degraded behavior in the target environment.
+
+## 14. Gemini SDK/model changes
 
 When changing SDK/model:
 
@@ -249,7 +303,7 @@ When changing SDK/model:
 - record selected model in deployment/release configuration;
 - do not alter deterministic finding semantics merely because a different Gemini model is selected.
 
-## 14. Secret incident procedure
+## 15. Secret incident procedure
 
 If a secret is committed or exposed:
 

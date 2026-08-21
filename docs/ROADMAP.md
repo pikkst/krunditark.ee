@@ -4,7 +4,7 @@ Last comprehensive product review: **2026-08-21**
 
 The roadmap covers the full Estonia-first product, not only MVP. `TASKS.md` is the current ordered engineering backlog; `PRODUCT_EXPANSION_BACKLOG.md` holds post-core initiatives until they are promoted.
 
-For the current transition from completed parcel discovery into map/proposal work, `PHASE_4_READINESS.md` is the cross-cutting implementation gate.
+For the current transition from completed parcel discovery into map/proposal work, `PHASE_4_READINESS.md` is the cross-cutting implementation gate and `PHASE_4_IMPLEMENTATION_GUIDE.md` is the task-level execution/DoD contract.
 
 ## Guiding sequence
 
@@ -58,7 +58,7 @@ Exit:
 - no unresolved contradiction in source-of-truth docs for the next active implementation phase;
 - active coding work can reference exact specs and explicit open questions.
 
-Phase 4 readiness synchronization is documented in `PHASE_4_READINESS.md` and ADR 0009.
+Phase 4 readiness synchronization is documented in `PHASE_4_READINESS.md`, `PHASE_4_IMPLEMENTATION_GUIDE.md`, ADR 0009 and ADR 0010.
 
 ---
 
@@ -105,7 +105,7 @@ Delivered/active foundation:
 - free parcel overview;
 - server-side map point parcel-resolution capability.
 
-The **frontend map-selection interaction** (`Vali krunt kaardilt` -> MapLibre -> explicit click -> resolver -> candidate confirmation) is completed with the Stage 3/Phase 4 map shell because the MapLibre UI did not exist in the earlier parcel-discovery implementation. It is not optional/future scope.
+The **frontend map-selection interaction** (`Vali krunt kaardilt` -> Leaflet -> explicit click -> resolver -> candidate confirmation) is completed with the Stage 3/Phase 4 map shell because the map UI did not exist in the earlier parcel-discovery implementation. It is not optional/future scope.
 
 Product milestone:
 
@@ -122,7 +122,7 @@ This maps to `TASKS.md` Phase 4, including its readiness prerequisites KT-038/KT
 Deliverables:
 
 - real-browser Playwright foundation for map/editor routing/interaction;
-- MapLibre shell with verified/development-safe source policy;
+- Leaflet 1.9.x map shell using the ADR 0010 Maa- ja Ruumiamet `Kaart`/`Ortofoto` + Krunditark fixed-proxy architecture;
 - map parcel selection end to end;
 - Supabase anonymous Auth **when stateful project ownership becomes necessary**;
 - owner-scoped guest project through normal RLS;
@@ -140,7 +140,7 @@ Deliverables:
 
 ### Stage 3 gates
 
-- **OQ-003 / issue #50** — production basemap/style/orthophoto provider must be verified before the map shell is called production-ready.
+- **Map architecture is resolved by ADR 0010 / completed issue #50** — implementation must use Leaflet + owned fixed tile proxy, keep MaRu attribution/data-age visible, and must not silently switch to Google/MapLibre/direct public tile origins.
 - **OQ-005 / issue #51** — a valid structure enum is not a verified legal product scenario; resolve the first scenario matrix before cards are marked fully supported.
 - anonymous technical identity is not a permanent-account signup wall;
 - owner-RLS proposal persistence must not precede safe guest owner identity;
@@ -149,7 +149,8 @@ Deliverables:
 Exit:
 
 - ordinary user can find/confirm a parcel by search or map, select `build`, place a supported template without GIS expertise and persist a canonical owner-scoped proposal version without creating a permanent account;
-- browser preview state is never treated as authoritative metric/legal geometry.
+- browser preview state is never treated as authoritative metric/legal geometry;
+- the integrated Phase 4 exit scenario in `PHASE_4_IMPLEMENTATION_GUIDE.md` passes before Stage 4/Phase 5 source-adapter work begins.
 
 ---
 

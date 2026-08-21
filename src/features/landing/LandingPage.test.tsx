@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nextProvider } from "react-i18next";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -21,6 +21,7 @@ describe("LandingPage", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -261,6 +262,14 @@ describe("LandingPage", () => {
     await vi.waitFor(() => {
       expect(screen.getByRole("listbox")).toBeDefined();
     });
+
+    vi.useFakeTimers();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
+    vi.useRealTimers();
+
+    expect(screen.getByRole("listbox")).toBeDefined();
 
     const options = screen.getAllByRole("option");
     expect(options.length).toBeGreaterThanOrEqual(2);

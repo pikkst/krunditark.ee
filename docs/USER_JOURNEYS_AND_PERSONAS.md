@@ -4,7 +4,7 @@ Last product review: **2026-08-21**
 
 This document defines the user problems Krunditark solves from first visit through long-term project use. It is intentionally broader than the initial MVP.
 
-For the current map/proposal implementation boundary, also read `PHASE_4_READINESS.md`.
+For the current map/proposal implementation boundary, also read `PHASE_4_READINESS.md`, `PHASE_4_IMPLEMENTATION_GUIDE.md`, `MAP_STACK_AND_BASEMAP.md` and ADR 0010.
 
 ## 1. Product job
 
@@ -252,11 +252,13 @@ Text path:
 
 Map path:
 
-- open the MapLibre selection experience;
+- open the **Leaflet** parcel-selection experience defined by ADR 0010;
+- default to MaRu `Kaart`, with `Ortofoto` as an optional visual mode;
 - user explicitly clicks/selects a location;
 - canonical server point resolver finds candidate parcel(s);
 - ambiguity requires explicit confirmation;
-- confirmed parcel enters the same overview flow.
+- confirmed parcel enters the same overview flow;
+- a tile/basemap outage remains a degraded visual-map state and does not become parcel `not_found`.
 
 Do not silently choose one.
 
@@ -332,12 +334,12 @@ User sees the building draft on the selected parcel and can:
 - rotate;
 - edit dimensions;
 - reset/delete an unpersisted draft;
-- switch to orthophoto when the verified map provider supports it;
+- switch between `Kaart` and `Ortofoto` without losing overlays/draft state;
 - see convenience distance/geometry feedback where useful.
 
 Advanced mode allows polygon editing later in Phase 4.
 
-The browser object is a **proposal draft**, not authoritative legal geometry. Client area/perimeter/distance are previews only.
+The browser object is a **proposal draft**, not authoritative legal geometry. Client area/perimeter/distance are previews only. Leaflet/Geoman objects are presentation/editor implementation state, not durable domain state.
 
 ### Step 6A — Canonical server validation/persistence
 
@@ -349,7 +351,7 @@ Before a proposal version becomes authoritative project state:
 4. compute authoritative area/perimeter in PostGIS/server logic;
 5. persist a new owner-scoped proposal version only after validation succeeds.
 
-A persisted proposal referenced by terminal analysis is never silently mutated in place.
+A persisted proposal referenced by terminal analysis is never silently mutated in place. Save retry/concurrency behavior must follow the KT-048 idempotency/version-allocation contract.
 
 ### Step 7 — Pre-check
 
@@ -546,6 +548,10 @@ Show an unavailable/retry state. Do not show “parcel not found” merely becau
 
 Show candidates and require explicit confirmation. Never choose one silently.
 
+### Basemap/tile provider is unavailable
+
+Keep the selected parcel/proposal/draft and textual controls available where possible. Show a degraded visual-map state and retry path. A tile failure is not parcel `not_found` and is not evidence that parcel/source data are absent.
+
 ### Guest project bootstrap fails
 
 Keep safe in-memory/public state where possible and show a recoverable error. Never fall back to shared ownership, disabled RLS or browser service-role credentials.
@@ -636,9 +642,10 @@ A first-time non-expert should be able to answer all of these without learning G
 9. How old are the underlying data/rules?
 10. Can I try another variant without starting over?
 
-And during the Phase 4 journey the system must also preserve two invisible safety properties:
+And during the Phase 4 journey the system must also preserve these invisible safety properties:
 
 - the guest's state is owned by the correct anonymous/permanent identity;
-- browser map geometry is not mistaken for authoritative server analysis geometry.
+- browser map geometry is not mistaken for authoritative server analysis geometry;
+- basemap mode/provider failure cannot erase or reinterpret parcel/proposal state.
 
 If any of these require reading raw WFS attributes or legislation, the UX is incomplete.

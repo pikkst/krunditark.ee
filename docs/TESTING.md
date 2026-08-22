@@ -74,20 +74,26 @@ Playwright against the **production-like built frontend** + controlled backend/t
 
 ### Playwright E2E
 
-Playwright tests run against the **production-built frontend** served by `vite preview`, not the Vite dev server. API calls are intercepted and served deterministic fixture data so normal CI makes no public provider calls.
+Playwright tests run against the **production-built frontend**, not the Vite dev server. API calls are intercepted and served deterministic fixture data so normal CI makes no public provider calls.
+
+Two repository-base modes are supported:
+
+- **Root/custom-domain style** — `npm run test:e2e` uses the default Playwright config with `npm run preview:e2e`, serving the root-based production bundle at `http://localhost:4173/`.
+- **GitHub Pages style** — `npm run test:e2e:pages` uses `playwright.pages.config.ts` with `npm run preview:pages`, serving the repository-path production bundle at `http://localhost:4174/krunditark.ee/` with SPA fallback. This mode protects the `/krunditark.ee/` routing strategy and runs as **E2E Pages-base** in CI.
 
 Playwright becomes an active Phase 4 gate because Leaflet lifecycle, real routing, map container sizing, pointer/touch events, browser focus, plugin behavior and responsive bottom-sheet interactions cannot be proven completely by jsdom.
 
 Scripts:
 
-- `npm run test:e2e` — run Playwright headless
+- `npm run test:e2e` — run Playwright headless against root-based production build
+- `npm run test:e2e:pages` — run Playwright headless against Pages-base production build with SPA fallback
 - `npm run test:e2e:ui` — run Playwright with UI mode
 - `npm run test:e2e:report` — open HTML report
 
-Projects:
+Projects (both modes):
 
-- `chromium` — desktop Chrome
-- `mobile-chrome` — Pixel 5 viewport
+- `chromium-pages` / `chromium` — desktop Chrome
+- `mobile-pages` / `mobile-chrome` — Pixel 5 viewport
 
 Failure diagnostics: Playwright retains screenshot, trace and video artifacts on first retry. CI uploads the `playwright-report/` directory as an artifact.
 

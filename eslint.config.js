@@ -4,7 +4,16 @@ import react from "eslint-plugin-react";
 
 export default tseslint.config(
   {
-    ignores: ["dist/", "node_modules/", "coverage/", "supabase/.temp/", "supabase/functions/"],
+    ignores: [
+      "dist/",
+      "node_modules/",
+      "coverage/",
+      "supabase/.temp/",
+      "supabase/functions/",
+      "tests/",
+      "playwright.config.ts",
+      "playwright.pages.config.ts",
+    ],
   },
   {
     files: ["**/*.{ts,tsx}"],

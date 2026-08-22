@@ -2,11 +2,9 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
   checks:
@@ -36,11 +34,21 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
       - name: Install dependencies
         run: npm ci
 
       - name: Check formatting
         run: npm run format:check
+
+      - name: Check for merge conflict markers
+        run: |
+          if git grep -n -E '^(<<<<<<<|=======|>>>>>>> )' -- '*.md' '*.ts' '*.tsx' '*.yml' '*.yaml' '*.json'; then
+            echo "ERROR: Merge conflict markers found in tracked files"
+            exit 1
+          fi
 
       - name: Lint
         run: npm run lint
@@ -89,3 +97,63 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  e2e:
+    name: E2E
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+      - run: npm ci
+      - run: npm run build
+        env:
+          VITE_APP_ENV: local
+          VITE_APP_ORIGIN: http://localhost:5173
+          VITE_BASE_PATH: /
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_example
+      - uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+
+  e2e_pages:
+    name: E2E Pages-base
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+      - run: npm ci
+      - run: npm run build
+        env:
+          VITE_APP_ENV: local
+          VITE_APP_ORIGIN: http://localhost:5173
+          VITE_BASE_PATH: /krunditark.ee/
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_example
+      - uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e:pages
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-pages-report
+          path: playwright-report/
+          retention-days: 14

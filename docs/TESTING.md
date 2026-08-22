@@ -72,7 +72,30 @@ Behavior-heavy components using deterministic mocks/fixtures.
 
 Playwright against the **production-like built frontend** + controlled backend/test fixtures.
 
+### Playwright E2E
+
+Playwright tests run against the **production-built frontend**, not the Vite dev server. API calls are intercepted and served deterministic fixture data so normal CI makes no public provider calls.
+
+Two repository-base modes are supported:
+
+- **Root/custom-domain style** — `npm run test:e2e` uses the default Playwright config with `npm run preview:e2e`, serving the root-based production bundle at `http://localhost:4173/`.
+- **GitHub Pages style** — `npm run test:e2e:pages` uses `playwright.pages.config.ts` with `npm run preview:pages`, serving the repository-path production bundle at `http://localhost:4174/krunditark.ee/` with SPA fallback. This mode protects the `/krunditark.ee/` routing strategy and runs as **E2E Pages-base** in CI.
+
 Playwright becomes an active Phase 4 gate because Leaflet lifecycle, real routing, map container sizing, pointer/touch events, browser focus, plugin behavior and responsive bottom-sheet interactions cannot be proven completely by jsdom.
+
+Scripts:
+
+- `npm run test:e2e` — run Playwright headless against root-based production build
+- `npm run test:e2e:pages` — run Playwright headless against Pages-base production build with SPA fallback
+- `npm run test:e2e:ui` — run Playwright with UI mode
+- `npm run test:e2e:report` — open HTML report
+
+Projects (both modes):
+
+- `chromium-pages` / `chromium` — desktop Chrome
+- `mobile-pages` / `mobile-chrome` — Pixel 5 viewport
+
+Failure diagnostics: Playwright retains screenshot, trace and video artifacts on first retry. CI uploads the `playwright-report/` directory as an artifact.
 
 ### Scheduled/controlled contract checks
 
@@ -656,34 +679,28 @@ Avoid snapshot-testing static markup heavily.
 
 ## 27. Playwright public-beta journey
 
-The beta suite extends the Phase 4 browser foundation.
-
-At minimum as features become available:
+Foundation implemented with desktop Chromium and mobile viewport. Current coverage:
 
 1. landing;
-2. address search;
-3. ambiguous parcel choice;
-4. map parcel selection;
-5. free parcel overview;
-6. choose build intent;
-7. select supported/limited structure scenario;
-8. select template;
-9. drag/rotate/resize proposal;
-10. advanced polygon smoke where supported;
-11. server validate/persist proposal;
-12. refresh/reopen persisted guest proposal in same session;
-13. run deterministic analysis;
-14. inspect conflict;
-15. inspect condition;
-16. inspect unknown;
-17. map evidence;
-18. official source link;
-19. duplicate/move proposal;
-20. compare variant;
-21. guest -> permanent Auth;
-22. reopen saved project;
-23. mobile path;
-24. RU and EN critical-flow smoke when enabled.
+2. address search (deterministic fixture);
+3. cadastral parcel resolution;
+4. free parcel overview;
+5. supported intent selection.
+
+As Phase 4 lands, extend to cover:
+
+6. select sauna/house template;
+7. drag/edit proposal;
+8. run deterministic analysis;
+9. inspect conflict/condition/unknown;
+10. map evidence;
+11. official source link;
+12. duplicate/move proposal;
+13. compare variant;
+14. guest -> permanent Auth;
+15. reopen saved project;
+16. mobile path;
+17. RU and EN critical flow smoke when enabled.
 
 Paid launch adds checkout/recovery using provider sandbox/fake-controlled test environment.
 
@@ -772,6 +789,7 @@ npm run lint
 npm run typecheck
 npm run test
 npm run build
+npm run test:e2e
 ```
 
 Existing database setup/clean-start tests remain mandatory.

@@ -329,56 +329,56 @@ Implementation agents must read [`AGENTS.md`](./AGENTS.md) first.
 
 ### Core product
 
-| Document | Purpose |
-| --- | --- |
-| [`AGENTS.md`](./AGENTS.md) | Non-negotiable coding-agent contract |
-| [`TASKS.md`](./TASKS.md) | Ordered active engineering backlog |
-| [`docs/PHASE_4_READINESS.md`](./docs/PHASE_4_READINESS.md) | Phase 0–3 -> Phase 4 cross-cutting implementation gate |
+| Document                                                                         | Purpose                                                   |
+| -------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| [`AGENTS.md`](./AGENTS.md)                                                       | Non-negotiable coding-agent contract                      |
+| [`TASKS.md`](./TASKS.md)                                                         | Ordered active engineering backlog                        |
+| [`docs/PHASE_4_READINESS.md`](./docs/PHASE_4_READINESS.md)                       | Phase 0–3 -> Phase 4 cross-cutting implementation gate    |
 | [`docs/PHASE_4_IMPLEMENTATION_GUIDE.md`](./docs/PHASE_4_IMPLEMENTATION_GUIDE.md) | KT-038…KT-048 task contracts, tests and task-specific DoD |
-| [`docs/PRODUCT_REQUIREMENTS.md`](./docs/PRODUCT_REQUIREMENTS.md) | Full product requirements |
-| [`docs/USER_JOURNEYS_AND_PERSONAS.md`](./docs/USER_JOURNEYS_AND_PERSONAS.md) | Real users, problems and end-to-end journeys |
-| [`docs/UX_UI_SPEC.md`](./docs/UX_UI_SPEC.md) | Landing, map, report, mobile, Pro and design-system UX |
-| [`docs/MVP_SCOPE.md`](./docs/MVP_SCOPE.md) | Minimum first trustworthy vertical slice |
-| [`docs/ROADMAP.md`](./docs/ROADMAP.md) | Full product evolution |
-| [`docs/PRODUCT_EXPANSION_BACKLOG.md`](./docs/PRODUCT_EXPANSION_BACKLOG.md) | Post-core initiatives before promotion to TASKS |
+| [`docs/PRODUCT_REQUIREMENTS.md`](./docs/PRODUCT_REQUIREMENTS.md)                 | Full product requirements                                 |
+| [`docs/USER_JOURNEYS_AND_PERSONAS.md`](./docs/USER_JOURNEYS_AND_PERSONAS.md)     | Real users, problems and end-to-end journeys              |
+| [`docs/UX_UI_SPEC.md`](./docs/UX_UI_SPEC.md)                                     | Landing, map, report, mobile, Pro and design-system UX    |
+| [`docs/MVP_SCOPE.md`](./docs/MVP_SCOPE.md)                                       | Minimum first trustworthy vertical slice                  |
+| [`docs/ROADMAP.md`](./docs/ROADMAP.md)                                           | Full product evolution                                    |
+| [`docs/PRODUCT_EXPANSION_BACKLOG.md`](./docs/PRODUCT_EXPANSION_BACKLOG.md)       | Post-core initiatives before promotion to TASKS           |
 
 ### Architecture/data
 
-| Document | Purpose |
-| --- | --- |
-| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | Service/system boundaries |
-| [`docs/MAP_STACK_AND_BASEMAP.md`](./docs/MAP_STACK_AND_BASEMAP.md) | Leaflet/MaRu tile proxy, attribution and map-mode contract |
-| [`docs/DATABASE_SCHEMA.md`](./docs/DATABASE_SCHEMA.md) | PostgreSQL/PostGIS data model |
-| [`docs/API_SPECIFICATION.md`](./docs/API_SPECIFICATION.md) | Client API contract |
-| [`docs/DATA_SOURCES.md`](./docs/DATA_SOURCES.md) | Official source registry |
-| [`docs/DATA_REFRESH_AND_CACHE.md`](./docs/DATA_REFRESH_AND_CACHE.md) | Canonical source refresh/cache/release policy |
-| [`docs/GIS_AND_RULES_ENGINE.md`](./docs/GIS_AND_RULES_ENGINE.md) | Spatial/rule semantics |
+| Document                                                             | Purpose                                                    |
+| -------------------------------------------------------------------- | ---------------------------------------------------------- |
+| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)                     | Service/system boundaries                                  |
+| [`docs/MAP_STACK_AND_BASEMAP.md`](./docs/MAP_STACK_AND_BASEMAP.md)   | Leaflet/MaRu tile proxy, attribution and map-mode contract |
+| [`docs/DATABASE_SCHEMA.md`](./docs/DATABASE_SCHEMA.md)               | PostgreSQL/PostGIS data model                              |
+| [`docs/API_SPECIFICATION.md`](./docs/API_SPECIFICATION.md)           | Client API contract                                        |
+| [`docs/DATA_SOURCES.md`](./docs/DATA_SOURCES.md)                     | Official source registry                                   |
+| [`docs/DATA_REFRESH_AND_CACHE.md`](./docs/DATA_REFRESH_AND_CACHE.md) | Canonical source refresh/cache/release policy              |
+| [`docs/GIS_AND_RULES_ENGINE.md`](./docs/GIS_AND_RULES_ENGINE.md)     | Spatial/rule semantics                                     |
 
 ### AI/auth/language/commerce
 
-| Document | Purpose |
-| --- | --- |
-| [`docs/AI_SAFETY_AND_EXPLANATIONS.md`](./docs/AI_SAFETY_AND_EXPLANATIONS.md) | Gemini boundary/safety |
-| [`docs/AUTH_AND_ONBOARDING.md`](./docs/AUTH_AND_ONBOARDING.md) | Guest-first Auth/account flow |
-| [`docs/LOCALIZATION_AND_LANGUAGE.md`](./docs/LOCALIZATION_AND_LANGUAGE.md) | ET/RU/EN strategy |
-| [`docs/BUSINESS_MODEL_AND_PRICING.md`](./docs/BUSINESS_MODEL_AND_PRICING.md) | Monetization/pricing/unit economics hypotheses |
-| [`docs/COMMERCE_AND_ENTITLEMENTS.md`](./docs/COMMERCE_AND_ENTITLEMENTS.md) | Provider-neutral payment/access design |
-| [`docs/MARKET_AND_COMPETITIVE_POSITIONING.md`](./docs/MARKET_AND_COMPETITIVE_POSITIONING.md) | Market position/defensibility |
-| [`docs/PRODUCT_ANALYTICS_AND_GROWTH.md`](./docs/PRODUCT_ANALYTICS_AND_GROWTH.md) | Metrics, experiments and growth loops |
+| Document                                                                                     | Purpose                                        |
+| -------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| [`docs/AI_SAFETY_AND_EXPLANATIONS.md`](./docs/AI_SAFETY_AND_EXPLANATIONS.md)                 | Gemini boundary/safety                         |
+| [`docs/AUTH_AND_ONBOARDING.md`](./docs/AUTH_AND_ONBOARDING.md)                               | Guest-first Auth/account flow                  |
+| [`docs/LOCALIZATION_AND_LANGUAGE.md`](./docs/LOCALIZATION_AND_LANGUAGE.md)                   | ET/RU/EN strategy                              |
+| [`docs/BUSINESS_MODEL_AND_PRICING.md`](./docs/BUSINESS_MODEL_AND_PRICING.md)                 | Monetization/pricing/unit economics hypotheses |
+| [`docs/COMMERCE_AND_ENTITLEMENTS.md`](./docs/COMMERCE_AND_ENTITLEMENTS.md)                   | Provider-neutral payment/access design         |
+| [`docs/MARKET_AND_COMPETITIVE_POSITIONING.md`](./docs/MARKET_AND_COMPETITIVE_POSITIONING.md) | Market position/defensibility                  |
+| [`docs/PRODUCT_ANALYTICS_AND_GROWTH.md`](./docs/PRODUCT_ANALYTICS_AND_GROWTH.md)             | Metrics, experiments and growth loops          |
 
 ### Trust/operations
 
-| Document | Purpose |
-| --- | --- |
-| [`docs/SECURITY_PRIVACY.md`](./docs/SECURITY_PRIVACY.md) | RLS, privacy and threat model |
-| [`docs/LEGAL_AND_COMPLIANCE.md`](./docs/LEGAL_AND_COMPLIANCE.md) | Legal-source/disclaimer policy |
-| [`docs/TESTING.md`](./docs/TESTING.md) | Test strategy |
-| [`docs/ENVIRONMENT.md`](./docs/ENVIRONMENT.md) | Environment/config contract |
-| [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md) | GitHub Pages/Supabase/Cloudflare deployment |
-| [`docs/DEFINITION_OF_DONE.md`](./docs/DEFINITION_OF_DONE.md) | Global completion gate |
-| [`docs/OPEN_QUESTIONS.md`](./docs/OPEN_QUESTIONS.md) | Genuine unresolved decisions only |
-| [`docs/AGENT_TASK_WORKFLOW.md`](./docs/AGENT_TASK_WORKFLOW.md) | Agent branch/implementation/test/PR workflow |
-| [`docs/adr/`](./docs/adr/) | Accepted architecture/product decisions |
+| Document                                                         | Purpose                                      |
+| ---------------------------------------------------------------- | -------------------------------------------- |
+| [`docs/SECURITY_PRIVACY.md`](./docs/SECURITY_PRIVACY.md)         | RLS, privacy and threat model                |
+| [`docs/LEGAL_AND_COMPLIANCE.md`](./docs/LEGAL_AND_COMPLIANCE.md) | Legal-source/disclaimer policy               |
+| [`docs/TESTING.md`](./docs/TESTING.md)                           | Test strategy                                |
+| [`docs/ENVIRONMENT.md`](./docs/ENVIRONMENT.md)                   | Environment/config contract                  |
+| [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md)                     | GitHub Pages/Supabase/Cloudflare deployment  |
+| [`docs/DEFINITION_OF_DONE.md`](./docs/DEFINITION_OF_DONE.md)     | Global completion gate                       |
+| [`docs/OPEN_QUESTIONS.md`](./docs/OPEN_QUESTIONS.md)             | Genuine unresolved decisions only            |
+| [`docs/AGENT_TASK_WORKFLOW.md`](./docs/AGENT_TASK_WORKFLOW.md)   | Agent branch/implementation/test/PR workflow |
+| [`docs/adr/`](./docs/adr/)                                       | Accepted architecture/product decisions      |
 
 Important Phase 4 ADRs:
 
@@ -408,6 +408,16 @@ Current verified foundation includes:
 - free parcel overview and intent choices.
 
 The next implementation boundary is **Phase 4 readiness prerequisites KT-038/KT-039, followed by Phase 4 map and proposal creation KT-040–KT-048**. Before starting, read [`docs/PHASE_4_READINESS.md`](./docs/PHASE_4_READINESS.md) and [`docs/PHASE_4_IMPLEMENTATION_GUIDE.md`](./docs/PHASE_4_IMPLEMENTATION_GUIDE.md).
+
+## Testing
+
+- Unit/integration: `npm test` (Vitest + Testing Library)
+- E2E/browser: `npm run test:e2e` (Playwright against production-like built frontend)
+  - Requires Chromium (`npx playwright install chromium`)
+  - Uses deterministic fixture/mock responses; no live official providers
+  - Desktop Chromium + mobile viewport projects configured
+
+See [`docs/TESTING.md`](./docs/TESTING.md) for the full strategy.
 
 ## Development rule
 

@@ -5,9 +5,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import i18n from "../../lib/i18n";
 import { getAddressSearchCache } from "../../lib/api/address-search";
 import LandingPage from "./LandingPage";
+import { ProjectStateProvider } from "../../features/project-state";
 
 function renderWithI18n(ui: React.ReactElement) {
-  return render(<I18nextProvider i18n={i18n}>{ui}</I18nextProvider>);
+  return render(
+    <I18nextProvider i18n={i18n}>
+      <ProjectStateProvider>{ui}</ProjectStateProvider>
+    </I18nextProvider>
+  );
 }
 
 describe("LandingPage", () => {

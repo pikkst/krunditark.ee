@@ -1,16 +1,14 @@
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import ParcelSearch from "../parcel-search/ParcelSearch";
 import ParcelOverview from "../parcel-overview/ParcelOverview";
-import type { Parcel } from "../../domain/parcel/types";
-import type { IntentCode } from "../../domain/intent/types";
+import { useProjectState } from "../project-state";
 
 export default function LandingPage() {
   const { t } = useTranslation();
-  const [selectedParcel, setSelectedParcel] = useState<Parcel | null>(null);
+  const { selectedParcel, setSelectedParcel, setSelectedIntent } = useProjectState();
 
-  const handleIntentSelected = (code: IntentCode) => {
-    console.log("Intent selected:", code, "for parcel:", selectedParcel?.cadastralId);
+  const handleIntentSelected = (code: Parameters<typeof setSelectedIntent>[0]) => {
+    setSelectedIntent(code);
   };
 
   if (selectedParcel) {
@@ -19,7 +17,10 @@ export default function LandingPage() {
         <ParcelOverview parcel={selectedParcel} onIntentSelected={handleIntentSelected} />
         <button
           type="button"
-          onClick={() => setSelectedParcel(null)}
+          onClick={() => {
+            setSelectedParcel(null);
+            setSelectedIntent(null);
+          }}
           style={{
             marginTop: "1.5rem",
             padding: "0.5rem 1rem",

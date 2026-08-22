@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import LocaleProvider from "./lib/i18n/LocaleProvider";
 import AppShell from "./app/layout/AppShell";
 import LandingPage from "./features/landing/LandingPage";
+import { ProjectStateProvider } from "./features/project-state";
 import { DEFAULT_LOCALE, isValidAppLocale } from "./lib/i18n/types";
 
 function RootRedirect() {
@@ -26,16 +27,18 @@ function RootRedirect() {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<RootRedirect />} />
-      <Route path="/:locale" element={<LocaleProvider />}>
-        <Route element={<AppShell />}>
-          <Route index element={<Navigate to="landing" replace />} />
-          <Route path="landing" element={<LandingPage />} />
-          <Route path="*" element={<Navigate to="landing" replace />} />
+    <ProjectStateProvider>
+      <Routes>
+        <Route path="/" element={<RootRedirect />} />
+        <Route path="/:locale" element={<LocaleProvider />}>
+          <Route element={<AppShell />}>
+            <Route index element={<Navigate to="landing" replace />} />
+            <Route path="landing" element={<LandingPage />} />
+            <Route path="*" element={<Navigate to="landing" replace />} />
+          </Route>
         </Route>
-      </Route>
-      <Route path="*" element={<Navigate to={`${DEFAULT_LOCALE}/landing`} replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to={`${DEFAULT_LOCALE}/landing`} replace />} />
+      </Routes>
+    </ProjectStateProvider>
   );
 }

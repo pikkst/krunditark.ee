@@ -4,7 +4,7 @@ import { mockAddressSearchRoute } from "../mocks/address-search";
 test.describe("Landing page", () => {
   test.beforeEach(async ({ page }) => {
     await mockAddressSearchRoute(page);
-    await page.goto("/et/landing");
+    await page.goto("et/landing");
   });
 
   test("loads the built app and locale route", async ({ page }) => {

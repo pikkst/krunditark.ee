@@ -18,19 +18,13 @@ const MIME_TYPES = {
   ".woff2": "font/woff2",
 };
 
-function buildPagesIfNeeded() {
-  if (!fs.existsSync(DIST_PAGES)) {
-    console.log("dist-pages/ not found, building Pages-base bundle for E2E...");
-    execSync("npx vite build --outDir dist-pages", {
-      stdio: "inherit",
-      cwd: process.cwd(),
-      shell: true,
-      env: { ...process.env, VITE_BASE_PATH: "/krunditark.ee/" },
-    });
-  }
-}
-
-buildPagesIfNeeded();
+console.log("Rebuilding Pages-base bundle for E2E...");
+execSync("npx vite build --outDir dist-pages", {
+  stdio: "inherit",
+  cwd: process.cwd(),
+  shell: true,
+  env: { ...process.env, VITE_BASE_PATH: "/krunditark.ee/" },
+});
 
 const server = require("http").createServer((req, res) => {
   const urlPath = req.url.split("?")[0];
@@ -46,8 +40,16 @@ const server = require("http").createServer((req, res) => {
 
   fs.readFile(filePath, (err, data) => {
     if (err) {
-      res.writeHead(404);
-      res.end("Not found");
+      const indexPath = path.join(DIST_PAGES, "index.html");
+      fs.readFile(indexPath, (indexErr, indexData) => {
+        if (indexErr) {
+          res.writeHead(404);
+          res.end("Not found");
+          return;
+        }
+        res.writeHead(200, { "Content-Type": "text/html" });
+        res.end(indexData);
+      });
       return;
     }
 

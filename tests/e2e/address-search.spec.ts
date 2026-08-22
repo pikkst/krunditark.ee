@@ -9,7 +9,7 @@ test.describe("Address search and keyboard focus", () => {
   });
 
   test("types address and reaches overview", async ({ page }) => {
-    await page.goto("/et/landing");
+    await page.goto("et/landing");
 
     const input = page.getByLabel("Aadress või katastritunnus");
     await expect(input).toBeVisible();
@@ -22,7 +22,7 @@ test.describe("Address search and keyboard focus", () => {
   });
 
   test("submits cadastral ID with Enter", async ({ page }) => {
-    await page.goto("/et/landing");
+    await page.goto("et/landing");
 
     const input = page.getByLabel("Aadress või katastritunnus");
     await input.focus();
@@ -34,7 +34,7 @@ test.describe("Address search and keyboard focus", () => {
   });
 
   test("tab sequence reaches search controls", async ({ page }) => {
-    await page.goto("/et/landing");
+    await page.goto("et/landing");
 
     await page.keyboard.press("Tab");
     await expect(page.getByLabel("Keel")).toBeFocused();

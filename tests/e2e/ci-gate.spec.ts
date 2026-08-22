@@ -9,13 +9,13 @@ test.describe("CI gate", () => {
   });
 
   test("critical parcel search form exists on landing", async ({ page }) => {
-    await page.goto("/et/landing");
+    await page.goto("et/landing");
     await expect(page.getByLabel("Aadress või katastritunnus")).toBeVisible();
     await expect(page.getByRole("button", { name: "Otsi" })).toBeVisible();
   });
 
   test("parcel overview shows resolved parcel details", async ({ page }) => {
-    await page.goto("/et/landing");
+    await page.goto("et/landing");
     await page.getByLabel("Aadress või katastritunnus").fill("12345:678:9012");
     await page.getByRole("button", { name: "Otsi" }).click();
 
@@ -24,7 +24,7 @@ test.describe("CI gate", () => {
   });
 
   test("intent buttons are present after parcel selection", async ({ page }) => {
-    await page.goto("/et/landing");
+    await page.goto("et/landing");
     await page.getByLabel("Aadress või katastritunnus").fill("12345:678:9012");
     await page.getByRole("button", { name: "Otsi" }).click();
 

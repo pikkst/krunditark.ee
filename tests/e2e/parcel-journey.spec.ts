@@ -11,7 +11,7 @@ test.describe("Parcel discovery journey", () => {
   });
 
   test("resolves a parcel by cadastral ID and reaches free overview", async ({ page }) => {
-    await page.goto("/et/landing");
+    await page.goto("et/landing");
 
     const searchInput = page.getByLabel("Aadress või katastritunnus");
     await expect(searchInput).toBeVisible();
@@ -25,7 +25,7 @@ test.describe("Parcel discovery journey", () => {
   });
 
   test("selects a supported intent from parcel overview", async ({ page }) => {
-    await page.goto("/et/landing");
+    await page.goto("et/landing");
 
     const searchInput = page.getByLabel("Aadress või katastritunnus");
     await searchInput.fill(CAD_ASTRAL_ID);

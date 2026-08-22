@@ -12,7 +12,7 @@ test.describe("Mobile parcel journey", () => {
 
   test("completes parcel discovery on mobile viewport", async ({ page }) => {
     await page.setViewportSize(devices["Pixel 5"].viewport);
-    await page.goto("/et/landing");
+    await page.goto("et/landing");
 
     const searchInput = page.getByLabel("Aadress või katastritunnus");
     await expect(searchInput).toBeVisible();

@@ -83,6 +83,33 @@ function mapEdgeErrorCode(edgeError: string | undefined): AddressSearchErrorCode
   return undefined;
 }
 
+class RequestBudget {
+  private timestamps: number[] = [];
+  private readonly windowMs: number;
+  private readonly maxRequests: number;
+
+  constructor(windowMs: number, maxRequests: number) {
+    this.windowMs = windowMs;
+    this.maxRequests = maxRequests;
+  }
+
+  check(): boolean {
+    const now = Date.now();
+    this.timestamps = this.timestamps.filter((ts) => now - ts < this.windowMs);
+    if (this.timestamps.length >= this.maxRequests) {
+      return false;
+    }
+    this.timestamps.push(now);
+    return true;
+  }
+
+  reset(): void {
+    this.timestamps = [];
+  }
+}
+
+const requestBudget = new RequestBudget(60 * 1000, 20);
+
 function mapInAksWarning(warning: InAksParseWarning): AddressSearchWarning {
   return {
     code: warning.code,
@@ -120,6 +147,16 @@ export async function searchAddress(
   const cacheKey = await buildCacheKey(environment, trimmed, queryType);
   const cached = cache.get(cacheKey);
   if (cached) return cached;
+
+  if (!requestBudget.check()) {
+    return {
+      valid: false,
+      error: {
+        code: "REQUEST_BUDGET_EXCEEDED",
+        message: "Too many requests. Please wait a moment before searching again.",
+      },
+    };
+  }
 
   const targetUrl = buildEdgeFunctionUrl(trimmed, queryType);
 

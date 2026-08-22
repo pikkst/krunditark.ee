@@ -37,6 +37,91 @@ export interface UseGuestProjectResult {
   archiveProject: (projectId: string) => Promise<void>;
 }
 
+export async function createGuestProject(
+  user: User,
+  input: CreateGuestProjectInput
+): Promise<GuestProject> {
+  const existing = await getActiveProjectForUser(user);
+  if (existing) {
+    const updates: Record<string, unknown> = {};
+    if (input.cadastralId && existing.cadastral_id !== input.cadastralId) {
+      updates.cadastral_id = input.cadastralId;
+    }
+    if (input.intentCode !== undefined && existing.intent_code !== input.intentCode) {
+      updates.intent_code = input.intentCode;
+    }
+    if (
+      input.parcelSnapshotId !== undefined &&
+      existing.current_parcel_snapshot_id !== input.parcelSnapshotId
+    ) {
+      updates.current_parcel_snapshot_id = input.parcelSnapshotId;
+    }
+    if (Object.keys(updates).length > 0) {
+      const { data: updated, error: updateError } = await getSupabaseClient()
+        .from("projects")
+        .update(updates)
+        .eq("id", existing.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      if (!updated) {
+        throw new Error("Failed to update guest project: no data returned");
+      }
+
+      return updated as unknown as GuestProject;
+    }
+
+    return existing;
+  }
+
+  const { data, error: insertError } = await getSupabaseClient()
+    .from("projects")
+    .insert({
+      user_id: user.id,
+      name: input.name ?? "Uus projekt",
+      cadastral_id: input.cadastralId,
+      intent_code: input.intentCode ?? null,
+      current_parcel_snapshot_id: input.parcelSnapshotId ?? null,
+    })
+    .select()
+    .single();
+
+  if (insertError) {
+    throw insertError;
+  }
+
+  if (!data) {
+    throw new Error("Failed to create guest project: no data returned");
+  }
+
+  return data as unknown as GuestProject;
+}
+
+async function getActiveProjectForUser(user: User): Promise<GuestProject | null> {
+  const { data, error: fetchError } = await getSupabaseClient()
+    .from("projects")
+    .select("*")
+    .eq("user_id", user.id)
+    .is("archived_at", null)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (fetchError) {
+    throw fetchError;
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return data as unknown as GuestProject;
+}
+
 export function useGuestProject(user: User | null): UseGuestProjectResult {
   const [project, setProject] = useState<GuestProject | null>(null);
   const [projects, setProjects] = useState<GuestProject[]>([]);
@@ -52,26 +137,7 @@ export function useGuestProject(user: User | null): UseGuestProjectResult {
     setIsLoading(true);
 
     try {
-      const { data, error: fetchError } = await getSupabaseClient()
-        .from("projects")
-        .select("*")
-        .eq("user_id", user.id)
-        .is("archived_at", null)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (fetchError) {
-        throw fetchError;
-      }
-
-      if (!data) {
-        return null;
-      }
-
-      const activeProject = data as unknown as GuestProject;
-      setProject(activeProject);
-      return activeProject;
+      return await getActiveProjectForUser(user);
     } finally {
       setIsLoading(false);
     }
@@ -86,70 +152,10 @@ export function useGuestProject(user: User | null): UseGuestProjectResult {
     setIsLoading(true);
 
     try {
-      const existing = await getActiveProject();
-      if (existing) {
-        const updates: Record<string, unknown> = {};
-        if (input.cadastralId && existing.cadastral_id !== input.cadastralId) {
-          updates.cadastral_id = input.cadastralId;
-        }
-        if (input.intentCode !== undefined && existing.intent_code !== input.intentCode) {
-          updates.intent_code = input.intentCode;
-        }
-        if (
-          input.parcelSnapshotId !== undefined &&
-          existing.current_parcel_snapshot_id !== input.parcelSnapshotId
-        ) {
-          updates.current_parcel_snapshot_id = input.parcelSnapshotId;
-        }
-        if (Object.keys(updates).length > 0) {
-          const { data: updated, error: updateError } = await getSupabaseClient()
-            .from("projects")
-            .update(updates)
-            .eq("id", existing.id)
-            .select()
-            .single();
-
-          if (updateError) {
-            throw updateError;
-          }
-
-          if (!updated) {
-            throw new Error("Failed to update guest project: no data returned");
-          }
-
-          const refreshed = updated as unknown as GuestProject;
-          setProject(refreshed);
-          setProjects((prev) => prev.map((p) => (p.id === refreshed.id ? refreshed : p)));
-          return refreshed;
-        }
-
-        return existing;
-      }
-
-      const { data, error: insertError } = await getSupabaseClient()
-        .from("projects")
-        .insert({
-          user_id: user.id,
-          name: input.name ?? "Uus projekt",
-          cadastral_id: input.cadastralId,
-          intent_code: input.intentCode ?? null,
-          current_parcel_snapshot_id: input.parcelSnapshotId ?? null,
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        throw insertError;
-      }
-
-      if (!data) {
-        throw new Error("Failed to create guest project: no data returned");
-      }
-
-      const newProject = data as unknown as GuestProject;
-      setProject(newProject);
-      setProjects((prev) => [newProject, ...prev]);
-      return newProject;
+      const project = await createGuestProject(user, input);
+      setProject(project);
+      setProjects((prev) => [project, ...prev]);
+      return project;
     } finally {
       setIsLoading(false);
     }

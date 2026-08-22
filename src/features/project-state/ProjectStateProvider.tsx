@@ -5,7 +5,7 @@ import type { Parcel } from "../../domain/parcel/types";
 import type { IntentCode } from "../../domain/intent/types";
 import type { GuestProject } from "../../lib/supabase/guest-project";
 import { useAnonymousAuth } from "../../lib/supabase/anonymous-auth";
-import { useGuestProject } from "../../lib/supabase/guest-project";
+import { useGuestProject, createGuestProject } from "../../lib/supabase/guest-project";
 
 const STORAGE_KEY = "krunditark_project_state";
 
@@ -41,12 +41,7 @@ export interface ProjectStateProviderProps {
 
 export function ProjectStateProvider({ children }: ProjectStateProviderProps) {
   const { user, isLoading: authLoading, signInAnonymously, isAnonymous } = useAnonymousAuth();
-  const {
-    createProject,
-    loadProject,
-    isLoading: projectLoading,
-    error: guestError,
-  } = useGuestProject(user);
+  const { loadProject, isLoading: projectLoading, error: guestError } = useGuestProject(user);
 
   const [selectedParcel, setSelectedParcel] = useState<Parcel | null>(null);
   const [selectedIntent, setSelectedIntent] = useState<IntentCode | null>(null);
@@ -98,7 +93,7 @@ export function ProjectStateProvider({ children }: ProjectStateProviderProps) {
           currentUser = await signInAnonymously();
         }
 
-        const newProject = await createProject({
+        const newProject = await createGuestProject(currentUser, {
           cadastralId: parcel.cadastralId,
           intentCode: intent,
         });
@@ -117,7 +112,7 @@ export function ProjectStateProvider({ children }: ProjectStateProviderProps) {
         setIsBootstrapping(false);
       }
     },
-    [user, signInAnonymously, createProject]
+    [user, signInAnonymously]
   );
 
   const clearProject = useCallback(() => {

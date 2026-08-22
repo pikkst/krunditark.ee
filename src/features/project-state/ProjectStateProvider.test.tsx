@@ -3,7 +3,8 @@ import { renderHook, act } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import i18n from "../../lib/i18n";
 import type { Parcel } from "../../domain/parcel/types";
-import { useGuestProject } from "../../lib/supabase/guest-project";
+import { useAnonymousAuth } from "../../lib/supabase/anonymous-auth";
+import { useGuestProject, createGuestProject } from "../../lib/supabase/guest-project";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockUser = { id: "user-1", is_anonymous: true } as any;
@@ -57,18 +58,12 @@ const storedState = {
 };
 
 vi.mock("../../lib/supabase/anonymous-auth", () => ({
-  useAnonymousAuth: () => ({
-    user: mockUser,
-    isLoading: false,
-    signInAnonymously: vi.fn().mockResolvedValue(mockUser),
-    isAnonymous: true,
-    session: mockSession,
-    error: null,
-  }),
+  useAnonymousAuth: vi.fn(),
 }));
 
 vi.mock("../../lib/supabase/guest-project", () => ({
   useGuestProject: vi.fn(),
+  createGuestProject: vi.fn(),
 }));
 
 import { ProjectStateProvider, useProjectState } from "./index";
@@ -120,6 +115,16 @@ describe("ProjectStateProvider", () => {
       updateProject: vi.fn(),
       archiveProject: vi.fn(),
     });
+    vi.mocked(createGuestProject).mockResolvedValue(mockProject);
+    vi.mocked(useAnonymousAuth).mockReturnValue({
+      session: mockSession,
+      user: mockUser,
+      isLoading: false,
+      error: null,
+      signInAnonymously: vi.fn().mockResolvedValue(mockUser),
+      isAnonymous: true,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
   });
 
   it("provides default empty state with new fields", () => {
@@ -206,6 +211,41 @@ describe("ProjectStateProvider", () => {
     expect(result.current.selectedParcel).toEqual(mockParcel);
     expect(result.current.selectedIntent).toBe("build");
     expect(result.current.isBootstrapping).toBe(false);
+  });
+
+  it("ensureProject signs in anonymously when user is null and creates project", async () => {
+    const signedInUser = { id: "new-user", is_anonymous: true };
+    const newProject = { ...mockProject, id: "new-project", user_id: "new-user" };
+
+    vi.mocked(useAnonymousAuth).mockReturnValue({
+      session: null,
+      user: null,
+      isLoading: false,
+      error: null,
+      signInAnonymously: vi.fn().mockResolvedValue(signedInUser),
+      isAnonymous: false,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    vi.mocked(createGuestProject).mockResolvedValue(newProject);
+
+    const { result } = renderHook(() => useProjectState(), {
+      wrapper: ProjectStateProvider,
+    });
+
+    act(() => {
+      result.current.setSelectedParcel(mockParcel);
+    });
+
+    let createdProject: unknown;
+    await act(async () => {
+      createdProject = await result.current.ensureProject(mockParcel, "build");
+    });
+
+    expect(createdProject).toEqual(newProject);
+    expect(result.current.project).toEqual(newProject);
+    expect(result.current.selectedParcel).toEqual(mockParcel);
+    expect(result.current.selectedIntent).toBe("build");
   });
 
   it("rehydrates from sessionStorage on mount", async () => {

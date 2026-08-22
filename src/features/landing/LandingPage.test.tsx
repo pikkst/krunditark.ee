@@ -37,6 +37,7 @@ vi.mock("../../lib/supabase/anonymous-auth", () => ({
 
 vi.mock("../../lib/supabase/guest-project", () => ({
   useGuestProject: vi.fn(),
+  createGuestProject: vi.fn(),
 }));
 
 function renderWithI18n(ui: React.ReactElement) {
@@ -430,12 +431,14 @@ describe("LandingPage", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Uue hoone ehitus" }));
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const createProject = (useGuestProject as any)().createProject;
-    expect(createProject).toHaveBeenCalledWith({
-      cadastralId: "123456789012",
-      intentCode: "build",
-    });
+    const { createGuestProject } = await import("../../lib/supabase/guest-project");
+    expect(createGuestProject).toHaveBeenCalledWith(
+      expect.objectContaining({ is_anonymous: true }),
+      {
+        cadastralId: "123456789012",
+        intentCode: "build",
+      }
+    );
   });
 
   it("recovers project state after simulated refresh", async () => {

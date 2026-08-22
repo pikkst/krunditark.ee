@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { supabase } from "./client";
+import { getSupabaseClient } from "./client";
 import type { Session, User } from "@supabase/supabase-js";
 
 export interface UseAnonymousAuthResult {
@@ -30,7 +30,7 @@ export function useAnonymousAuth(): UseAnonymousAuthResult {
         const {
           data: { session: currentSession },
           error: sessionError,
-        } = await supabase.auth.getSession();
+        } = await getSupabaseClient().auth.getSession();
 
         if (sessionError) {
           throw sessionError;
@@ -54,7 +54,7 @@ export function useAnonymousAuth(): UseAnonymousAuthResult {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    } = getSupabaseClient().auth.onAuthStateChange((_event, newSession) => {
       if (!mounted) return;
       setSession(newSession);
       setUser(newSession?.user ?? null);
@@ -70,7 +70,7 @@ export function useAnonymousAuth(): UseAnonymousAuthResult {
     setError(null);
     setIsLoading(true);
     try {
-      const { data, error: authError } = await supabase.auth.signInAnonymously();
+      const { data, error: authError } = await getSupabaseClient().auth.signInAnonymously();
 
       if (authError) {
         throw authError;
@@ -95,7 +95,7 @@ export function useAnonymousAuth(): UseAnonymousAuthResult {
   async function signOut(): Promise<void> {
     setError(null);
     try {
-      const { error: signOutError } = await supabase.auth.signOut();
+      const { error: signOutError } = await getSupabaseClient().auth.signOut();
 
       if (signOutError) {
         throw signOutError;

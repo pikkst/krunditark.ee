@@ -13,27 +13,32 @@ const mockSession = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as any;
 
-vi.mock("./client", () => ({
-  supabase: {
-    auth: {
-      getSession: vi.fn(),
-      onAuthStateChange: vi.fn(() => ({
-        data: { subscription: { unsubscribe: vi.fn() } },
-      })),
-      signInAnonymously: vi.fn(),
-      signOut: vi.fn(),
-    },
+const mockClient = {
+  auth: {
+    getSession: vi.fn(),
+    onAuthStateChange: vi.fn(() => ({
+      data: { subscription: { unsubscribe: vi.fn() } },
+    })),
+    signInAnonymously: vi.fn(),
+    signOut: vi.fn(),
   },
+};
+
+vi.mock("./client", () => ({
+  getSupabaseClient: vi.fn(() => mockClient),
 }));
 
 describe("useAnonymousAuth", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockClient.auth.getSession.mockClear();
+    mockClient.auth.onAuthStateChange.mockClear();
+    mockClient.auth.signInAnonymously.mockClear();
+    mockClient.auth.signOut.mockClear();
   });
 
   it("reports isAnonymous from top-level user.is_anonymous", async () => {
-    const { supabase } = await import("./client");
-    vi.mocked(supabase.auth.getSession).mockResolvedValue({
+    mockClient.auth.getSession.mockResolvedValue({
       data: { session: mockSession },
       error: null,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -51,8 +56,7 @@ describe("useAnonymousAuth", () => {
   it("reports false for permanent user", async () => {
     const permanentUser = { ...mockUser, is_anonymous: false };
     const permanentSession = { ...mockSession, user: permanentUser };
-    const { supabase } = await import("./client");
-    vi.mocked(supabase.auth.getSession).mockResolvedValue({
+    mockClient.auth.getSession.mockResolvedValue({
       data: { session: permanentSession },
       error: null,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -68,13 +72,12 @@ describe("useAnonymousAuth", () => {
   });
 
   it("signInAnonymously returns the created user", async () => {
-    const { supabase } = await import("./client");
-    vi.mocked(supabase.auth.getSession).mockResolvedValue({
+    mockClient.auth.getSession.mockResolvedValue({
       data: { session: null },
       error: null,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
-    vi.mocked(supabase.auth.signInAnonymously).mockResolvedValue({
+    mockClient.auth.signInAnonymously.mockResolvedValue({
       data: { session: mockSession, user: mockUser },
       error: null,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

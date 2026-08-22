@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { supabase } from "./client";
+import { getSupabaseClient } from "./client";
 import type { User } from "@supabase/supabase-js";
 
 export interface GuestProject {
@@ -52,7 +52,7 @@ export function useGuestProject(user: User | null): UseGuestProjectResult {
     setIsLoading(true);
 
     try {
-      const { data, error: fetchError } = await supabase
+      const { data, error: fetchError } = await getSupabaseClient()
         .from("projects")
         .select("*")
         .eq("user_id", user.id)
@@ -102,7 +102,7 @@ export function useGuestProject(user: User | null): UseGuestProjectResult {
           updates.current_parcel_snapshot_id = input.parcelSnapshotId;
         }
         if (Object.keys(updates).length > 0) {
-          const { data: updated, error: updateError } = await supabase
+          const { data: updated, error: updateError } = await getSupabaseClient()
             .from("projects")
             .update(updates)
             .eq("id", existing.id)
@@ -126,7 +126,7 @@ export function useGuestProject(user: User | null): UseGuestProjectResult {
         return existing;
       }
 
-      const { data, error: insertError } = await supabase
+      const { data, error: insertError } = await getSupabaseClient()
         .from("projects")
         .insert({
           user_id: user.id,
@@ -164,7 +164,7 @@ export function useGuestProject(user: User | null): UseGuestProjectResult {
     setIsLoading(true);
 
     try {
-      const { data, error: fetchError } = await supabase
+      const { data, error: fetchError } = await getSupabaseClient()
         .from("projects")
         .select("*")
         .eq("id", projectId)
@@ -198,7 +198,7 @@ export function useGuestProject(user: User | null): UseGuestProjectResult {
     setIsLoading(true);
 
     try {
-      const { data, error: fetchError } = await supabase
+      const { data, error: fetchError } = await getSupabaseClient()
         .from("projects")
         .select("*")
         .order("updated_at", { ascending: false });
@@ -236,7 +236,7 @@ export function useGuestProject(user: User | null): UseGuestProjectResult {
         patch.current_parcel_snapshot_id = updates.parcelSnapshotId;
       }
 
-      const { data, error: updateError } = await supabase
+      const { data, error: updateError } = await getSupabaseClient()
         .from("projects")
         .update(patch)
         .eq("id", projectId)
@@ -269,7 +269,7 @@ export function useGuestProject(user: User | null): UseGuestProjectResult {
     setIsLoading(true);
 
     try {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await getSupabaseClient()
         .from("projects")
         .update({ archived_at: new Date().toISOString() })
         .eq("id", projectId);

@@ -20,77 +20,60 @@ const mockProject = {
   archived_at: null,
 };
 
+function createMockFrom() {
+  const maybeSingle = vi.fn();
+  const single = vi.fn();
+  const insertSelectSingle = vi.fn();
+  const updateEq = vi.fn().mockResolvedValue({ data: null, error: null });
+
+  const insertSelect = vi.fn(() => ({
+    single: insertSelectSingle,
+  }));
+
+  const insert = vi.fn(() => ({
+    select: insertSelect,
+  }));
+
+  const limit = vi.fn(() => ({ maybeSingle }));
+  const order = vi.fn(() => ({ limit }));
+  const is = vi.fn(() => ({ order }));
+  const eq = vi.fn(() => ({ is, single, maybeSingle, limit }));
+  const select = vi.fn(() => ({ eq, order, is, limit, maybeSingle, single }));
+
+  const update = vi.fn(() => ({ eq: updateEq }));
+
+  return {
+    select,
+    insert,
+    update,
+  };
+}
+
+const mockClient = { from: vi.fn(createMockFrom) };
+
 vi.mock("./client", () => ({
-  supabase: {
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          single: vi.fn(),
-          maybeSingle: vi.fn(),
-          limit: vi.fn(() => ({ maybeSingle: vi.fn() })),
-        })),
-        order: vi.fn(() => ({
-          limit: vi.fn(() => ({ maybeSingle: vi.fn() })),
-        })),
-        is: vi.fn(() => ({
-          order: vi.fn(() => ({
-            limit: vi.fn(() => ({ maybeSingle: vi.fn() })),
-          })),
-        })),
-      })),
-      insert: vi.fn(() => ({
-        select: vi.fn(() => ({
-          single: vi.fn(),
-        })),
-      })),
-      update: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          select: vi.fn(() => ({
-            single: vi.fn(),
-          })),
-        })),
-      })),
-    })),
-  },
+  getSupabaseClient: vi.fn(() => mockClient),
 }));
 
 describe("useGuestProject", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockClient.from.mockClear();
   });
 
   it("createProject inserts when no active project exists", async () => {
-    const { supabase } = await import("./client");
-
-    vi.mocked(supabase.from).mockReturnValueOnce({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          is: vi.fn(() => ({
-            order: vi.fn(() => ({
-              limit: vi.fn(() => ({
-                maybeSingle: vi.fn().mockResolvedValue({
-                  data: null,
-                  error: null,
-                }),
-              })),
-            })),
-          })),
-        })),
-      })),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any);
-
-    vi.mocked(supabase.from).mockReturnValueOnce({
-      insert: vi.fn(() => ({
-        select: vi.fn(() => ({
-          single: vi.fn().mockResolvedValue({
-            data: mockProject,
-            error: null,
-          }),
-        })),
-      })),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any);
+    const fromMockForGet = createMockFrom();
+    const fromMockForInsert = createMockFrom();
+    mockClient.from.mockReturnValueOnce(fromMockForGet);
+    mockClient.from.mockReturnValueOnce(fromMockForInsert);
+    fromMockForGet.select().eq().is().order().limit().maybeSingle.mockResolvedValue({
+      data: null,
+      error: null,
+    });
+    fromMockForInsert.insert().select().single.mockResolvedValue({
+      data: mockProject,
+      error: null,
+    });
 
     const { result } = renderHook(() => useGuestProject(mockUser));
 
@@ -107,25 +90,12 @@ describe("useGuestProject", () => {
   });
 
   it("createProject reuses active project when one exists", async () => {
-    const { supabase } = await import("./client");
-
-    vi.mocked(supabase.from).mockReturnValueOnce({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          is: vi.fn(() => ({
-            order: vi.fn(() => ({
-              limit: vi.fn(() => ({
-                maybeSingle: vi.fn().mockResolvedValue({
-                  data: mockProject,
-                  error: null,
-                }),
-              })),
-            })),
-          })),
-        })),
-      })),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any);
+    const fromMock = createMockFrom();
+    mockClient.from.mockReturnValueOnce(fromMock);
+    fromMock.select().eq().is().order().limit().maybeSingle.mockResolvedValue({
+      data: mockProject,
+      error: null,
+    });
 
     const { result } = renderHook(() => useGuestProject(mockUser));
 
@@ -142,18 +112,12 @@ describe("useGuestProject", () => {
   });
 
   it("loadProject fetches by id", async () => {
-    const { supabase } = await import("./client");
-    vi.mocked(supabase.from).mockReturnValueOnce({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          single: vi.fn().mockResolvedValue({
-            data: mockProject,
-            error: null,
-          }),
-        })),
-      })),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any);
+    const fromMock = createMockFrom();
+    mockClient.from.mockReturnValueOnce(fromMock);
+    fromMock.select().eq().single.mockResolvedValue({
+      data: mockProject,
+      error: null,
+    });
 
     const { result } = renderHook(() => useGuestProject(mockUser));
 
@@ -167,18 +131,15 @@ describe("useGuestProject", () => {
   });
 
   it("loadProject returns null when not found", async () => {
-    const { supabase } = await import("./client");
-    vi.mocked(supabase.from).mockReturnValueOnce({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          single: vi.fn().mockResolvedValue({
-            data: null,
-            error: { code: "PGRST116", message: "Not found" },
-          }),
-        })),
-      })),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any);
+    const fromMock = createMockFrom();
+    mockClient.from.mockReturnValueOnce(fromMock);
+    fromMock
+      .select()
+      .eq()
+      .single.mockResolvedValue({
+        data: null,
+        error: { code: "PGRST116", message: "Not found" },
+      });
 
     const { result } = renderHook(() => useGuestProject(mockUser));
 
@@ -191,16 +152,8 @@ describe("useGuestProject", () => {
   });
 
   it("archiveProject soft-deletes by id", async () => {
-    const { supabase } = await import("./client");
-    vi.mocked(supabase.from).mockReturnValueOnce({
-      update: vi.fn(() => ({
-        eq: vi.fn().mockResolvedValue({
-          data: null,
-          error: null,
-        }),
-      })),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any);
+    const fromMock = createMockFrom();
+    mockClient.from.mockReturnValueOnce(fromMock);
 
     const { result } = renderHook(() => useGuestProject(mockUser));
 

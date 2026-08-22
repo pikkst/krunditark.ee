@@ -7,7 +7,7 @@ export interface UseAnonymousAuthResult {
   user: User | null;
   isLoading: boolean;
   error: Error | null;
-  signInAnonymously: () => Promise<void>;
+  signInAnonymously: () => Promise<User>;
   signOut: () => Promise<void>;
   isAnonymous: boolean;
 }
@@ -66,7 +66,7 @@ export function useAnonymousAuth(): UseAnonymousAuthResult {
     };
   }, []);
 
-  async function signInAnonymously(): Promise<void> {
+  async function signInAnonymously(): Promise<User> {
     setError(null);
     setIsLoading(true);
     try {
@@ -76,8 +76,14 @@ export function useAnonymousAuth(): UseAnonymousAuthResult {
         throw authError;
       }
 
+      const anonymousUser = data.user;
+      if (!anonymousUser) {
+        throw new Error("Anonymous sign-in succeeded but no user was returned");
+      }
+
       setSession(data.session);
-      setUser(data.user);
+      setUser(anonymousUser);
+      return anonymousUser;
     } catch (err) {
       setError(err instanceof Error ? err : new Error(String(err)));
       throw err;
@@ -103,7 +109,7 @@ export function useAnonymousAuth(): UseAnonymousAuthResult {
     }
   }
 
-  const isAnonymous = user?.user_metadata?.is_anonymous ?? false;
+  const isAnonymous = user?.is_anonymous ?? false;
 
   return {
     session,

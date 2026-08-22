@@ -29,4 +29,11 @@ export interface ProjectStateContextValue extends ProjectState {
   setProject: (project: GuestProject | null) => void;
   setDraft: (draft: ProjectDraft | null) => void;
   clearProject: () => void;
+  ensureProject: (parcel: Parcel, intent: IntentCode) => Promise<GuestProject>;
+  isBootstrapping: boolean;
+  bootstrapError: Error | null;
+  isAnonymous: boolean;
+  guestError: Error | null;
+  projectLoading: boolean;
+  authLoading: boolean;
 }

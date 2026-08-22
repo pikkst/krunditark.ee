@@ -29,6 +29,7 @@ export interface UseGuestProjectResult {
   createProject: (input: CreateGuestProjectInput) => Promise<GuestProject>;
   loadProject: (projectId: string) => Promise<GuestProject | null>;
   loadProjects: () => Promise<GuestProject[]>;
+  getActiveProject: () => Promise<GuestProject | null>;
   updateProject: (
     projectId: string,
     updates: Partial<CreateGuestProjectInput>
@@ -42,6 +43,40 @@ export function useGuestProject(user: User | null): UseGuestProjectResult {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
+  async function getActiveProject(): Promise<GuestProject | null> {
+    if (!user) {
+      return null;
+    }
+
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      const { data, error: fetchError } = await supabase
+        .from("projects")
+        .select("*")
+        .eq("user_id", user.id)
+        .is("archived_at", null)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      if (!data) {
+        return null;
+      }
+
+      const activeProject = data as unknown as GuestProject;
+      setProject(activeProject);
+      return activeProject;
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   async function createProject(input: CreateGuestProjectInput): Promise<GuestProject> {
     if (!user) {
       throw new Error("Anonymous Auth session is required to create a guest project");
@@ -51,6 +86,46 @@ export function useGuestProject(user: User | null): UseGuestProjectResult {
     setIsLoading(true);
 
     try {
+      const existing = await getActiveProject();
+      if (existing) {
+        const updates: Record<string, unknown> = {};
+        if (input.cadastralId && existing.cadastral_id !== input.cadastralId) {
+          updates.cadastral_id = input.cadastralId;
+        }
+        if (input.intentCode !== undefined && existing.intent_code !== input.intentCode) {
+          updates.intent_code = input.intentCode;
+        }
+        if (
+          input.parcelSnapshotId !== undefined &&
+          existing.current_parcel_snapshot_id !== input.parcelSnapshotId
+        ) {
+          updates.current_parcel_snapshot_id = input.parcelSnapshotId;
+        }
+        if (Object.keys(updates).length > 0) {
+          const { data: updated, error: updateError } = await supabase
+            .from("projects")
+            .update(updates)
+            .eq("id", existing.id)
+            .select()
+            .single();
+
+          if (updateError) {
+            throw updateError;
+          }
+
+          if (!updated) {
+            throw new Error("Failed to update guest project: no data returned");
+          }
+
+          const refreshed = updated as unknown as GuestProject;
+          setProject(refreshed);
+          setProjects((prev) => prev.map((p) => (p.id === refreshed.id ? refreshed : p)));
+          return refreshed;
+        }
+
+        return existing;
+      }
+
       const { data, error: insertError } = await supabase
         .from("projects")
         .insert({
@@ -220,6 +295,7 @@ export function useGuestProject(user: User | null): UseGuestProjectResult {
     createProject,
     loadProject,
     loadProjects,
+    getActiveProject,
     updateProject,
     archiveProject,
   };

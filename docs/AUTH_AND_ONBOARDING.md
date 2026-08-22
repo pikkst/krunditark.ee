@@ -1,6 +1,6 @@
 # Authentication and Onboarding — Krunditark
 
-Last product review: **2026-08-21**
+Last product review: **2026-08-22**
 
 ## 1. Decision
 

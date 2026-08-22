@@ -1,6 +1,6 @@
 # API Specification — Krunditark
 
-Last contract review: **2026-08-21**
+Last contract review: **2026-08-22**
 
 This document defines Krunditark-owned client/server contracts. Physical deployment may use multiple Supabase Edge Functions and RLS-protected Data API calls, but the frontend must not consume provider-specific WFS/EHR/Gemini/payment payloads as product contracts.
 

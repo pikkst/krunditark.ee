@@ -360,20 +360,20 @@ This does not replace the broader KT-136 beta suite; KT-136 extends it.
 
 Tracked by issue #48. Read ADR 0006 and ADR 0009.
 
-- [ ] public parcel discovery/free overview does not require permanent identity.
-- [ ] create/reuse Supabase anonymous Auth when stateful proposal work begins.
-- [ ] create/reuse owner-scoped guest project through normal RLS.
-- [ ] persist/reference selected parcel + canonical intent in project state.
-- [ ] anonymous A cannot access anonymous B project/proposals.
-- [ ] guest project/proposal creation is bounded.
-- [ ] route + locale change preserves active project/draft.
-- [ ] browser back/forward and refresh/recovery behavior is deterministic/documented.
-- [ ] repeated route/retry behavior does not create uncontrolled duplicate guest projects.
-- [ ] no browser service-role/shared-identity bypass.
+- [x] public parcel discovery/free overview does not require permanent identity.
+- [x] create/reuse Supabase anonymous Auth when stateful proposal work begins.
+- [x] create/reuse owner-scoped guest project through normal RLS.
+- [x] persist/reference selected parcel + canonical intent in project state.
+- [x] anonymous A cannot access anonymous B project/proposals.
+- [x] guest project/proposal creation is bounded.
+- [x] route + locale change preserves active project/draft.
+- [x] browser back/forward and refresh/recovery behavior is deterministic/documented.
+- [x] repeated route/retry behavior does not create uncontrolled duplicate guest projects.
+- [x] no browser service-role/shared-identity bypass.
 
 **Detailed DoD:** `docs/PHASE_4_IMPLEMENTATION_GUIDE.md` → KT-039.
 
-Permanent email OTP/Google account conversion remains in Phase 11.
+Permanent email OTP/Google account conversion remains in Phase 11. Phase 11 hardening/recovery work is tracked by KT-110 and KT-111.
 
 ---
 

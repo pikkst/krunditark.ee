@@ -5,9 +5,47 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import i18n from "../../lib/i18n";
 import { getAddressSearchCache } from "../../lib/api/address-search";
 import LandingPage from "./LandingPage";
+import { ProjectStateProvider } from "../../features/project-state";
+import { useGuestProject } from "../../lib/supabase/guest-project";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mockUser = { id: "user-1", is_anonymous: true } as any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mockSession = { user: mockUser } as any;
+const mockProject = {
+  id: "project-1",
+  user_id: "user-1",
+  name: "Uus projekt",
+  cadastral_id: "123456789012",
+  current_parcel_snapshot_id: null,
+  intent_code: "build",
+  created_at: "2026-08-22T00:00:00Z",
+  updated_at: "2026-08-22T00:00:00Z",
+  archived_at: null,
+};
+
+vi.mock("../../lib/supabase/anonymous-auth", () => ({
+  useAnonymousAuth: () => ({
+    user: mockUser,
+    isLoading: false,
+    signInAnonymously: vi.fn().mockResolvedValue(mockUser),
+    isAnonymous: true,
+    session: mockSession,
+    error: null,
+  }),
+}));
+
+vi.mock("../../lib/supabase/guest-project", () => ({
+  useGuestProject: vi.fn(),
+  createGuestProject: vi.fn(),
+}));
 
 function renderWithI18n(ui: React.ReactElement) {
-  return render(<I18nextProvider i18n={i18n}>{ui}</I18nextProvider>);
+  return render(
+    <I18nextProvider i18n={i18n}>
+      <ProjectStateProvider>{ui}</ProjectStateProvider>
+    </I18nextProvider>
+  );
 }
 
 describe("LandingPage", () => {
@@ -18,6 +56,18 @@ describe("LandingPage", () => {
       "http://127.0.0.1:54321";
     fetchSpy = vi.spyOn(globalThis, "fetch");
     getAddressSearchCache().clear();
+    vi.mocked(useGuestProject).mockReturnValue({
+      project: null,
+      projects: [],
+      isLoading: false,
+      error: null,
+      createProject: vi.fn().mockResolvedValue(mockProject),
+      loadProject: vi.fn().mockResolvedValue(null),
+      loadProjects: vi.fn().mockResolvedValue([]),
+      getActiveProject: vi.fn().mockResolvedValue(null),
+      updateProject: vi.fn(),
+      archiveProject: vi.fn(),
+    });
   });
 
   afterEach(() => {
@@ -277,5 +327,189 @@ describe("LandingPage", () => {
 
     expect(await screen.findByRole("heading", { name: "Test address" })).toBeDefined();
     expect(screen.getByText("Mida soovid selle krundiga teha?")).toBeDefined();
+  });
+
+  it("renders intent buttons in parcel overview", async () => {
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          status: "resolved",
+          candidates: [
+            {
+              id: "CP:12345:678:9012",
+              cadastralId: "123456789012",
+              geometry: {
+                type: "Polygon",
+                coordinates: [
+                  [
+                    [0, 0],
+                    [1, 0],
+                    [1, 1],
+                    [0, 1],
+                    [0, 0],
+                  ],
+                ],
+              },
+              geometryCrs: "EPSG:3301",
+              facts: {
+                areaM2Computed: 10000,
+                addressText: "Test address",
+              },
+              source: {
+                sourceId: "maru.cadastre.parcels.inspire",
+                sourceDatasetVersionId: "2026-08-16",
+                sourceSyncRunId: "sync-1",
+                sourceObjectId: "obj-1",
+                normalizerVersion: "1",
+                retrievedAt: "2026-08-16T00:00:00Z",
+              },
+              freshnessState: "fresh",
+              contentHash: "hash-1",
+            },
+          ],
+        }),
+    } as unknown as Response);
+
+    renderWithI18n(<LandingPage />);
+    const input = screen.getByLabelText("Aadress või katastritunnus");
+    await userEvent.type(input, "12345:678:9012");
+    await userEvent.click(screen.getByRole("button", { name: "Otsi" }));
+
+    expect(await screen.findByRole("heading", { name: "Test address" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Uue hoone ehitus" })).toBeDefined();
+  });
+
+  it("bootstraps guest project when intent is selected after parcel resolution", async () => {
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          status: "resolved",
+          candidates: [
+            {
+              id: "CP:12345:678:9012",
+              cadastralId: "123456789012",
+              geometry: {
+                type: "Polygon",
+                coordinates: [
+                  [
+                    [0, 0],
+                    [1, 0],
+                    [1, 1],
+                    [0, 1],
+                    [0, 0],
+                  ],
+                ],
+              },
+              geometryCrs: "EPSG:3301",
+              facts: {
+                areaM2Computed: 10000,
+                addressText: "Test address",
+              },
+              source: {
+                sourceId: "maru.cadastre.parcels.inspire",
+                sourceDatasetVersionId: "2026-08-16",
+                sourceSyncRunId: "sync-1",
+                sourceObjectId: "obj-1",
+                normalizerVersion: "1",
+                retrievedAt: "2026-08-16T00:00:00Z",
+              },
+              freshnessState: "fresh",
+              contentHash: "hash-1",
+            },
+          ],
+        }),
+    } as unknown as Response);
+
+    renderWithI18n(<LandingPage />);
+    const input = screen.getByLabelText("Aadress või katastritunnus");
+    await userEvent.type(input, "12345:678:9012");
+    await userEvent.click(screen.getByRole("button", { name: "Otsi" }));
+
+    expect(await screen.findByRole("heading", { name: "Test address" })).toBeDefined();
+
+    await userEvent.click(screen.getByRole("button", { name: "Uue hoone ehitus" }));
+
+    const { createGuestProject } = await import("../../lib/supabase/guest-project");
+    expect(createGuestProject).toHaveBeenCalledWith(
+      expect.objectContaining({ is_anonymous: true }),
+      {
+        cadastralId: "123456789012",
+        intentCode: "build",
+      }
+    );
+  });
+
+  it("recovers project state after simulated refresh", async () => {
+    sessionStorage.setItem(
+      "krunditark_project_state",
+      JSON.stringify({
+        projectId: "project-1",
+        parcel: {
+          id: "parcel-1",
+          cadastralId: "123456789012",
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [0, 0],
+                [1, 0],
+                [1, 1],
+                [0, 1],
+                [0, 0],
+              ],
+            ],
+          },
+          geometryCrs: "EPSG:3301",
+          facts: {
+            areaM2Computed: 10000,
+            addressText: "Test address",
+          },
+          source: {
+            sourceId: "test",
+            sourceDatasetVersionId: "2026-08-16",
+            sourceSyncRunId: "sync-1",
+            normalizerVersion: "1",
+            retrievedAt: "2026-08-16T00:00:00Z",
+          },
+          freshnessState: "fresh",
+          contentHash: "hash-1",
+        },
+        intent: "build",
+      })
+    );
+
+    const loadProjectMock = vi.fn().mockResolvedValue(mockProject);
+    vi.mocked(useGuestProject).mockReturnValue({
+      project: null,
+      projects: [],
+      isLoading: false,
+      error: null,
+      createProject: vi.fn().mockResolvedValue(mockProject),
+      loadProject: loadProjectMock,
+      loadProjects: vi.fn().mockResolvedValue([]),
+      getActiveProject: vi.fn().mockResolvedValue(null),
+      updateProject: vi.fn(),
+      archiveProject: vi.fn(),
+    });
+
+    const { unmount } = renderWithI18n(<LandingPage />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(loadProjectMock).toHaveBeenCalledWith("project-1");
+
+    unmount();
+
+    renderWithI18n(<LandingPage />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(loadProjectMock).toHaveBeenCalledTimes(2);
   });
 });

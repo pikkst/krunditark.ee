@@ -3,7 +3,8 @@ export type AddressSearchErrorCode =
   | "ADDRESS_SEARCH_UNAVAILABLE"
   | "UPSTREAM_ERROR"
   | "PARSE_ERROR"
-  | "NETWORK_ERROR";
+  | "NETWORK_ERROR"
+  | "REQUEST_BUDGET_EXCEEDED";
 
 export interface AddressSearchError {
   code: AddressSearchErrorCode;

@@ -1,6 +1,6 @@
 # Roadmap — Krunditark
 
-Last comprehensive product review: **2026-08-21**
+Last comprehensive product review: **2026-08-22**
 
 The roadmap covers the full Estonia-first product, not only MVP. `TASKS.md` is the current ordered engineering backlog; `PRODUCT_EXPANSION_BACKLOG.md` holds post-core initiatives until they are promoted.
 

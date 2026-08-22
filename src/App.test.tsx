@@ -1,9 +1,25 @@
-/// <reference types="vitest" />
 import { render, screen, cleanup } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import App from "./App";
 
+vi.mock("./lib/supabase/anonymous-auth", () => ({
+  useAnonymousAuth: () => ({
+    session: null,
+    user: null,
+    isLoading: false,
+    error: null,
+    signInAnonymously: vi.fn(),
+    signOut: vi.fn(),
+    isAnonymous: false,
+  }),
+}));
+
 describe("App", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   afterEach(() => {
     cleanup();
   });

@@ -15,6 +15,7 @@ const migrationFiles = [
   "20260815000008_create_internal_audit_model.sql",
   "20260815000009_add_intent_code_to_projects.sql",
   "20260815000010_create_parcel_snapshots.sql",
+  "20260822000001_enforce_guest_project_limit.sql",
 ];
 
 const migrations = migrationFiles.map((file) => {

@@ -1,25 +1,46 @@
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import ParcelSearch from "../parcel-search/ParcelSearch";
 import ParcelOverview from "../parcel-overview/ParcelOverview";
-import type { Parcel } from "../../domain/parcel/types";
+import { useProjectState } from "../project-state";
 import type { IntentCode } from "../../domain/intent/types";
 
 export default function LandingPage() {
   const { t } = useTranslation();
-  const [selectedParcel, setSelectedParcel] = useState<Parcel | null>(null);
+  const {
+    selectedParcel,
+    setSelectedParcel,
+    ensureProject,
+    isBootstrapping,
+    bootstrapError,
+    clearProject,
+  } = useProjectState();
 
-  const handleIntentSelected = (code: IntentCode) => {
-    console.log("Intent selected:", code, "for parcel:", selectedParcel?.cadastralId);
+  const handleIntentSelected = async (code: IntentCode) => {
+    if (!selectedParcel) return;
+    try {
+      await ensureProject(selectedParcel, code);
+    } catch {
+      // bootstrapError is set in ProjectStateProvider
+    }
   };
 
   if (selectedParcel) {
     return (
       <main style={{ maxWidth: "720px", margin: "0 auto", padding: "2rem 1rem" }}>
         <ParcelOverview parcel={selectedParcel} onIntentSelected={handleIntentSelected} />
+        {isBootstrapping && (
+          <p style={{ marginTop: "0.5rem", color: "#6b7280" }}>
+            {t("parcelOverview.savingProject")}
+          </p>
+        )}
+        {bootstrapError && (
+          <p style={{ marginTop: "0.5rem", color: "#dc2626" }}>{bootstrapError.message}</p>
+        )}
         <button
           type="button"
-          onClick={() => setSelectedParcel(null)}
+          onClick={() => {
+            clearProject();
+          }}
           style={{
             marginTop: "1.5rem",
             padding: "0.5rem 1rem",

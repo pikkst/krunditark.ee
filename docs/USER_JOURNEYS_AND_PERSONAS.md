@@ -1,6 +1,6 @@
 # User Journeys and Personas — Krunditark
 
-Last product review: **2026-08-21**
+Last product review: **2026-08-22**
 
 This document defines the user problems Krunditark solves from first visit through long-term project use. It is intentionally broader than the initial MVP.
 

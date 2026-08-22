@@ -1,6 +1,6 @@
 # Architecture — Krunditark
 
-Last architecture review: **2026-08-21**
+Last architecture review: **2026-08-22**
 
 For Phase 4 implementation details also read `PHASE_4_READINESS.md`, `PHASE_4_IMPLEMENTATION_GUIDE.md`, `MAP_STACK_AND_BASEMAP.md`, ADR 0009 and ADR 0010.
 

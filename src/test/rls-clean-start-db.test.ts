@@ -17,6 +17,7 @@ const migrationFiles = [
   "20260815000008_create_internal_audit_model.sql",
   "20260815000009_add_intent_code_to_projects.sql",
   "20260815000010_create_parcel_snapshots.sql",
+  "20260822000001_enforce_guest_project_limit.sql",
 ];
 
 const migrationsSql = migrationFiles.map((file) => {
@@ -798,6 +799,85 @@ describe("RLS clean-start database regression (KT-018)", () => {
         [projectA.rows[0].id, proposalInB.rows[0].id, parcelSnapshotId, dataRelease.rows[0].id]
       )
     ).rejects.toThrow();
+  });
+
+  runTest("guest project limit applies only to anonymous users", async () => {
+    await withAdvisoryLock(client, async () => {
+      await cleanStart(client);
+    });
+
+    const anonUserId = crypto.randomUUID();
+    const permanentUserId = crypto.randomUUID();
+
+    await client.query(
+      `INSERT INTO auth.users (id, email, role, is_sso_user, is_anonymous) VALUES ($1, $2, 'authenticated', false, true), ($3, $4, 'authenticated', false, false)`,
+      [
+        anonUserId,
+        `anon-limit-${anonUserId.slice(0, 8)}@example.com`,
+        permanentUserId,
+        `permanent-limit-${permanentUserId.slice(0, 8)}@example.com`,
+      ]
+    );
+
+    for (let i = 0; i < 5; i++) {
+      await client.query(
+        `INSERT INTO public.projects (user_id, name, cadastral_id) VALUES ($1, $2, $3)`,
+        [anonUserId, `AnonProject${i}`, `11111${i}`]
+      );
+    }
+
+    await client.query("SAVEPOINT anon_overflow");
+    let overflowError: Error | null = null;
+    try {
+      await client.query(
+        `INSERT INTO public.projects (user_id, name, cadastral_id) VALUES ($1, $2, $3)`,
+        [anonUserId, "AnonProjectOverflow", "111116"]
+      );
+    } catch (err) {
+      overflowError = err as Error;
+    }
+    await client.query("ROLLBACK TO SAVEPOINT anon_overflow");
+
+    expect(overflowError).not.toBeNull();
+    expect(overflowError!.message).toContain("guest project limit exceeded");
+
+    for (let i = 0; i < 5; i++) {
+      await client.query(
+        `INSERT INTO public.projects (user_id, name, cadastral_id) VALUES ($1, $2, $3)`,
+        [permanentUserId, `PermanentProject${i}`, `22222${i}`]
+      );
+    }
+
+    await client.query(
+      `INSERT INTO public.projects (user_id, name, cadastral_id) VALUES ($1, $2, $3)`,
+      [permanentUserId, "PermanentProjectOverflow", "222226"]
+    );
+  });
+
+  runTest("guest project limit is concurrency-safe under parallel inserts", async () => {
+    await withAdvisoryLock(client, async () => {
+      await cleanStart(client);
+    });
+
+    const anonUserId = crypto.randomUUID();
+    await client.query(
+      `INSERT INTO auth.users (id, email, role, is_sso_user, is_anonymous) VALUES ($1, $2, 'authenticated', false, true)`,
+      [anonUserId, `anon-concurrent-${anonUserId.slice(0, 8)}@example.com`]
+    );
+
+    const insertPromises = [];
+    for (let i = 0; i < 10; i++) {
+      insertPromises.push(
+        client.query(
+          `INSERT INTO public.projects (user_id, name, cadastral_id) VALUES ($1, $2, $3)`,
+          [anonUserId, `ConcurrentProject${i}`, `33333${i}`]
+        )
+      );
+    }
+
+    const results = await Promise.allSettled(insertPromises);
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    expect(succeeded).toBeLessThanOrEqual(5);
   });
 });
 
